@@ -23,6 +23,10 @@ media on the local network.
 <td width="50%"><img src="screenshots/remote.png" width="50%" alt="The phone remote"><br><em>Phone remote — channel keypad, guide, volume</em></td>
 <td width="50%"><img src="screenshots/admin.png" width="100%" alt="The admin dashboard"><br><em>Setup — library stats and channel management</em></td>
 </tr>
+<tr>
+<td width="50%"><img src="screenshots/weather.png" width="100%" alt="The generated Local Weather channel"><br><em>Local Weather — live NWS forecast, narrated, generated on-device</em></td>
+<td width="50%"><img src="screenshots/news.png" width="100%" alt="The generated Local News channel"><br><em>Local News — live local headlines with photos, narrated, generated on-device</em></td>
+</tr>
 </table>
 
 ## Features
@@ -46,6 +50,12 @@ media on the local network.
 - **Automatic metadata** — episode titles, descriptions, and artwork are
   backfilled from TVMaze in the background; everything still works offline
   from filenames alone.
+- **Live Weather and News channels** — real local forecast (NWS) and local
+  news headlines, narrated by a natural neural voice and generated entirely
+  on-device as actual video files every 30 minutes: one continuous ~30-minute
+  block per cycle, then a commercial break, just like a real local channel.
+- **Auto-created channels** — any show with enough episodes and no channel of
+  its own yet gets one automatically as your library grows.
 
 ## Requirements
 
@@ -53,6 +63,11 @@ media on the local network.
   Linux host if you only need browser streaming
 - Python 3.9+
 - [mpv](https://mpv.io/), `ffmpeg`/`ffprobe`
+- `chromium` (headless) — only needed for the Weather/News channels; it's how
+  their cards are rendered
+- Internet access for TVMaze/OMDb metadata and the Weather/News channels
+  (Microsoft Edge TTS, NWS, and your chosen local news RSS feed all require
+  connectivity — everything else works fully offline)
 - Your media organized under a root directory as:
   ```
   media/
@@ -106,6 +121,11 @@ All paths, the timezone, and the port live in `config.py`. Notable settings:
 | `TIMEZONE` | Timezone used for schedule days (default `America/New_York`) |
 | `SCHEDULE_DAYS_AHEAD` | How many days of schedule to keep generated per channel |
 | `RETRO_TV_AUDIO_DEVICE` (env var) | Overrides automatic HDMI audio device discovery |
+| `OMDB_API_KEY` (env var) | Free key from omdbapi.com; enables movie genre channels |
+| `WEATHER_ZIP` (env var) | ZIP code for the Local Weather channel (default `12308`) |
+| `NEWS_RSS_URL` (env var) | RSS feed for the Local News channel (default a Capital Region NY station) |
+| `TTS_VOICE_WEATHER` / `TTS_VOICE_NEWS` (env vars) | Edge TTS voice names for each channel |
+| `LIVE_CONTENT_REFRESH_SEC` | How often Weather/News regenerate (default 1800 = 30 min) |
 
 ## Service management (installed via `install.sh`)
 
@@ -128,11 +148,13 @@ touch real media or the production database.
 
 Module responsibilities, in the order data flows: `scanner.py` walks your
 media and parses show/episode info from filenames; `metadata.py` backfills
-descriptions/genre/artwork from TVMaze and OMDb; `scheduler.py` builds the
-per-channel lineups and commercial rotation; `streaming.py`/`playback.py`
-serve the browser and HDMI outputs respectively; `tvguide.py` draws the
-on-TV guide and channel-change banner as an mpv overlay; `app.py` ties it
-together with the Flask routes and the background maintenance loop.
+descriptions/genre/artwork from TVMaze and OMDb; `livecontent.py` builds the
+Weather/News channels from live data into real narrated video files;
+`scheduler.py` builds the per-channel lineups and commercial rotation;
+`streaming.py`/`playback.py` serve the browser and HDMI outputs respectively;
+`tvguide.py` draws the on-TV guide and channel-change banner as an mpv
+overlay; `app.py` ties it together with the Flask routes and the background
+maintenance loop.
 
 ## Notes on hardware
 

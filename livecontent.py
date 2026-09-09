@@ -90,10 +90,17 @@ def _tts(text, voice, out_mp3):
 
 
 def _mux(image_path, audio_path, out_mp4):
+    # -shortest is unreliable here: with a looped still image + an edge-tts mp3,
+    # it has been observed to let the video run to some other (wrong) length
+    # entirely disconnected from the audio's real duration -- sometimes far
+    # longer (card lingers silently), sometimes shorter (narration cut off
+    # mid-sentence). Measuring the audio first and dictating -t explicitly
+    # sidesteps whatever duration-estimation quirk causes that.
+    audio_duration = scanner.probe_info(audio_path)["duration"] or 4.0
     subprocess.run(
         ["ffmpeg", "-y", "-loop", "1", "-i", image_path, "-i", audio_path,
          "-c:v", "libx264", "-tune", "stillimage", "-r", "2", "-pix_fmt", "yuv420p",
-         "-c:a", "aac", "-b:a", "128k", "-shortest", out_mp4],
+         "-c:a", "aac", "-b:a", "128k", "-t", f"{audio_duration + 0.3:.2f}", out_mp4],
         check=True, capture_output=True, timeout=180)
 
 
@@ -105,16 +112,23 @@ def _build_loop(card_mp4s, out_path, target_seconds):
     pass_seconds = sum(durations)
     repeats = max(1, round(target_seconds / pass_seconds)) if pass_seconds else 1
     list_path = out_path + ".concat.txt"
+    tmp_path = out_path + ".building.mp4"
     with open(list_path, "w") as f:
         for _ in range(repeats):
             for p in card_mp4s:
                 f.write(f"file '{os.path.abspath(p)}'\n")
     try:
         subprocess.run(
-            ["ffmpeg", "-y", "-f", "concat", "-safe", "0", "-i", list_path, "-c", "copy", out_path],
+            ["ffmpeg", "-y", "-f", "concat", "-safe", "0", "-i", list_path, "-c", "copy", tmp_path],
             check=True, capture_output=True, timeout=300)
+        # atomic swap: mpv may have out_path open for reading from a still-airing
+        # previous cycle, and a rename can't hand it a half-written file the way
+        # writing straight into out_path could.
+        os.replace(tmp_path, out_path)
     finally:
         os.unlink(list_path)
+        if os.path.exists(tmp_path):
+            os.unlink(tmp_path)
     return pass_seconds * repeats
 
 
