@@ -1,0 +1,14 @@
+{% extends "base.html" %}{% block title %}TV Guide · RETRO-TV{% endblock %}
+{% block bodyclass %}guide-page{% endblock %}
+{% block body %}
+<div class="page-heading"><div><p class="eyebrow">WHAT'S ON YOUR CABLE</p><h1>TV Guide</h1></div><span class="guide-date" id="guideDate"></span></div>
+<section class="guide-shell">
+<div class="guide-masthead"><span>RETRO<span class="guide-word">GUIDE</span></span><div class="guide-screen-actions"><span id="guideClock"></span><button class="ghost" onclick="guideFullscreen()" aria-label="Enter fullscreen">⛶ FULLSCREEN</button><a class="btn ghost" href="/remote">REMOTE</a><a class="btn ghost" href="/watch">▶ TV</a></div></div>
+<div class="detail" id="detail"><div><p class="eyebrow" id="dMeta">PROGRAM INFORMATION</p><h2 id="dTitle">Loading your lineup…</h2><div id="dBody"></div></div><div id="dActions" class="btnrow"></div></div>
+<div class="guide-toolbar"><div class="btnrow"><button id="tvGuideToggle" class="ghost" onclick="toggleTVGuide()">Show on TV</button><button class="ghost" onclick="moveT(-1)" aria-label="Earlier programs">&larr; Earlier</button><button onclick="resetT()">● Now</button><button class="ghost" onclick="moveT(1)" aria-label="Later programs">Later &rarr;</button></div><span id="guideStatus" role="status">Select a program to see details</span></div>
+<div class="guide-grid" id="grid" tabindex="0" aria-label="Program guide: use arrow keys to select, Enter to tune your TV"></div>
+<div class="guide-pad btnrow" id="guidePad" hidden><button class="ghost" onclick="moveCh(-1)" aria-label="Previous guide channel">↑</button><button class="ghost" onclick="moveCell(-1)" aria-label="Previous program">←</button><button onclick="playOnTV()">TUNE TV</button><button class="ghost" onclick="moveCell(1)" aria-label="Next program">→</button><button class="ghost" onclick="moveCh(1)" aria-label="Next guide channel">↓</button></div>
+<div class="guide-bottom"><span><b>ENTER</b> Tune TV &nbsp; <b>← ↑ ↓ →</b> Browse</span><span>All times local · <span id="guideZone"></span></span></div>
+</section>
+{% endblock %}
+{% block js %}<script src="/static/js/guide.js?v=3"></script>{% endblock %}

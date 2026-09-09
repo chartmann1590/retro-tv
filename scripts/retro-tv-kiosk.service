@@ -1,0 +1,16 @@
+[Unit]
+Description=Retro TV kiosk (Chromium fullscreen TV UI)
+After=retro-tv.service wayland-session.target
+Wants=retro-tv.service
+
+[Service]
+Type=simple
+ExecStartPre=/bin/sh -c 'until curl -sf http://127.0.0.1:5000/api/channels >/dev/null 2>&1; do sleep 2; done'
+ExecStart=/usr/bin/chromium --kiosk --noerrdialogs --disable-infobars --autoplay-policy=no-user-gesture-required --start-fullscreen http://127.0.0.1:5000/
+Restart=always
+RestartSec=5
+Environment=XDG_RUNTIME_DIR=/run/user/1000
+Environment=WAYLAND_DISPLAY=wayland-0
+
+[Install]
+WantedBy=default.target

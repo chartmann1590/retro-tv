@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#101722">
+<title>{% block title %}RETRO-TV · Cable Television{% endblock %}</title>
+<link rel="stylesheet" href="/static/css/retro.css?v=4">
+</head>
+<body class="{% block bodyclass %}{% endblock %}">
+<header class="topbar">
+<a class="brand" href="/"><span class="brand-mark">R<span>TV</span></span><span>RETRO<span class="brand-sub">CABLE TELEVISION</span></span></a>
+<nav class="nav" aria-label="Main navigation">
+<a href="/" class="{{'on' if request.path=='/' else ''}}">Receiver</a>
+<a href="/guide" class="{{'on' if request.path.startswith('/guide') else ''}}">TV Guide</a>
+<a href="/remote" class="{{'on' if request.path.startswith('/remote') else ''}}">Remote</a>
+<a href="/watch" class="{{'on' if request.path.startswith('/watch') else ''}}">Watch</a>
+<a href="/admin" class="{{'on' if request.path.startswith('/admin') else ''}}">Setup</a>
+</nav><time class="clock" id="clock"></time>
+</header>
+<main class="wrap">{% block body %}{% endblock %}</main>
+<footer class="footer"><span><i class="led"></i> RETRO-TV CABLE SYSTEM</span><span>YOUR CHANNELS. ALWAYS ON.</span></footer>
+<div id="notice" class="notice" role="status" aria-live="polite" hidden></div>
+<script>window.TV_TIMEZONE={{config_timezone|default('America/New_York')|tojson}};</script>
+<script src="/static/js/common.js?v=3"></script>
+{% block js %}{% endblock %}
+</body></html>

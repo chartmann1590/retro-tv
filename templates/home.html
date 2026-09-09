@@ -1,0 +1,20 @@
+{% extends "base.html" %}
+{% block body %}
+<div class="page-heading"><div><p class="eyebrow">THE GOOD CHANNELS ARE STILL HERE</p><h1>Your living room. Tuned in.</h1></div><a class="text-link" href="/guide">Browse the guide &rarr;</a></div>
+<section class="receiver" aria-label="Cable receiver">
+<div class="receiver-top"><span>RETRO-TV</span><span>DIGITAL CABLE RECEIVER &nbsp; / &nbsp; RT-04</span></div>
+<div class="receiver-face">
+<div class="receiver-label"><i class="led"></i> CABLE<br><small>STEREO · HDMI</small></div>
+<div class="receiver-display"><span class="display-caption">CHANNEL</span><strong id="channelDisplay">{{'%03d'|format(current) if current else '---'}}</strong><span id="signal">CONNECTING</span></div>
+<div class="receiver-controls"><button class="round-key" onclick="chDelta(1)" aria-label="Channel up">+</button><span>CHANNEL</span><button class="round-key" onclick="chDelta(-1)" aria-label="Channel down">−</button></div>
+</div><div class="receiver-vents"></div>
+</section>
+<section class="panel now-show"><div class="section-label"><span><i class="led"></i> ON YOUR TV</span><span id="programTime">LIVE TELEVISION</span></div>
+<h2 id="programTitle">Tuning in…</h2><p id="programSubtitle" class="program-subtitle"></p><p id="programDescription" class="explain"></p>
+<div class="progress"><div id="programProgress"></div></div>
+<div class="btnrow"><a class="btn" href="/guide">TV GUIDE</a><a class="btn ghost" href="/remote">OPEN REMOTE</a><button class="ghost" onclick="prevCh()">LAST CHANNEL</button><button class="ghost" onclick="tvApi('/api/info',{})">INFO ON TV</button><a class="text-link" href="/watch">Watch on this device &rarr;</a></div></section>
+<div class="home-columns"><section class="panel"><div class="section-label">YOUR CHANNEL LINEUP</div><div class="channel-list">
+{% for c in channels %}<button class="channel-choice ghost" data-channel="{{c.number}}" onclick="tuneHDMI({{c.number}})"><span class="channel-number">{{'%02d'|format(c.number)}}</span><span>{{c.name}}</span><span class="channel-arrow">&rsaquo;</span></button>{% else %}<p>Add channels in <a href="/admin">Setup</a> to get started.</p>{% endfor %}
+</div></section><section class="panel phone-card"><p class="eyebrow">PASS THE REMOTE</p><h2>Your phone is the remote.</h2><p class="explain">Connect to the same Wi-Fi, then open this address on your phone.</p><a id="remoteAddress" class="remote-address" href="{{remote_url}}">{{remote_url}}</a><p class="hint">Channel surfing, volume, last channel, and the complete TV guide.</p></section></div>
+{% endblock %}
+{% block js %}<script src="/static/js/tv.js?v=3"></script>{% endblock %}

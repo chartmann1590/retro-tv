@@ -1,0 +1,20 @@
+{% extends "base.html" %}{% block title %}Remote Control · RETRO-TV{% endblock %}
+{% block bodyclass %}remote-page{% endblock %}
+{% block body %}
+<div class="remote-layout"><section class="remote-handset">
+<div class="remote-brand">RETRO<span>TV</span><small>UNIVERSAL CABLE REMOTE</small></div>
+<div class="remote-screen" aria-live="polite"><div class="remote-screen-top"><span id="connection">CONNECTING</span><span id="ncLive">TV</span></div><div class="remote-screen-main"><strong id="ncCh">--</strong><div><div id="ncTitle">Connecting to receiver…</div><div id="ncSub"></div></div></div><div class="remote-screen-bottom"><span id="vol">VOL --</span><span id="digitDisplay"></span></div></div>
+<div class="rrow"><button id="guideButton" class="guide-key" onclick="openGuide()">GUIDE</button><button class="ghost" onclick="showInfo()">INFO</button><button class="ghost" onclick="prevCh()">LAST</button></div>
+<div class="dpad" aria-label="Guide navigation">
+<span></span><button onclick="dpadUp()" aria-label="Guide up / channel up">▲</button><span></span>
+<button onclick="dpadLeft()" aria-label="Previous program">◀</button><button class="dpad-ok" onclick="dpadOk()" aria-label="Select">OK</button><button onclick="dpadRight()" aria-label="Next program">▶</button>
+<span></span><button onclick="dpadDown()" aria-label="Guide down / channel down">▼</button><span></span>
+</div>
+<div id="rinfo" class="rinfo" hidden></div>
+<div class="rocker-row"><div class="rocker"><button onclick="volStep(5)" aria-label="Volume up">+</button><span>VOL</span><button onclick="volStep(-5)" aria-label="Volume down">−</button></div><div class="remote-center"><span class="cable-seal">CABLE<br><b>TV</b></span><button id="muteButton" class="ghost" aria-pressed="false" onclick="muteToggle()">MUTE</button></div><div class="rocker"><button onclick="chStep(1)" aria-label="Channel up">+</button><span>CH</span><button onclick="chStep(-1)" aria-label="Channel down">−</button></div></div>
+<div class="rgrid" id="digits" aria-label="Channel number keypad"></div>
+<div class="rrow"><button id="pauseButton" class="ghost" onclick="pauseToggle()">Ⅱ PAUSE</button><button class="ghost" onclick="goLive()">● LIVE TV</button></div>
+<p class="remote-footnote">RT-04 · LIVING ROOM RECEIVER</p>
+</section><section class="remote-lineup"><p class="eyebrow">ONE REMOTE. ALL YOUR FAVORITES.</p><h1>Take control.</h1><p class="explain">Choose a channel. Settle into the sofa.<br>Every button controls your television.</p><h2 class="section-label">QUICK TUNE</h2><div class="channel-list" id="chlist"></div></section></div>
+{% endblock %}
+{% block js %}<script src="/static/js/remote.js?v=4"></script>{% endblock %}

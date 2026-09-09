@@ -1,0 +1,4 @@
+#!/bin/bash
+# mpv wrapper: user-local libs
+export LD_LIBRARY_PATH="$HOME/retro-tv/mpv-local/usr/lib/aarch64-linux-gnu:${LD_LIBRARY_PATH}"
+exec "$HOME/retro-tv/mpv-local/usr/bin/mpv" "$@"

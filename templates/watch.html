@@ -1,0 +1,17 @@
+{% extends "base.html" %}{% block title %}Live TV · RETRO-TV{% endblock %}
+{% block bodyclass %}watch-page{% endblock %}
+{% block body %}
+<div class="tv watch-screen" id="tvwrap" tabindex="0" aria-label="Live television player">
+<video id="v" autoplay playsinline {% if current %}src="/stream/live/{{current}}"{% endif %}></video>
+<div class="watch-top watch-controls"><a class="watch-logo" href="/">RETRO<span>TV</span></a><span class="watch-live">● LIVE CABLE</span><a class="btn ghost" href="/guide">TV GUIDE</a><button class="ghost" onclick="goFS()" aria-label="Enter fullscreen">⛶ FULLSCREEN</button></div>
+<div class="osd" id="osd"></div>
+<button id="playPrompt" class="play-prompt" hidden onclick="startWatching()">▶ WATCH LIVE TV</button>
+<div class="watch-bottom watch-controls"><div class="watch-program" id="now" role="status">Tuning in…</div><div class="progress"><div id="bar"></div></div><div class="btnrow">
+<button class="ghost" onclick="step(-1)" aria-label="Previous channel">CH −</button><button class="ghost" onclick="step(1)" aria-label="Next channel">CH +</button>
+<button class="ghost" id="watchPause" onclick="togglePause()">Ⅱ PAUSE</button><button class="ghost" id="watchMute" onclick="toggleMute()">MUTE</button>
+<button class="ghost" onclick="location.reload()">● LIVE</button><button class="ghost" onclick="playOnTV()">PLAY ON TV</button><a class="text-link" href="/remote">Remote</a>
+</div></div>
+</div>
+{% endblock %}
+{% block js %}<script src="/static/js/player.js?v=4"></script>
+<script>initPlayer({{current|tojson}}, {{offset or 0}}, true);</script>{% endblock %}
