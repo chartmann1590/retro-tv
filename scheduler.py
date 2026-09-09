@@ -363,8 +363,12 @@ def guide_data(start_ts=None, hours=4):
     try:
         out = []
         for ch in channels:
-            rows = [dict(r) for r in con.execute("""SELECT * FROM schedule_entries WHERE channel_number=?
-                AND end_ts>? AND start_ts<? ORDER BY start_ts""", (ch["number"], start_ts, end_ts))]
+            rows = [dict(r) for r in con.execute("""SELECT se.*, COALESCE(e.artwork, mo.artwork, '') AS artwork
+                FROM schedule_entries se
+                LEFT JOIN episodes e ON e.media_id = se.media_id
+                LEFT JOIN movies mo ON mo.media_id = se.media_id
+                WHERE se.channel_number=? AND se.end_ts>? AND se.start_ts<? ORDER BY se.start_ts""",
+                (ch["number"], start_ts, end_ts))]
             out.append({"channel": ch, "entries": rows})
         return out
     finally:

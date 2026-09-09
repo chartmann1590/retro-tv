@@ -59,9 +59,11 @@ function showDetail(){
   clearTimeout(overlayTimer);
   if(tvGuideVisible)overlayTimer=setTimeout(syncTVGuide,120);
   const {row,e}=curSel();
-  if(!e){document.getElementById('dTitle').textContent='No programs in this time window';document.getElementById('dBody').textContent='Try Now or choose another channel.';document.getElementById('dActions').innerHTML='';return;}
+  if(!e){document.getElementById('dTitle').textContent='No programs in this time window';document.getElementById('dBody').textContent='Try Now or choose another channel.';document.getElementById('dActions').innerHTML='';document.getElementById('dArt').hidden=true;return;}
   document.getElementById('dMeta').textContent=`CHANNEL ${row.channel.number} · ${tvTime(e.start_ts)} – ${tvTime(e.end_ts)}${isLive(e)?' · ON NOW':''}`;
   document.getElementById('dTitle').textContent=e.title;
+  const art=document.getElementById('dArt');
+  if(e.artwork){art.src=e.artwork;art.alt=e.title;art.hidden=false;}else{art.hidden=true;art.removeAttribute('src');}
   document.getElementById('dBody').innerHTML=`<div class="dsub">${esc(e.subtitle)}</div><p>${esc(e.description||'Your favorites, right where you left the dial.')}</p>`;
   document.getElementById('dActions').innerHTML=isLive(e)&&e.kind!=='slate'?`<button onclick="playOnTV()">▶ TUNE TV</button><a class="text-link" href="/watch/${row.channel.number}">Watch here &rarr;</a>`:'<span class="hint">'+(e.kind==='slate'?'Off air':e.start_ts>now()?'Coming up next':'Previously aired')+'</span>';
 }
