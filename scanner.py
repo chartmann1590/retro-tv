@@ -72,7 +72,9 @@ def parse_movie(relpath):
     fname = os.path.splitext(parts[-1])[0]
     # A per-movie subfolder (the common "Movies/Title (Year)/file.ext" layout) names the
     # film properly even when the file inside it doesn't (rips, screen recordings, etc.).
-    parent = parts[-2] if len(parts) >= 2 else ""
+    # A file sitting directly under the Movies root has no such subfolder -- parts[-2] would
+    # otherwise resolve to "Movies" itself, which isn't a title.
+    parent = parts[-2] if len(parts) >= 2 and parts[-2] != os.path.basename(config.MOVIES_DIR) else ""
     source = parent or fname
     year = None
     m = YEAR_RE.search(source) or YEAR_RE.search(fname)

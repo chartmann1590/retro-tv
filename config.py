@@ -46,3 +46,7 @@ DEFAULT_SETTINGS = {
 
 # Optional mpv audio-device override; otherwise discover the HDMI sink.
 AUDIO_DEVICE = os.environ.get("RETRO_TV_AUDIO_DEVICE", "")
+
+# OMDb API key for movie genre/description enrichment (metadata.enrich_movies).
+# Free key from https://www.omdbapi.com/apikey.aspx; enrichment is skipped without one.
+OMDB_API_KEY = os.environ.get("OMDB_API_KEY", "")

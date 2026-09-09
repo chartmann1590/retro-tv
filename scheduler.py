@@ -74,6 +74,11 @@ def channel_pool(ch_number):
                     eps = [dict(r) for r in con.execute("SELECT e.*, m.path, m.duration FROM episodes e JOIN media_files m ON m.id=e.media_id")]
                 elif t == "all_movies":
                     mvs = [dict(r) for r in con.execute("SELECT mo.*, m.path, m.duration FROM movies mo JOIN media_files m ON m.id=mo.media_id")]
+                elif t == "genre":
+                    candidates = (dict(r) for r in con.execute(
+                        "SELECT mo.*, m.path, m.duration FROM movies mo JOIN media_files m ON m.id=mo.media_id WHERE mo.genre<>''"))
+                    mvs += [c for c in candidates
+                            if v.lower() in [g.strip().lower() for g in c["genre"].split(",")]]
                 elif t == "movie":
                     mvs += [dict(r) for r in con.execute("SELECT mo.*, m.path, m.duration FROM movies mo JOIN media_files m ON m.id=mo.media_id WHERE m.path=?", (v,))]
                 elif t == "movie_folder":

@@ -274,9 +274,10 @@ def api_scan():
     full = (request.get_json(silent=True) or {}).get("full", False)
     res = scanner.full_scan(light=not full)
     try:
-        from metadata import enrich_episodes
+        from metadata import enrich_episodes, enrich_movies
         en, fail = enrich_episodes()
-        res.update(metadata_enriched=en, metadata_failed=fail)
+        mv_en, mv_fail = enrich_movies()
+        res.update(metadata_enriched=en + mv_en, metadata_failed=fail + mv_fail)
     except Exception as e:
         res["metadata_error"] = str(e)
     try:

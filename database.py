@@ -49,6 +49,7 @@ CREATE TABLE IF NOT EXISTS movies (
   description TEXT DEFAULT '',
   runtime REAL DEFAULT 0,
   artwork TEXT DEFAULT '',
+  genre TEXT DEFAULT '',
   meta_source TEXT DEFAULT 'filename'
 );
 CREATE TABLE IF NOT EXISTS commercials (
@@ -72,7 +73,7 @@ CREATE TABLE IF NOT EXISTS channels (
 CREATE TABLE IF NOT EXISTS channel_sources (
   id INTEGER PRIMARY KEY,
   channel_number INTEGER NOT NULL REFERENCES channels(number) ON DELETE CASCADE,
-  source_type TEXT NOT NULL,  -- show|season|movie_folder|movie|commercials|all_tv|all_movies
+  source_type TEXT NOT NULL,  -- show|season|movie_folder|movie|commercials|all_tv|all_movies|genre
   source_value TEXT DEFAULT ''
 );
 CREATE INDEX IF NOT EXISTS idx_src_ch ON channel_sources(channel_number);
@@ -146,6 +147,10 @@ def init_db():
     con = connect()
     try:
         con.executescript(SCHEMA)
+        # migration: genre column added after initial release, existing DBs predate it
+        cols = {r["name"] for r in con.execute("PRAGMA table_info(movies)")}
+        if "genre" not in cols:
+            con.execute("ALTER TABLE movies ADD COLUMN genre TEXT DEFAULT ''")
         for k, v in config.DEFAULT_SETTINGS.items():
             con.execute("INSERT OR IGNORE INTO settings(key,value) VALUES(?,?)", (k, v))
         defaults = [

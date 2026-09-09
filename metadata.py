@@ -1,8 +1,9 @@
-"""Free metadata via TVMaze (TV only), cached, polite, offline-safe."""
+"""Free metadata via TVMaze (TV) and OMDb (movies), cached, polite, offline-safe."""
 import json
 import time
 import logging
 import urllib.parse
+import config
 import database
 
 log = logging.getLogger("retro-tv.metadata")
@@ -95,6 +96,82 @@ def enrich_episodes(limit=60):
                 con.execute("UPDATE episodes SET title=COALESCE(NULLIF(title,''),?), description=?, runtime=?, artwork=?, meta_source='tvmaze' WHERE id=?",
                             (ep.get("name") or row["title"], summary, (ep.get("runtime") or 30) * 60,
                              (ep.get("image") or {}).get("medium", "") if ep.get("image") else "", row["id"]))
+                con.commit()
+            finally:
+                con.close()
+            enriched += 1
+        except Exception as e:
+            log.warning("db update failed: %s", e)
+            failed += 1
+    return enriched, failed
+
+_ROMAN_PART = {"I": "1", "II": "2", "III": "3", "IV": "4", "V": "5"}
+
+def _omdb(params):
+    return _get("https://www.omdbapi.com/?apikey=" + config.OMDB_API_KEY + "&" + params)
+
+def _omdb_best_match(title, year):
+    """Exact title+year lookup, retrying with roman->arabic "Part N" and a fuzzy
+    search fallback -- OMDb's exact-title endpoint otherwise misses/mismatches
+    variants like "Part II" vs "Part 2", or picks an unrelated same-titled short."""
+    import re
+    y = f"&y={year}" if year else ""
+    candidates = [title]
+    m = re.search(r"\bPart\s+([IVX]+)$", title, re.I)
+    if m and m.group(1).upper() in _ROMAN_PART:
+        candidates.append(title[:m.start()] + "Part " + _ROMAN_PART[m.group(1).upper()])
+    for cand in candidates:
+        data = _omdb(f"t={urllib.parse.quote(cand)}{y}")
+        if data and data.get("Response") != "False" and data.get("Type") == "movie":
+            return data
+    search = _omdb(f"s={urllib.parse.quote(title)}{y}")
+    if search and search.get("Response") != "False":
+        movies = [r for r in search.get("Search", []) if r.get("Type") == "movie"]
+        if movies:
+            best = next((r for r in movies if r["Title"].lower() == title.lower()), movies[0])
+            data = _omdb(f"i={best['imdbID']}")
+            if data and data.get("Response") != "False":
+                return data
+    return None
+
+def enrich_movies(limit=60):
+    """Enrich movies missing genre via OMDb. Returns (enriched, failed). No-op without an API key."""
+    if not config.OMDB_API_KEY:
+        return 0, 0
+    con = database.connect()
+    try:
+        rows = con.execute("""SELECT id, title, year FROM movies
+            WHERE genre IS NULL OR genre='' LIMIT ?""", (limit,)).fetchall()
+        rows = [dict(r) for r in rows]
+    finally:
+        con.close()
+    enriched = failed = 0
+    for row in rows:
+        if not row["title"]:
+            failed += 1
+            continue
+        key = f"omdb:{row['title'].lower()}:{row['year'] or ''}"
+        data = cache_get(key)
+        if not data:
+            try:
+                data = _omdb_best_match(row["title"], row["year"])
+                if not data:
+                    failed += 1
+                    continue
+                cache_set(key, data)
+            except Exception as e:
+                log.warning("omdb lookup failed %s: %s", row["title"], e)
+                failed += 1
+                continue
+        try:
+            genre = data.get("Genre") or ""
+            plot = data.get("Plot") or ""
+            poster = data.get("Poster") or ""
+            con = database.connect()
+            try:
+                con.execute("""UPDATE movies SET genre=?, description=COALESCE(NULLIF(description,''),?),
+                    artwork=COALESCE(NULLIF(artwork,''),?), meta_source='omdb' WHERE id=?""",
+                    (genre, "" if plot == "N/A" else plot, "" if poster == "N/A" else poster, row["id"]))
                 con.commit()
             finally:
                 con.close()
