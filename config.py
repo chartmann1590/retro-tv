@@ -50,3 +50,9 @@ AUDIO_DEVICE = os.environ.get("RETRO_TV_AUDIO_DEVICE", "")
 # OMDb API key for movie genre/description enrichment (metadata.enrich_movies).
 # Free key from https://www.omdbapi.com/apikey.aspx; enrichment is skipped without one.
 OMDB_API_KEY = os.environ.get("OMDB_API_KEY", "")
+
+# A show with at least this many episodes and no channel of its own yet gets one
+# auto-created (scheduler.auto_create_channels, run from the periodic background scan).
+AUTO_CHANNEL_MIN_EPISODES = 10
+AUTO_CHANNEL_COLORS = ["#2e7d5b", "#1e8a8a", "#d4a017", "#c93a6b", "#7a5ab8",
+                       "#3a8a3a", "#b8543a", "#3a5ab8", "#8a1e6b", "#5a8a1e"]

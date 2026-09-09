@@ -68,6 +68,7 @@ def bg_loop():
             from metadata import enrich_episodes, enrich_movies
             enrich_episodes()
             enrich_movies()
+            scheduler.auto_create_channels()
             if time.monotonic() - last_schedule >= config.SCHEDULER_INTERVAL_SEC:
                 scheduler.ensure_schedules()
                 streaming.cleanup_hls()

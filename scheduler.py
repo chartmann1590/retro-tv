@@ -2,6 +2,7 @@
 import json
 import logging
 import random
+import re
 import sqlite3
 import hashlib
 import threading
@@ -40,6 +41,48 @@ def get_channels(enabled_only=True):
         return [dict(r) for r in con.execute(q)]
     finally:
         con.close()
+
+@serialized
+def auto_create_channels():
+    """Give any show with enough episodes and no channel of its own yet a dedicated
+    channel, matching the sequential single-show pattern used for the hand-created
+    ones. Idempotent: a show is skipped once a 'show' source for it exists anywhere."""
+    con = database.connect()
+    try:
+        counts = {r["show_name"]: r["n"] for r in con.execute(
+            "SELECT show_name, COUNT(*) n FROM episodes GROUP BY show_name")}
+        covered = {r["source_value"] for r in con.execute(
+            "SELECT source_value FROM channel_sources WHERE source_type='show'")}
+        used_numbers = [r["number"] for r in con.execute("SELECT number FROM channels")]
+        used_colors = {r["color"] for r in con.execute("SELECT color FROM channels")}
+    finally:
+        con.close()
+    created = []
+    next_num = (max(used_numbers) if used_numbers else 0) + 1
+    for show_name, n in counts.items():
+        if not show_name or show_name in covered or n < config.AUTO_CHANNEL_MIN_EPISODES:
+            continue
+        color = next((c for c in config.AUTO_CHANNEL_COLORS if c not in used_colors),
+                     config.AUTO_CHANNEL_COLORS[next_num % len(config.AUTO_CHANNEL_COLORS)])
+        used_colors.add(color)
+        display_name = re.sub(r"\s*\(\d{4}\)$", "", show_name).strip() or show_name
+        con = database.connect()
+        try:
+            con.execute("""INSERT INTO channels(number,name,enabled,color,ordering,commercial_mode,max_repeats_per_day,sort_order)
+                VALUES(?,?,1,?,?,?,?,?)""", (next_num, display_name, color, "sequential", "between", 2, next_num))
+            con.execute("INSERT INTO channel_sources(channel_number,source_type,source_value) VALUES(?,?,?)",
+                        (next_num, "show", show_name))
+            con.commit()
+        finally:
+            con.close()
+        ch = {"number": next_num, "ordering": "sequential", "commercial_mode": "between", "max_repeats_per_day": 2}
+        today = datetime.now(TZ)
+        for i in range(config.SCHEDULE_DAYS_AHEAD):
+            generate_day(ch, (today + timedelta(days=i)).strftime("%Y-%m-%d"))
+        log.info("Auto-created channel %s %r for show %r (%d episodes)", next_num, display_name, show_name, n)
+        created.append({"number": next_num, "name": display_name, "show": show_name, "episodes": n})
+        next_num += 1
+    return created
 
 def channel_pool(ch_number):
     """Return (episodes, movies, commercials_all) eligible for channel."""

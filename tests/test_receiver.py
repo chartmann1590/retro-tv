@@ -145,6 +145,29 @@ class ReceiverTests(unittest.TestCase):
             self.assertFalse(playback.tune(2)["ok"])
         self.assertEqual(database.get_state("last_channel"), "3")
 
+    def add_show_episodes(self, show_name, count):
+        with connection() as con:
+            for n in range(1, count + 1):
+                path = os.path.join(self.tmp.name, f"{show_name}-{n}.mp4")
+                with open(path, "wb") as f:
+                    f.write(b"0")
+                mid = con.execute("INSERT INTO media_files(path,duration,kind) VALUES(?,1320,'episode')", (path,)).lastrowid
+                con.execute("INSERT INTO episodes(media_id,show_name,season,episode,title) VALUES(?,?,1,?,'Episode')",
+                            (mid, show_name, n))
+
+    def test_auto_create_channel_for_new_show_above_threshold(self):
+        with patch.object(config, 'AUTO_CHANNEL_MIN_EPISODES', 5):
+            self.add_show_episodes('Big New Show', 6)
+            self.add_show_episodes('Tiny Show', 2)
+            created = scheduler.auto_create_channels()
+            self.assertEqual([c['show'] for c in created], ['Big New Show'])
+            channels = {c['name']: c for c in scheduler.get_channels(enabled_only=False)}
+            self.assertIn('Big New Show', channels)
+            self.assertNotIn('Tiny Show', channels)
+            self.assertTrue(self.entries())  # today's schedule was generated, not just the channel row
+            # idempotent: running again creates nothing new for the same show
+            self.assertEqual(scheduler.auto_create_channels(), [])
+
     def test_hdmi_selection_prefers_sink_name_over_numeric_id(self):
         import json
         result = Mock(stdout=json.dumps([{'info': {'props': {'media.class': 'Audio/Sink', 'node.name': 'alsa_output.test.hdmi-stereo'}}}]))
