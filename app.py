@@ -235,11 +235,12 @@ def api_channel_save():
         con.commit()
     finally:
         con.close()
-    # regenerate future days for this channel
+    # regenerate today (resume-only, never wipes already-aired entries) and future days
     try:
         ch = [c for c in scheduler.get_channels(enabled_only=False) if c["number"] == num]
         if ch:
             today = datetime.now(TZ)
+            scheduler.generate_day(ch[0], today.strftime("%Y-%m-%d"))
             for i in range(1, config.SCHEDULE_DAYS_AHEAD):
                 day = (today + timedelta(days=i)).strftime("%Y-%m-%d")
                 con2 = database.connect()
