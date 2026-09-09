@@ -1,5 +1,6 @@
 """Free metadata via TVMaze (TV) and OMDb (movies), cached, polite, offline-safe."""
 import json
+import re
 import time
 import logging
 import urllib.parse
@@ -58,15 +59,20 @@ def enrich_episodes(limit=60):
         show_key = f"tvmaze:show:{row['show_name'].lower()}"
         show = cache_get(show_key)
         if not show:
+            # TVMaze's search chokes on a trailing "(YYYY)" -- scanner.py appends
+            # that to show_name when a season folder's parent already has one
+            # (e.g. "Boy Meets World (1993)") to disambiguate, but TVMaze wants
+            # just the bare title; searching with the year returns zero results.
+            search_name = re.sub(r"\s*\(\d{4}\)$", "", row["show_name"]).strip()
             try:
-                res = _get(f"https://api.tvmaze.com/search/shows?q={urllib.parse.quote(row['show_name'])}")
+                res = _get(f"https://api.tvmaze.com/search/shows?q={urllib.parse.quote(search_name)}")
                 if not res:
                     failed += 1
                     continue
                 # best match: case-insensitive name match else first
                 best = res[0]["show"]
                 for cand in res:
-                    if cand["show"]["name"].lower() == row["show_name"].lower():
+                    if cand["show"]["name"].lower() == search_name.lower():
                         best = cand["show"]
                         break
                 show = best
@@ -89,13 +95,16 @@ def enrich_episodes(limit=60):
                 failed += 1
                 continue
         try:
-            import re
             summary = re.sub(r"<[^>]+>", "", ep.get("summary") or "").strip()
+            # Not every show has per-episode stills on TVMaze (older/less
+            # popular shows especially) -- fall back to the show's own poster
+            # rather than leaving the guide with no image at all.
+            artwork = (ep.get("image") or {}).get("medium", "") or (show.get("image") or {}).get("medium", "")
             con = database.connect()
             try:
                 con.execute("UPDATE episodes SET title=COALESCE(NULLIF(title,''),?), description=?, runtime=?, artwork=?, meta_source='tvmaze' WHERE id=?",
                             (ep.get("name") or row["title"], summary, (ep.get("runtime") or 30) * 60,
-                             (ep.get("image") or {}).get("medium", "") if ep.get("image") else "", row["id"]))
+                             artwork, row["id"]))
                 con.commit()
             finally:
                 con.close()
@@ -114,7 +123,6 @@ def _omdb_best_match(title, year):
     """Exact title+year lookup, retrying with roman->arabic "Part N" and a fuzzy
     search fallback -- OMDb's exact-title endpoint otherwise misses/mismatches
     variants like "Part II" vs "Part 2", or picks an unrelated same-titled short."""
-    import re
     y = f"&y={year}" if year else ""
     candidates = [title]
     m = re.search(r"\bPart\s+([IVX]+)$", title, re.I)
