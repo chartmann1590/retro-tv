@@ -168,6 +168,21 @@ class ReceiverTests(unittest.TestCase):
             # idempotent: running again creates nothing new for the same show
             self.assertEqual(scheduler.auto_create_channels(), [])
 
+    def test_channel_change_banner_only_flashes_for_viewer_initiated_tunes(self):
+        self.add_episode()
+        scheduler.generate_day(self.channel, scheduler.local_day())
+        with patch.object(playback, '_proc', Mock(poll=Mock(return_value=None))), \
+             patch.object(playback, '_ipc', return_value={"error": "success"}), \
+             patch.object(playback.subprocess, 'Popen'), patch.dict(playback._current), \
+             patch.object(tvguide, 'flash_channel') as flash:
+            self.assertTrue(playback.tune(self.channel['number'], reason='schedule')['ok'])
+            flash.assert_not_called()
+            self.assertTrue(playback.tune(self.channel['number'], reason='restore')['ok'])
+            flash.assert_not_called()
+            self.assertTrue(playback.tune(self.channel['number'], reason='api')['ok'])
+            flash.assert_called_once()
+            self.assertEqual(flash.call_args.args[0], self.channel['number'])
+
     def test_hdmi_selection_prefers_sink_name_over_numeric_id(self):
         import json
         result = Mock(stdout=json.dumps([{'info': {'props': {'media.class': 'Audio/Sink', 'node.name': 'alsa_output.test.hdmi-stereo'}}}]))

@@ -139,3 +139,48 @@ def is_visible():
 def refresh_if_visible():
     if _visible and time.monotonic() - _last_refresh > 4:
         render()
+
+
+_flash_timer = None
+FLASH_OVERLAY_ID = 43
+FLASH_SECONDS = 4.0
+
+
+def flash_channel(channel_number, entry):
+    """Classic cable-box channel-change banner: corner channel badge + bottom info
+    bar, auto-hiding after FLASH_SECONDS. Skipped while the full interactive guide
+    (a separate overlay slot) is up, since that already shows channel/program info."""
+    global _flash_timer
+    if _visible:
+        return
+    ch = next((c for c in scheduler.get_channels(enabled_only=False) if c["number"] == channel_number), None)
+    ass = []
+
+    def box(x, y, w, h, color):
+        ass.append(f"{{\\an7\\pos({x},{y})\\bord0\\shad0\\1c&H{_color(color)}&\\p1}}m 0 0 l {w} 0 {w} {h} 0 {h}{{\\p0}}")
+
+    def text(x, y, value, size=24, color="EFF2E9"):
+        ass.append(f"{{\\an7\\pos({x},{y})\\fnDejaVu Sans\\fs{size}\\bord0\\shad0\\1c&H{_color(color)}&}}{_text(value)}")
+
+    def clock(ts):
+        from datetime import datetime
+        return datetime.fromtimestamp(ts, scheduler.TZ).strftime("%-I:%M %p")
+
+    box(40, 30, 190, 88, "203D6B")
+    text(54, 38, f"{channel_number:02d}", 46, "F8CB63")
+    text(54, 90, ch["name"] if ch else "", 16)
+    box(40, 588, 1200, 92, "0B2147")
+    text(58, 598, entry.get("title") or "", 28, "F8CB63")
+    text(58, 634, entry.get("subtitle") or "", 18)
+    if entry.get("start_ts") and entry.get("end_ts"):
+        text(58, 660, f"{clock(entry['start_ts'])} – {clock(entry['end_ts'])}", 16, "AAC0DF")
+    _send(["osd-overlay", FLASH_OVERLAY_ID, "ass-events", "\n".join(ass), 1280, 720])
+    if _flash_timer:
+        _flash_timer.cancel()
+    _flash_timer = threading.Timer(FLASH_SECONDS, clear_flash)
+    _flash_timer.daemon = True
+    _flash_timer.start()
+
+
+def clear_flash():
+    _send(["osd-overlay", FLASH_OVERLAY_ID, "none", ""])

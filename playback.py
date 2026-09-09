@@ -212,6 +212,9 @@ def tune(channel_number, reason="user"):
             if previous != str(channel_number):
                 database.set_state("last_channel", channel_number)
             _current.update(channel=channel_number, media=path, entry_id=entry["id"], started_ts=time.time())
+            if reason == "api":
+                import tvguide
+                tvguide.flash_channel(channel_number, entry)
             log.info("Tuned ch=%s reason=%s offset=%.1f", channel_number, reason, offset)
         return {"ok": ok, "entry": entry, "offset": offset, "slate": slate,
                 **({} if ok else {"error": "HDMI player could not start; check playback logs"})}
