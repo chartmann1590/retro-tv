@@ -127,3 +127,7 @@ Run only one instance of Retro TV per media directory. The scheduler, HDMI
 player, and TV guide overlay all share in-process state (current playback
 position, the mpv IPC socket, and the schedule lock) — a second instance
 against the same data will corrupt playback state.
+
+## License
+
+MIT — see [LICENSE](LICENSE).
