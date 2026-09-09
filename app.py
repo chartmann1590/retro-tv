@@ -65,6 +65,9 @@ def bg_loop():
     while not _bg_stop.is_set():
         try:
             scanner.full_scan(light=True)
+            from metadata import enrich_episodes, enrich_movies
+            enrich_episodes()
+            enrich_movies()
             if time.monotonic() - last_schedule >= config.SCHEDULER_INTERVAL_SEC:
                 scheduler.ensure_schedules()
                 streaming.cleanup_hls()
