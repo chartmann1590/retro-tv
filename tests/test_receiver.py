@@ -149,7 +149,7 @@ class ReceiverTests(unittest.TestCase):
         import json
         result = Mock(stdout=json.dumps([{'info': {'props': {'media.class': 'Audio/Sink', 'node.name': 'alsa_output.test.hdmi-stereo'}}}]))
         with patch.object(config, 'AUDIO_DEVICE', ''), patch.object(playback.subprocess, 'run', return_value=result):
-            self.assertEqual(playback.audio_device(), 'pulse/alsa_output.test.hdmi-stereo')
+            self.assertEqual(playback.audio_device(), 'pipewire/alsa_output.test.hdmi-stereo')
 
 
 if __name__ == '__main__':
