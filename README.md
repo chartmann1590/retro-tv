@@ -9,6 +9,22 @@ tune in to whatever's "on" right now.
 Runs on a Raspberry Pi 4 (or similar Linux box) with a TV on HDMI and your
 media on the local network.
 
+## Screenshots
+
+<p align="center"><img src="screenshots/hdmi-tv.png" width="720" alt="The actual HDMI TV output, mid channel-change, showing the classic cable-box channel banner"></p>
+<p align="center"><em>The real HDMI output — punching in a channel shows a classic cable-box banner, then fades away.</em></p>
+
+<table>
+<tr>
+<td width="50%"><img src="screenshots/receiver.png" width="100%" alt="The receiver home page"><br><em>Home — current channel, live program, and your lineup</em></td>
+<td width="50%"><img src="screenshots/guide.png" width="100%" alt="The TV guide grid"><br><em>TV Guide — a real multi-channel program grid</em></td>
+</tr>
+<tr>
+<td width="50%"><img src="screenshots/remote.png" width="50%" alt="The phone remote"><br><em>Phone remote — channel keypad, guide, volume</em></td>
+<td width="50%"><img src="screenshots/admin.png" width="100%" alt="The admin dashboard"><br><em>Setup — library stats and channel management</em></td>
+</tr>
+</table>
+
 ## Features
 
 - **Always-live playback** — every program has a fixed start/end time. Change
@@ -110,8 +126,13 @@ bash -n scripts/install.sh scripts/kiosk.sh                # shell syntax check
 Tests isolate SQLite in a temp directory and mock HDMI/mpv calls — they never
 touch real media or the production database.
 
-See `CLAUDE.md` for a deeper architecture walkthrough (scheduler design, data
-model, module responsibilities).
+Module responsibilities, in the order data flows: `scanner.py` walks your
+media and parses show/episode info from filenames; `metadata.py` backfills
+descriptions/genre/artwork from TVMaze and OMDb; `scheduler.py` builds the
+per-channel lineups and commercial rotation; `streaming.py`/`playback.py`
+serve the browser and HDMI outputs respectively; `tvguide.py` draws the
+on-TV guide and channel-change banner as an mpv overlay; `app.py` ties it
+together with the Flask routes and the background maintenance loop.
 
 ## Notes on hardware
 
