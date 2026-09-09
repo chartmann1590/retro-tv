@@ -16,6 +16,7 @@ import scanner
 import scheduler
 import playback
 import streaming
+import livecontent
 import remote as remote_mod
 
 TZ = ZoneInfo(config.TIMEZONE)
@@ -467,6 +468,7 @@ def init():
     database.init_db()
     playback.start_monitor()
     threading.Thread(target=bg_loop, daemon=True).start()
+    threading.Thread(target=livecontent.run_loop, daemon=True).start()
 
 
 if __name__ == "__main__":

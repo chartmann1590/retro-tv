@@ -56,3 +56,15 @@ OMDB_API_KEY = os.environ.get("OMDB_API_KEY", "")
 AUTO_CHANNEL_MIN_EPISODES = 10
 AUTO_CHANNEL_COLORS = ["#2e7d5b", "#1e8a8a", "#d4a017", "#c93a6b", "#7a5ab8",
                        "#3a8a3a", "#b8543a", "#3a5ab8", "#8a1e6b", "#5a8a1e"]
+
+# Generated weather/news channels (livecontent.py). Regenerated on this cadence
+# from live data, narrated with Microsoft Edge's free neural TTS (needs internet,
+# no API key). Segments are stored outside MEDIA_ROOT since scanner.py never
+# needs to discover them -- livecontent registers them directly.
+WEATHER_ZIP = os.environ.get("WEATHER_ZIP", "12308")
+LIVE_CONTENT_DIR = os.path.join(DATA_DIR, "live_content")
+LIVE_CONTENT_REFRESH_SEC = 30 * 60
+TTS_VOICE_WEATHER = os.environ.get("TTS_VOICE_WEATHER", "en-US-AriaNeural")
+TTS_VOICE_NEWS = os.environ.get("TTS_VOICE_NEWS", "en-US-GuyNeural")
+NEWS_RSS_URL = os.environ.get("NEWS_RSS_URL", "https://wnyt.com/feed/")
+NEWS_ARTICLE_COUNT = 5
