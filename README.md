@@ -1,26 +1,97 @@
-# RETRO-TV
+# Retro TV
 
-A Raspberry Pi cable receiver for your own media collection. HDMI plays the scheduled program at its current live position; changing channels joins whatever is airing. The phone remote controls the television over the local network.
+Turn a personal media library into a live cable-TV experience. Retro TV builds
+continuous, multi-day channel schedules from your own video files, plays them
+on an HDMI-connected TV like a real cable box, and lets you change channels
+and browse a program guide from your phone — no per-user pause/rewind, just
+tune in to whatever's "on" right now.
 
-## Use the receiver
+Runs on a Raspberry Pi 4 (or similar Linux box) with a TV on HDMI and your
+media on the local network.
 
-- **Remote:** open `http://10.0.0.30:5000/remote` on a phone on the same network. The receiver homepage also shows its current network address.
-- **Guide:** press **GUIDE** on the remote to display the cable guide on the TV and phone. Select programs, use the arrow controls, and press **TUNE TV**. **Close TV guide** returns to the picture.
-- **Watch:** `/watch` plays on the device viewing the page. Guide and Watch fill the viewport. **FULLSCREEN** removes browser chrome when supported; browsers may require a tap. Watch controls disappear after three seconds and return when touched or moved over.
-- **Live TV:** rejoins the live position after pausing. **LAST** returns to the previous TV channel.
-- **Setup:** `/admin` manages channels, media scanning, metadata, and schedules.
+## Features
 
-## Run and maintain
+- **Always-live playback** — every program has a fixed start/end time. Change
+  channels or reload a page and you rejoin the current scene, exactly like
+  broadcast TV.
+- **Auto-generated schedules** — episodes, movies, and commercial breaks are
+  interleaved per channel and generated days in advance, without ever
+  rewriting programs that have already aired.
+- **Fair commercial rotation** — long commercial compilations are sliced into
+  segments and rotated fairly across breaks instead of repeating from the
+  start every time.
+- **On-TV program guide** — a classic channel guide overlay, driven entirely
+  over the HDMI output (no second video layer needed).
+- **Phone remote** — control the TV, browse the guide, and jump channels from
+  any browser on your network.
+- **Watch anywhere** — stream the live channel to a browser (`/watch`) in
+  addition to the HDMI output, with on-the-fly remuxing/transcoding for
+  browser-incompatible formats.
+- **Automatic metadata** — episode titles, descriptions, and artwork are
+  backfilled from TVMaze in the background; everything still works offline
+  from filenames alone.
+
+## Requirements
+
+- Raspberry Pi 4 (4 GB+) or another Linux machine with an HDMI output, or any
+  Linux host if you only need browser streaming
+- Python 3.9+
+- [mpv](https://mpv.io/), `ffmpeg`/`ffprobe`
+- Your media organized under a root directory as:
+  ```
+  media/
+    TVShows/<Show>/Season 0X/... 
+    Movies/...
+    Commercials/...
+  ```
+
+## Quick start
 
 ```bash
+git clone https://github.com/chartmann1590/retro-tv.git
+cd retro-tv
 python3 -m venv venv
 venv/bin/pip install -r requirements.txt
 venv/bin/python app.py
 ```
 
-The application runs one Waitress process with six request threads. Run only one instance: the scheduler, player, and native guide share process state. mpv, FFmpeg/ffprobe, and a desktop audio session are required for this installation.
+The app starts on port `5000`, scans your media, builds the first few days of
+schedules, and restores playback automatically. Point `MEDIA_ROOT` in
+`config.py` at your media directory if it isn't `/srv/media`.
 
-The installed user service starts automatically:
+For a full Raspberry Pi installation (system packages, a `systemd --user`
+service, and kiosk autostart), use the installer instead:
+
+```bash
+bash scripts/install.sh
+```
+
+Read the script before running it — it installs system packages and can run
+as root.
+
+## Using it
+
+- **Remote:** open `http://<pi-address>:5000/remote` on a phone on the same
+  network. The receiver's homepage shows its current network address.
+- **Guide:** press **GUIDE** on the remote to show the channel guide on the
+  TV and phone. Pick a program, then press **TUNE TV**.
+- **Watch:** `/watch` streams the live channel to whatever device opened the
+  page.
+- **Admin:** `/admin` manages channels, triggers media scans, and inspects
+  schedules.
+
+## Configuration
+
+All paths, the timezone, and the port live in `config.py`. Notable settings:
+
+| Setting | Purpose |
+|---|---|
+| `MEDIA_ROOT` | Root directory containing `TVShows/`, `Movies/`, `Commercials/` |
+| `TIMEZONE` | Timezone used for schedule days (default `America/New_York`) |
+| `SCHEDULE_DAYS_AHEAD` | How many days of schedule to keep generated per channel |
+| `RETRO_TV_AUDIO_DEVICE` (env var) | Overrides automatic HDMI audio device discovery |
+
+## Service management (installed via `install.sh`)
 
 ```bash
 systemctl --user status retro-tv.service
@@ -28,24 +99,31 @@ systemctl --user restart retro-tv.service
 journalctl --user -u retro-tv.service -n 50
 ```
 
-`config.py` sets media paths, timezone, and port. Media remains in `/srv/media/{TVShows,Movies,Commercials}`; preserve its ownership. Runtime databases are in `data/`; logs and browser remuxes are in `logs/` and `hls_cache/`.
-
-## Hardware and audio
-
-This installation is a Raspberry Pi 4 with 4 GB RAM and a 1080p HDMI television. mpv uses hardware decoding when available, a fast rendering profile, bounded buffers, and a persistent player for channel changes. The receiver and remote do not decode preview video. Browser streaming copies video and only converts incompatible audio; it does not attempt expensive video transcoding. Some formats therefore need HDMI playback instead of browser viewing.
-
-The player discovers the HDMI sink, sends stereo PCM at 48 kHz, and preserves mute/volume across channels. To override discovery, set `RETRO_TV_AUDIO_DEVICE` in the service environment using a name from `bin/mpv --audio-device=help`. No numeric PipeWire node ID is stored.
-
-Check temperatures with `vcgencmd measure_temp` and `vcgencmd get_throttled`. Avoid leaving an additional Watch tab playing on the Pi while HDMI is playing. Cooling matters for sustained playback; this machine measured about 83°C during the initial inspection.
-
-## Validation
+## Development
 
 ```bash
-venv/bin/python -m unittest discover -s tests -v
-venv/bin/python -m py_compile *.py scripts/*.py tests/*.py
-bash -n scripts/install.sh scripts/kiosk.sh
+venv/bin/python -m unittest discover -s tests -v          # run tests
+venv/bin/python -m py_compile *.py scripts/*.py tests/*.py # syntax check
+bash -n scripts/install.sh scripts/kiosk.sh                # shell syntax check
 ```
 
-Tests isolate SQLite data and mock HDMI commands. They cover complete schedules, stable program IDs, live timing, persistent player reuse, HDMI selection, HTTP byte ranges, page rendering, and the native guide overlay. Browser checks were also performed at desktop, phone, and landscape sizes.
+Tests isolate SQLite in a temp directory and mock HDMI/mpv calls — they never
+touch real media or the production database.
 
-Source files and a consistent SQLite backup from before these changes are stored outside the application at `/home/charles/retro-tv-backups/20260908-163415/`.
+See `CLAUDE.md` for a deeper architecture walkthrough (scheduler design, data
+model, module responsibilities).
+
+## Notes on hardware
+
+mpv uses hardware decoding and a persistent player process (reused across
+channel changes) tuned for a Raspberry Pi 4 driving 1080p HDMI. Browser
+streaming only copies video and transcodes audio when needed — it never
+transcodes video — so some source formats will play on HDMI but not in a
+browser tab. Keep the Pi adequately cooled for sustained playback.
+
+## Important: exactly one instance
+
+Run only one instance of Retro TV per media directory. The scheduler, HDMI
+player, and TV guide overlay all share in-process state (current playback
+position, the mpv IPC socket, and the schedule lock) — a second instance
+against the same data will corrupt playback state.
