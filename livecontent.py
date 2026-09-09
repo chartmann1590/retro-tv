@@ -1,16 +1,20 @@
-"""Generated weather/news channels: live data -> narrated video segments.
+"""Generated weather/news channels: live data -> one continuous narrated loop.
 
 Runs on a timer (run_loop, started as a daemon thread from app.py). Each cycle
-fetches fresh data, renders an HTML "card" per segment via headless chromium,
+fetches fresh data, renders an HTML "card" per topic via headless chromium,
 narrates it with Microsoft Edge's free neural TTS, muxes image+audio into an
-mp4 with ffmpeg, and registers it directly as an episode of a synthetic show
-("Local Weather" / "Local News") so the existing channel/scheduler machinery
-(channel_sources type "show", commercial interleaving, etc.) handles the rest
-unmodified. Segment file paths are fixed and simply overwritten each cycle, so
-media_files ids -- and therefore already-generated schedule_entries -- stay
-valid; whatever slot airs next just plays back whatever is currently on disk.
-Best-effort throughout: a failed fetch/render/TTS logs and skips that segment
-rather than breaking the whole cycle, matching metadata.py's offline-safe style.
+mp4 per card with ffmpeg, then concatenates+repeats those cards (stream-copy,
+no re-encode) into one continuous ~LIVE_CONTENT_REFRESH_SEC-long block -- like
+a real local weather/news channel loop -- so a commercial break lands between
+full ~30-minute blocks, not after every card. That single block is registered
+as the one episode of a synthetic show ("Local Weather" / "Local News") so the
+existing channel/scheduler machinery (channel_sources type "show", commercial
+interleaving, etc.) handles the rest unmodified. The episode's file path is
+fixed and simply overwritten each cycle, so its media_files id -- and
+therefore already-generated schedule_entries -- stays valid; whatever slot
+airs next just plays back whatever is currently on disk. Best-effort
+throughout: a failed fetch/render/TTS logs and skips that card rather than
+breaking the whole cycle, matching metadata.py's offline-safe style.
 """
 import asyncio
 import html
@@ -93,6 +97,27 @@ def _mux(image_path, audio_path, out_mp4):
         check=True, capture_output=True, timeout=180)
 
 
+def _build_loop(card_mp4s, out_path, target_seconds):
+    """Concatenate the card mp4s into one pass, then repeat that pass (stream-copy,
+    no re-encode) enough times to reach ~target_seconds -- one continuous block,
+    like a real local-weather/news channel loop, instead of many short clips."""
+    durations = [scanner.probe_info(p)["duration"] or 1 for p in card_mp4s]
+    pass_seconds = sum(durations)
+    repeats = max(1, round(target_seconds / pass_seconds)) if pass_seconds else 1
+    list_path = out_path + ".concat.txt"
+    with open(list_path, "w") as f:
+        for _ in range(repeats):
+            for p in card_mp4s:
+                f.write(f"file '{os.path.abspath(p)}'\n")
+    try:
+        subprocess.run(
+            ["ffmpeg", "-y", "-f", "concat", "-safe", "0", "-i", list_path, "-c", "copy", out_path],
+            check=True, capture_output=True, timeout=300)
+    finally:
+        os.unlink(list_path)
+    return pass_seconds * repeats
+
+
 def _upsert_episode(path, show_name, episode_num, title, description):
     info = scanner.probe_info(path)
     warn = scanner.compat_warning(info, "episode")
@@ -124,14 +149,18 @@ def _upsert_episode(path, show_name, episode_num, title, description):
         con.close()
 
 
-def _prune_episodes(show_name, keep_max):
-    """Drop episode slots beyond keep_max (e.g. a shorter cycle than last time)."""
+def _prune_stale(show_name, keep_paths):
+    """Remove any episode/media_files rows for this show whose path isn't one of
+    keep_paths -- handles both a shorter cycle than last time and a filename-
+    scheme change (e.g. the old per-card 01.mp4/02.mp4/... files this replaced)."""
+    keep = set(keep_paths)
     con = database.connect()
     try:
-        rows = con.execute("""SELECT e.media_id, e.episode, m.path FROM episodes e
-            JOIN media_files m ON m.id=e.media_id WHERE e.show_name=? AND e.episode>?""",
-            (show_name, keep_max)).fetchall()
+        rows = con.execute("""SELECT e.media_id, m.path FROM episodes e
+            JOIN media_files m ON m.id=e.media_id WHERE e.show_name=?""", (show_name,)).fetchall()
         for r in rows:
+            if r["path"] in keep:
+                continue
             con.execute("DELETE FROM episodes WHERE media_id=?", (r["media_id"],))
             con.execute("DELETE FROM media_files WHERE id=?", (r["media_id"],))
             try:
@@ -226,24 +255,41 @@ def _weather_cards(data):
     return cards
 
 
+def _build_show_loop(cards, out_dir, voice, show_name, title, subtitle):
+    """Render/narrate/mux each card, then concat+loop them into one ~30-min
+    episode so commercial breaks land between full loops, not every card."""
+    parts_dir = os.path.join(out_dir, "parts")
+    os.makedirs(parts_dir, exist_ok=True)
+    part_mp4s = []
+    for i, (_, _, narration, body) in enumerate(cards, 1):
+        png = os.path.join(parts_dir, f"{i:02d}.png")
+        mp3 = os.path.join(parts_dir, f"{i:02d}.mp3")
+        mp4 = os.path.join(parts_dir, f"{i:02d}.mp4")
+        try:
+            _render_card(body, png)
+            _tts(narration, voice, mp3)
+            _mux(png, mp3, mp4)
+            part_mp4s.append(mp4)
+        except Exception:
+            log.exception("%s card %d failed", show_name, i)
+    if not part_mp4s:
+        raise RuntimeError(f"no {show_name} cards succeeded this cycle")
+    loop_path = os.path.join(out_dir, "loop.mp4")
+    total = _build_loop(part_mp4s, loop_path, config.LIVE_CONTENT_REFRESH_SEC)
+    _upsert_episode(loop_path, show_name, 1, title, subtitle)
+    _prune_stale(show_name, [loop_path])
+    return total
+
+
 def refresh_weather():
     out_dir = os.path.join(config.LIVE_CONTENT_DIR, "weather")
     os.makedirs(out_dir, exist_ok=True)
     data = _fetch_weather()
     cards = _weather_cards(data)
-    for i, (title, subtitle, narration, body) in enumerate(cards, 1):
-        png = os.path.join(out_dir, f"{i:02d}.png")
-        mp3 = os.path.join(out_dir, f"{i:02d}.mp3")
-        mp4 = os.path.join(out_dir, f"{i:02d}.mp4")
-        try:
-            _render_card(body, png)
-            _tts(narration, config.TTS_VOICE_WEATHER, mp3)
-            _mux(png, mp3, mp4)
-            _upsert_episode(mp4, WEATHER_SHOW, i, title, subtitle)
-        except Exception:
-            log.exception("weather segment %d failed", i)
-    _prune_episodes(WEATHER_SHOW, len(cards))
-    log.info("Weather channel refreshed: %d segments for %s, %s", len(cards), data["city"], data["state"])
+    total = _build_show_loop(cards, out_dir, config.TTS_VOICE_WEATHER, WEATHER_SHOW,
+                              "Local Weather", f"{data['city']}, {data['state']}")
+    log.info("Weather channel refreshed: %d cards looped to %.0fs for %s, %s",
+              len(cards), total, data["city"], data["state"])
 
 
 # ---------- news ----------
@@ -302,19 +348,9 @@ def refresh_news():
         log.warning("news refresh: no items fetched")
         return
     cards = _news_cards(items)
-    for i, (title, subtitle, narration, body) in enumerate(cards, 1):
-        png = os.path.join(out_dir, f"{i:02d}.png")
-        mp3 = os.path.join(out_dir, f"{i:02d}.mp3")
-        mp4 = os.path.join(out_dir, f"{i:02d}.mp4")
-        try:
-            _render_card(body, png)
-            _tts(narration, config.TTS_VOICE_NEWS, mp3)
-            _mux(png, mp3, mp4)
-            _upsert_episode(mp4, NEWS_SHOW, i, title, subtitle)
-        except Exception:
-            log.exception("news segment %d failed", i)
-    _prune_episodes(NEWS_SHOW, len(cards))
-    log.info("News channel refreshed: %d stories", len(cards))
+    total = _build_show_loop(cards, out_dir, config.TTS_VOICE_NEWS, NEWS_SHOW,
+                              "Local News", f"{len(items)} stories")
+    log.info("News channel refreshed: %d stories looped to %.0fs", len(items), total)
 
 
 # ---------- loop ----------
