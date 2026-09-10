@@ -183,6 +183,18 @@ class ReceiverTests(unittest.TestCase):
             flash.assert_called_once()
             self.assertEqual(flash.call_args.args[0], self.channel['number'])
 
+    def test_reconnect_forces_clean_restart_only_on_disconnect_to_connect(self):
+        with patch.object(playback, 'stop') as stop:
+            with patch.object(playback, '_hdmi_display_connected', return_value=True):
+                self.assertTrue(playback._check_reconnect(True))
+            stop.assert_not_called()
+            with patch.object(playback, '_hdmi_display_connected', return_value=False):
+                self.assertFalse(playback._check_reconnect(True))
+            stop.assert_not_called()
+            with patch.object(playback, '_hdmi_display_connected', return_value=True):
+                self.assertTrue(playback._check_reconnect(False))
+            stop.assert_called_once()
+
     def test_hdmi_selection_prefers_sink_name_over_numeric_id(self):
         import json
         result = Mock(stdout=json.dumps([{'info': {'props': {'media.class': 'Audio/Sink', 'node.name': 'alsa_output.test.hdmi-stereo'}}}]))

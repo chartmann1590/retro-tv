@@ -64,6 +64,21 @@ def mpv_alive():
         return _proc is not None and _proc.poll() is None
 
 
+def _hdmi_display_connected():
+    """True if any HDMI connector currently reports a display attached (DRM
+    connector status, not the audio ELD check _connected_hdmi_card does).
+    Goes false when the TV is powered off (HDMI hotplug-detect drops) and
+    true again once it powers back on."""
+    for status_path in glob.glob("/sys/class/drm/card*-HDMI-A-*/status"):
+        try:
+            with open(status_path) as f:
+                if f.read().strip() == "connected":
+                    return True
+        except OSError:
+            continue
+    return False
+
+
 def _connected_hdmi_card():
     """ALSA card index of the HDMI output with an actual display attached (valid EDID/ELD).
 
@@ -261,12 +276,28 @@ def show_info():
     return _ipc(["show-text", f"CH {_current['channel']:02d}  {entry.get('title', '')}\n{entry.get('subtitle', '')}", 5000]).get("error") == "success"
 
 
+def _check_reconnect(was_connected):
+    """Returns the current HDMI-connected state, forcing a clean playback
+    restart if it just transitioned from disconnected to connected (TV was
+    off and powered back on). mpv doesn't reliably re-attach to a connector
+    that came back after being torn down, and the audio sink can come back
+    bound to the wrong device -- stop() here lets the normal changed/idle
+    handling below relaunch mpv fresh, re-discovering the audio device."""
+    now_connected = _hdmi_display_connected()
+    if now_connected and not was_connected:
+        log.info("HDMI display reconnected, forcing clean playback restart")
+        stop()
+    return now_connected
+
+
 def monitor_loop(stop_event, poll=1):
     import streaming
     failures = 0
     retry_at = 0
+    display_connected = _hdmi_display_connected()
     while not stop_event.wait(poll):
         try:
+            display_connected = _check_reconnect(display_connected)
             import tvguide
             tvguide.refresh_if_visible()
             with _lock:
