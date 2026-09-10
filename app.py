@@ -17,6 +17,7 @@ import scheduler
 import playback
 import streaming
 import livecontent
+import reminders
 import remote as remote_mod
 
 TZ = ZoneInfo(config.TIMEZONE)
@@ -213,9 +214,103 @@ def api_guide():
         start = datetime.now(TZ).timestamp()
     return jsonify({"ok": True, "start": start, "hours": hours, "server_time": time.time(), "current_channel": playback._current["channel"], "guide": scheduler.guide_data(start, hours)})
 
+@app.route("/api/reminders", methods=["GET", "POST"])
+def api_reminders():
+    if request.method == "POST":
+        d = request.get_json(force=True)
+        try:
+            entry_id = int(d["entry_id"])
+        except Exception:
+            return jsonify({"ok": False, "error": "Invalid program"}), 400
+        entry, error = reminders.create(entry_id)
+        if error:
+            return jsonify({"ok": False, "error": error}), 400
+        return jsonify({"ok": True, "entry": entry})
+    rows = reminders.list_upcoming()
+    for r in rows:
+        r["start_fmt"] = fmt_time(r["start_ts"])
+    return jsonify({"ok": True, "reminders": rows})
+
+@app.route("/api/reminders/<int:rid>", methods=["DELETE"])
+def api_reminder_delete(rid):
+    reminders.delete(rid)
+    return jsonify({"ok": True})
+
+@app.route("/api/reminders/due")
+def api_reminders_due():
+    rows = reminders.due_soon(within_sec=180)
+    for r in rows:
+        r["start_fmt"] = fmt_time(r["start_ts"])
+    return jsonify({"ok": True, "due": rows})
+
+@app.route("/api/guide/search")
+def api_guide_search():
+    q = request.args.get("q", "")
+    results = scheduler.search_upcoming(q, limit=30)
+    now = time.time()
+    for r in results:
+        r["start_fmt"] = fmt_time(r["start_ts"])
+        r["is_live"] = r["start_ts"] <= now < r["end_ts"]
+    return jsonify({"ok": True, "query": q, "results": results})
+
+@app.route("/api/favorites/upcoming")
+def api_favorites_upcoming():
+    channels = scheduler.get_channels()
+    by_num = {c["number"]: c for c in channels}
+    fav_nums = [n for n, c in by_num.items() if c.get("favorite")]
+    entries = scheduler.next_entries(fav_nums, within_sec=180) if fav_nums else []
+    out = [{"id": e["id"], "channel_number": e["channel_number"],
+            "channel_name": by_num.get(e["channel_number"], {}).get("name", ""),
+            "title": e["title"], "subtitle": e["subtitle"], "start_ts": e["start_ts"],
+            "start_fmt": fmt_time(e["start_ts"])} for e in entries]
+    return jsonify({"ok": True, "upcoming": out})
+
+@app.route("/api/commercial-rotation")
+def api_commercial_rotation():
+    con = database.connect()
+    try:
+        rows = [dict(r) for r in con.execute("""
+            SELECT cr.media_id, cr.last_used AS turn, cr.source_offset,
+                   c.name, c.category, c.duration,
+                   (SELECT MAX(played_ts) FROM commercial_history WHERE commercial_id=cr.media_id) AS last_played_ts
+            FROM commercial_rotation cr LEFT JOIN commercials c ON c.media_id = cr.media_id
+            ORDER BY cr.last_used ASC""")]
+    finally:
+        con.close()
+    return jsonify({"ok": True, "rotation": rows})
+
 @app.route("/api/channels")
 def api_channels():
-    return jsonify({"ok": True, "channels": scheduler.get_channels(enabled_only=False)})
+    channels = scheduler.get_channels(enabled_only=False)
+    con = database.connect()
+    try:
+        for ch in channels:
+            ch["sources"] = [dict(r) for r in con.execute(
+                "SELECT source_type, source_value FROM channel_sources WHERE channel_number=?", (ch["number"],))]
+    finally:
+        con.close()
+    return jsonify({"ok": True, "channels": channels})
+
+@app.route("/api/channel/<int:num>/move", methods=["POST"])
+def api_channel_move(num):
+    d = request.get_json(force=True)
+    direction = d.get("direction")
+    con = database.connect()
+    try:
+        rows = [dict(r) for r in con.execute("SELECT number, sort_order FROM channels ORDER BY sort_order, number")]
+        idx = next((i for i, r in enumerate(rows) if r["number"] == num), None)
+        if idx is None:
+            return jsonify({"ok": False, "error": "Channel not found"}), 404
+        swap_idx = idx - 1 if direction == "up" else idx + 1 if direction == "down" else None
+        if swap_idx is None or not (0 <= swap_idx < len(rows)):
+            return jsonify({"ok": True})
+        a, b = rows[idx], rows[swap_idx]
+        con.execute("UPDATE channels SET sort_order=? WHERE number=?", (b["sort_order"], a["number"]))
+        con.execute("UPDATE channels SET sort_order=? WHERE number=?", (a["sort_order"], b["number"]))
+        con.commit()
+    finally:
+        con.close()
+    return jsonify({"ok": True})
 
 @app.route("/api/channel", methods=["POST"])
 def api_channel_save():
@@ -226,13 +321,14 @@ def api_channel_save():
         return jsonify({"ok": False, "error": "Invalid channel number"}), 400
     con = database.connect()
     try:
-        con.execute("""INSERT INTO channels(number,name,enabled,color,logo,ordering,commercial_mode,max_repeats_per_day,sort_order)
-            VALUES(?,?,?,?,?,?,?,?,?) ON CONFLICT(number) DO UPDATE SET name=excluded.name, enabled=excluded.enabled,
+        con.execute("""INSERT INTO channels(number,name,enabled,color,logo,ordering,commercial_mode,max_repeats_per_day,sort_order,favorite)
+            VALUES(?,?,?,?,?,?,?,?,?,?) ON CONFLICT(number) DO UPDATE SET name=excluded.name, enabled=excluded.enabled,
             color=excluded.color, logo=excluded.logo, ordering=excluded.ordering, commercial_mode=excluded.commercial_mode,
-            max_repeats_per_day=excluded.max_repeats_per_day""",
+            max_repeats_per_day=excluded.max_repeats_per_day, favorite=excluded.favorite""",
             (num, d.get("name", f"Channel {num}"), 1 if d.get("enabled", True) else 0,
              d.get("color", "#1a3a6b"), d.get("logo", ""), d.get("ordering", "shuffle"),
-             d.get("commercial_mode", "between"), int(d.get("max_repeats_per_day", 2)), num))
+             d.get("commercial_mode", "between"), int(d.get("max_repeats_per_day", 2)), num,
+             1 if d.get("favorite") else 0))
         con.execute("DELETE FROM channel_sources WHERE channel_number=?", (num,))
         for s in d.get("sources", []):
             con.execute("INSERT INTO channel_sources(channel_number,source_type,source_value) VALUES(?,?,?)",
@@ -380,6 +476,13 @@ def api_volume():
         playback.pause_toggle()
     return jsonify({"ok": True, **playback.status()})
 
+@app.route("/api/captions", methods=["GET", "POST"])
+def api_captions():
+    d = request.get_json(silent=True) or {}
+    if "enabled" in d:
+        playback.set_cc(bool(d["enabled"]))
+    return jsonify({"ok": True, **playback.status()})
+
 @app.route("/api/tv-guide", methods=["POST"])
 def api_tv_guide():
     import tvguide
@@ -469,6 +572,7 @@ def init():
     playback.start_monitor()
     threading.Thread(target=bg_loop, daemon=True).start()
     threading.Thread(target=livecontent.run_loop, daemon=True).start()
+    threading.Thread(target=reminders.run_loop, daemon=True).start()
 
 
 if __name__ == "__main__":

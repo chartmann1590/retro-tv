@@ -37,7 +37,7 @@ def get_channels(enabled_only=True):
         q = "SELECT * FROM channels"
         if enabled_only:
             q += " WHERE enabled=1"
-        q += " ORDER BY number"
+        q += " ORDER BY sort_order, number"
         return [dict(r) for r in con.execute(q)]
     finally:
         con.close()
@@ -397,6 +397,51 @@ def upcoming(ch_number, ts=None, limit=20):
             AND end_ts>? ORDER BY start_ts LIMIT ?""", (ch_number, ts, limit))]
     finally:
         con.close()
+
+def search_upcoming(query, limit=30, ts=None):
+    """Next upcoming airing (one per channel) whose title/subtitle matches query."""
+    query = (query or "").strip()
+    if not query:
+        return []
+    ts = ts or datetime.now(TZ).timestamp()
+    like = f"%{query}%"
+    con = database.connect()
+    try:
+        rows = [dict(r) for r in con.execute("""
+            SELECT se.*, ch.name AS channel_name, ch.color AS channel_color
+            FROM schedule_entries se JOIN channels ch ON ch.number = se.channel_number
+            WHERE se.end_ts > ? AND ch.enabled=1 AND se.kind NOT IN ('commercial_break', 'slate')
+              AND (se.title LIKE ? OR se.subtitle LIKE ?)
+            ORDER BY se.start_ts""", (ts, like, like))]
+    finally:
+        con.close()
+    seen, out = set(), []
+    for r in rows:
+        if r["channel_number"] in seen:
+            continue
+        seen.add(r["channel_number"])
+        out.append(r)
+        if len(out) >= limit:
+            break
+    return out
+
+
+def next_entries(channel_numbers, ts=None, within_sec=180):
+    """Programs (not breaks/slate) starting on these channels within the next window."""
+    channel_numbers = list(channel_numbers)
+    if not channel_numbers:
+        return []
+    ts = ts or datetime.now(TZ).timestamp()
+    con = database.connect()
+    try:
+        placeholders = ",".join("?" * len(channel_numbers))
+        return [dict(r) for r in con.execute(f"""
+            SELECT * FROM schedule_entries WHERE channel_number IN ({placeholders})
+              AND start_ts > ? AND start_ts <= ? AND kind NOT IN ('commercial_break', 'slate')
+            ORDER BY start_ts""", (*channel_numbers, ts, ts + within_sec))]
+    finally:
+        con.close()
+
 
 def guide_data(start_ts=None, hours=4):
     start_ts = start_ts or datetime.now(TZ).timestamp()

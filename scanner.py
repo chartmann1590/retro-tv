@@ -282,7 +282,13 @@ def library_summary():
         n_mv = con.execute("SELECT COUNT(*) c FROM movies").fetchone()["c"]
         n_ad = con.execute("SELECT COUNT(*) c FROM commercials").fetchone()["c"]
         shows = [dict(r) for r in con.execute("SELECT s.name, COUNT(e.id) c FROM shows s LEFT JOIN episodes e ON e.show_id=s.id GROUP BY s.id ORDER BY s.name")]
+        movie_list = [dict(r) for r in con.execute(
+            "SELECT mo.title, mo.year, m.path FROM movies mo JOIN media_files m ON m.id=mo.media_id ORDER BY mo.title")]
+        movie_folders = sorted({os.path.dirname(m["path"]) for m in movie_list if os.path.dirname(m["path"]) != config.MOVIES_DIR.rstrip("/")})
+        genre_rows = con.execute("SELECT DISTINCT genre FROM movies WHERE genre<>''").fetchall()
+        genres = sorted({g.strip() for r in genre_rows for g in r["genre"].split(",") if g.strip()})
         warns = [dict(r) for r in con.execute("SELECT path, compat_warning FROM media_files WHERE compat_warning<>'' ORDER BY path")]
-        return {"episodes": n_ep, "movies": n_mv, "commercials": n_ad, "shows": shows, "warnings": warns}
+        return {"episodes": n_ep, "movies": n_mv, "commercials": n_ad, "shows": shows,
+                "movie_list": movie_list, "movie_folders": movie_folders, "genres": genres, "warnings": warns}
     finally:
         con.close()

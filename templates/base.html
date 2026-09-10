@@ -4,7 +4,7 @@
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="theme-color" content="#101722">
 <title>{% block title %}RETRO-TV · Cable Television{% endblock %}</title>
-<link rel="stylesheet" href="/static/css/retro.css?v=4">
+<link rel="stylesheet" href="/static/css/retro.css?v=6">
 </head>
 <body class="{% block bodyclass %}{% endblock %}">
 <header class="topbar">
@@ -20,7 +20,11 @@
 <main class="wrap">{% block body %}{% endblock %}</main>
 <footer class="footer"><span><i class="led"></i> RETRO-TV CABLE SYSTEM</span><span>YOUR CHANNELS. ALWAYS ON.</span></footer>
 <div id="notice" class="notice" role="status" aria-live="polite" hidden></div>
+<div id="reminderBanner" class="reminder-banner" hidden role="alert">
+<div class="reminder-banner-text"><b id="reminderTitle"></b><span id="reminderSub"></span></div>
+<button onclick="reminderTuneNow()">▶ TUNE NOW</button><button class="ghost" onclick="dismissReminderBanner()" aria-label="Dismiss reminder">✕</button>
+</div>
 <script>window.TV_TIMEZONE={{config_timezone|default('America/New_York')|tojson}};</script>
-<script src="/static/js/common.js?v=3"></script>
+<script src="/static/js/common.js?v=5"></script>
 {% block js %}{% endblock %}
 </body></html>

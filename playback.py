@@ -161,6 +161,9 @@ def play_file(path, offset=0, channel=None, title=None):
                 _ipc(["set_property", "pause", False])
                 _ipc(["set_property", "force-window", True])
                 _ipc(["set_property", "title", title or "RETRO-TV"])
+                # A freshly loaded file can bring its own embedded subtitle track back into
+                # view regardless of what the viewer last chose, so re-assert it every load.
+                _ipc(["set_property", "sub-visibility", database.get_state("cc_enabled", "0") == "1"])
                 _current.update(channel=channel, media=path, started_ts=time.time())
                 return True
         stop()
@@ -178,6 +181,7 @@ def play_file(path, offset=0, channel=None, title=None):
                "--audio-device=" + audio_device(), "--audio-channels=stereo", "--audio-samplerate=48000",
                "--volume=" + database.get_state("volume", "80"),
                "--mute=" + ("yes" if database.get_state("muted", "0") == "1" else "no"),
+               "--sub-visibility=" + ("yes" if database.get_state("cc_enabled", "0") == "1" else "no"),
                f"--start={max(0, offset)}", "--title=" + (title or "RETRO-TV"), path]
         try:
             os.makedirs(config.LOGS_DIR, exist_ok=True)
@@ -250,6 +254,11 @@ def pause_toggle():
     return _ipc(["cycle", "pause"]).get("error") == "success"
 
 
+def set_cc(enabled):
+    database.set_state("cc_enabled", "1" if enabled else "0")
+    return _ipc(["set_property", "sub-visibility", bool(enabled)]).get("error") == "success"
+
+
 def restore_last():
     channels = scheduler.get_channels()
     if not channels:
@@ -266,7 +275,8 @@ def status():
     with _lock:
         alive = mpv_alive()
         return {"mpv_alive": alive, "paused": _ipc(["get_property", "pause"]).get("data", False) if alive else False,
-                "volume": database.get_state("volume", "80"), "muted": database.get_state("muted", "0")}
+                "volume": database.get_state("volume", "80"), "muted": database.get_state("muted", "0"),
+                "cc": database.get_state("cc_enabled", "0")}
 
 
 def show_info():
@@ -274,6 +284,12 @@ def show_info():
     if not entry:
         return False
     return _ipc(["show-text", f"CH {_current['channel']:02d}  {entry.get('title', '')}\n{entry.get('subtitle', '')}", 5000]).get("error") == "success"
+
+
+def osd_message(text, duration_ms=10000):
+    """Non-interactive banner over whatever's currently on screen -- mpv hides it on
+    its own after duration_ms, no server-side timer needed."""
+    return _ipc(["show-text", text, duration_ms]).get("error") == "success"
 
 
 def _check_reconnect(was_connected):

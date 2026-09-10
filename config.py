@@ -42,6 +42,12 @@ DEFAULT_SETTINGS = {
     "channel_black_frame": "1",
     "default_commercial_mode": "between",  # off|between|mid
     "timezone": TIMEZONE,
+    # Gotify (https://gotify.net) push for reminders -- self-hosted, needs a server
+    # URL and an app token created in its UI. Blank/disabled = reminders still show
+    # on the TV and in any open browser tab, just no phone push.
+    "gotify_enabled": "0",
+    "gotify_url": "",
+    "gotify_token": "",
 }
 
 # Optional mpv audio-device override; otherwise discover the HDMI sink.
@@ -68,3 +74,12 @@ TTS_VOICE_WEATHER = os.environ.get("TTS_VOICE_WEATHER", "en-US-AriaNeural")
 TTS_VOICE_NEWS = os.environ.get("TTS_VOICE_NEWS", "en-US-GuyNeural")
 NEWS_RSS_URL = os.environ.get("NEWS_RSS_URL", "https://wnyt.com/feed/")
 NEWS_ARTICLE_COUNT = 5
+
+# Reminders (reminders.py): user sets one for a specific upcoming airing (from the
+# guide or a search result); a background loop fires it this many seconds before
+# start -- flashed on the TV via mpv's OSD and, if Gotify is configured above,
+# pushed to the phone. The on-screen banner (TV and any open browser tab) auto-hides
+# after REMINDER_OSD_MS regardless of whether it was acted on.
+REMINDER_LEAD_SEC = 120
+REMINDER_CHECK_INTERVAL_SEC = 15
+REMINDER_OSD_MS = 10000

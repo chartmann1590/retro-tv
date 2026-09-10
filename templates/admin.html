@@ -4,29 +4,37 @@
 <div class="tabs">
 <button onclick="tab('dash')">DASHBOARD</button><button onclick="tab('ch')">CHANNELS</button>
 <button onclick="tab('lib')">LIBRARY</button><button onclick="tab('guide')">GUIDE</button>
+<button onclick="tab('ads')">COMMERCIALS</button><button onclick="tab('reminders')">REMINDERS</button>
 <button onclick="tab('rem')">REMOTE</button><button onclick="tab('play')">PLAYBACK</button>
 <button onclick="tab('stream')">STREAMING</button><button onclick="tab('sys')">SYSTEM</button>
 <button onclick="tab('set')">SETTINGS</button><button onclick="tab('logs')">LOGS</button>
 </div>
 <div class="tab on" id="t-dash"><h2>DASHBOARD</h2><div id="dash"></div>
 <button onclick="rescan(false)">RESCAN MEDIA</button> <button class="ghost" onclick="rescan(true)">FULL RESCAN+PROBE</button></div>
-<div class="tab" id="t-ch"><h2>CHANNELS</h2><div id="chedit"></div><h2>ADD / EDIT</h2>
+<div class="tab" id="t-ch"><h2>CHANNELS</h2><p style="color:var(--dim);font-size:12px">Arrows reorder the guide/remote line-up without renaming channels.</p><div id="chedit"></div><h2 id="cheditTitle">ADD / EDIT</h2>
 <div class="kv"><label>Number</label><input id="cnum" type="number" min="1" max="999" value="2">
 <label>Name</label><input id="cname" value="Comedy">
 <label>Color</label><input id="ccolor" type="color" value="#1a3a6b">
 <label>Ordering</label><select id="corder"><option value="shuffle">Shuffle</option><option value="sequential">Sequential</option></select>
 <label>Commercials</label><select id="ccom"><option value="between">Between only</option><option value="off">Off</option><option value="mid">Mid-movie breaks</option></select>
 <label>Enabled</label><select id="cen"><option value="1">Yes</option><option value="0">No</option></select>
-<label>Sources (one per line: show:NAME, season:Show:S#, all_tv, all_movies, movie:/path)</label><textarea id="csrc" rows="4">show:The Simpsons</textarea></div>
-<button onclick="saveCh()">SAVE CHANNEL</button> <span id="chmsg"></span></div>
-<div class="tab" id="t-lib"><h2>MEDIA LIBRARY</h2><div id="lib"></div></div>
+<label>Favorite</label><select id="cfav"><option value="0">No</option><option value="1">Yes</option></select></div>
+<h3>Sources</h3><p style="color:var(--dim);font-size:12px">What this channel draws from. Leave empty to play everything in the library.</p>
+<div id="csrcRows"></div>
+<button class="ghost" onclick="addSrcRow()">+ ADD SOURCE</button>
+<div style="margin-top:18px"><button onclick="saveCh()">SAVE CHANNEL</button> <button class="ghost" onclick="newChannel()">NEW CHANNEL</button> <span id="chmsg"></span></div>
+<datalist id="dlShows"></datalist><datalist id="dlMovies"></datalist><datalist id="dlGenres"></datalist><datalist id="dlFolders"></datalist>
+</div>
+<div class="tab" id="t-lib"><h2>MEDIA LIBRARY</h2><input id="libSearch" type="search" placeholder="Search shows or movies…" oninput="renderLib()" style="margin-bottom:12px"><div id="lib"></div></div>
+<div class="tab" id="t-ads"><h2>COMMERCIAL ROTATION</h2><p style="color:var(--dim);font-size:12px">Soonest-up-next first (least recently aired) — this is the order the fair-rotation picker draws from.</p><div id="ads"></div></div>
+<div class="tab" id="t-reminders"><h2>REMINDERS</h2><p style="color:var(--dim);font-size:12px">Set from the guide or the remote's search. Fires on the TV (and to your phone, if Gotify is filled in under Settings) a couple minutes before start.</p><div id="reminders"></div></div>
 <div class="tab" id="t-guide"><h2>TV GUIDE</h2>
 <div class="kv"><label>Channel</label><input id="gch" type="number" value="2"><label>Day (YYYY-MM-DD)</label><input id="gday"></div>
 <button onclick="loadSched()">VIEW SCHEDULE</button> <button class="ghost" onclick="regen()">REGENERATE FUTURE DAY</button><div id="sched"></div></div>
 <div class="tab" id="t-rem"><h2>REMOTE SETUP</h2><p style="color:var(--dim)">Click a field, then press the remote button to capture its key. USB HID remotes appear as keyboards.</p><div id="rem"></div><h2>INPUT DEVICES</h2><div id="devs"></div></div>
 <div class="tab" id="t-play"><h2>HDMI PLAYBACK</h2><div id="hdmi"></div>
 <div class="kv"><label>Channel</label><input id="tunech" type="number" value="2"></div>
-<button onclick="tune()">TUNE HDMI</button> <button class="ghost" onclick="restartPb()">RESTART PLAYBACK</button></div>
+<button onclick="tune()">TUNE HDMI</button> <button class="ghost" onclick="restartPb()">RESTART PLAYBACK</button> <button class="ghost" onclick="toggleCC()">TOGGLE CAPTIONS</button></div>
 <div class="tab" id="t-stream"><h2>BROWSER STREAMING</h2><div id="streams"></div></div>
 <div class="tab" id="t-sys"><h2>SYSTEM</h2><div id="sys"></div>
 <button class="ghost" onclick="alert('Run scripts/install.sh with sudo to reboot host; user service cannot reboot.')">REBOOT PI</button></div>
@@ -34,4 +42,4 @@
 <div class="tab" id="t-logs"><h2>LOGS</h2><button class="ghost" onclick="loadLogs()">REFRESH</button><pre class="logs" id="logs"></pre></div>
 </div>
 {% endblock %}
-{% block js %}<script src="/static/js/admin.js"></script>{% endblock %}
+{% block js %}<script src="/static/js/admin.js?v=3"></script>{% endblock %}

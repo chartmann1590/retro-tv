@@ -68,7 +68,8 @@ CREATE TABLE IF NOT EXISTS channels (
   ordering TEXT DEFAULT 'shuffle',   -- shuffle|sequential
   commercial_mode TEXT DEFAULT 'between', -- off|between|mid
   max_repeats_per_day INTEGER DEFAULT 2,
-  sort_order INTEGER DEFAULT 0
+  sort_order INTEGER DEFAULT 0,
+  favorite INTEGER DEFAULT 0
 );
 CREATE TABLE IF NOT EXISTS channel_sources (
   id INTEGER PRIMARY KEY,
@@ -133,6 +134,17 @@ CREATE TABLE IF NOT EXISTS stream_sessions (
   created_ts REAL NOT NULL,
   last_seen_ts REAL NOT NULL
 );
+CREATE TABLE IF NOT EXISTS reminders (
+  id INTEGER PRIMARY KEY,
+  entry_id INTEGER,
+  channel_number INTEGER NOT NULL,
+  title TEXT NOT NULL,
+  subtitle TEXT DEFAULT '',
+  start_ts REAL NOT NULL,
+  created_ts REAL NOT NULL,
+  notified INTEGER DEFAULT 0
+);
+CREATE INDEX IF NOT EXISTS idx_reminders_start ON reminders(start_ts);
 """
 
 def connect():
@@ -151,6 +163,9 @@ def init_db():
         cols = {r["name"] for r in con.execute("PRAGMA table_info(movies)")}
         if "genre" not in cols:
             con.execute("ALTER TABLE movies ADD COLUMN genre TEXT DEFAULT ''")
+        cols = {r["name"] for r in con.execute("PRAGMA table_info(channels)")}
+        if "favorite" not in cols:
+            con.execute("ALTER TABLE channels ADD COLUMN favorite INTEGER DEFAULT 0")
         for k, v in config.DEFAULT_SETTINGS.items():
             con.execute("INSERT OR IGNORE INTO settings(key,value) VALUES(?,?)", (k, v))
         defaults = [
@@ -158,6 +173,7 @@ def init_db():
             ("prev_channel", ""),
             ("volume", "80"),
             ("muted", "0"),
+            ("cc_enabled", "0"),
         ]
         for k, v in defaults:
             con.execute("INSERT OR IGNORE INTO playback_state(key,value) VALUES(?,?)", (k, v))

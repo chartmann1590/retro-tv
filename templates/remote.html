@@ -11,10 +11,15 @@
 <span></span><button onclick="dpadDown()" aria-label="Guide down / channel down">▼</button><span></span>
 </div>
 <div id="rinfo" class="rinfo" hidden></div>
+<div id="rsearch" class="rinfo search-panel" hidden><input id="rsearchInput" type="search" placeholder="Search shows or movies…" oninput="doSearch()" aria-label="Search shows or movies"><div id="rsearchResults" class="search-results"></div></div>
+<div id="rreminders" class="rinfo" hidden><div id="rreminderList"></div></div>
 <div class="rocker-row"><div class="rocker"><button onclick="volStep(5)" aria-label="Volume up">+</button><span>VOL</span><button onclick="volStep(-5)" aria-label="Volume down">−</button></div><div class="remote-center"><span class="cable-seal">CABLE<br><b>TV</b></span><button id="muteButton" class="ghost" aria-pressed="false" onclick="muteToggle()">MUTE</button></div><div class="rocker"><button onclick="chStep(1)" aria-label="Channel up">+</button><span>CH</span><button onclick="chStep(-1)" aria-label="Channel down">−</button></div></div>
 <div class="rgrid" id="digits" aria-label="Channel number keypad"></div>
 <div class="rrow"><button id="pauseButton" class="ghost" onclick="pauseToggle()">Ⅱ PAUSE</button><button class="ghost" onclick="goLive()">● LIVE TV</button></div>
+<div class="rrow"><button id="ccButton" class="ghost" aria-pressed="false" onclick="ccToggle()">CC OFF</button><button class="ghost" onclick="toggleSearch()">🔍 FIND</button><button class="ghost" onclick="toggleReminders()">🔔 REMINDERS</button></div>
 <p class="remote-footnote">RT-04 · LIVING ROOM RECEIVER</p>
-</section><section class="remote-lineup"><p class="eyebrow">ONE REMOTE. ALL YOUR FAVORITES.</p><h1>Take control.</h1><p class="explain">Choose a channel. Settle into the sofa.<br>Every button controls your television.</p><h2 class="section-label">QUICK TUNE</h2><div class="channel-list" id="chlist"></div></section></div>
+</section><section class="remote-lineup"><p class="eyebrow">ONE REMOTE. ALL YOUR FAVORITES.</p><h1>Take control.</h1><p class="explain">Choose a channel. Settle into the sofa.<br>Every button controls your television.</p>
+<div class="lineup-toolbar"><h2 class="section-label">QUICK TUNE</h2><button id="favToggle" class="ghost" onclick="toggleFavFilter()" aria-pressed="false">★ Favorites</button></div>
+<div class="channel-list" id="chlist"></div></section></div>
 {% endblock %}
-{% block js %}<script src="/static/js/remote.js?v=4"></script>{% endblock %}
+{% block js %}<script src="/static/js/remote.js?v=6"></script>{% endblock %}

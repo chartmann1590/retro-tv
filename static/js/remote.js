@@ -1,5 +1,5 @@
-let CUR_CH=null, PREV_CH=null, digits='', digitT, VOL=80, MUTED=false, CHANNELS=[], commandQueue=Promise.resolve();
-let guideOpen=false, gT0=0, gData=[], gSel={r:0,c:0};
+let CUR_CH=null, PREV_CH=null, digits='', digitT, VOL=80, MUTED=false, CC=false, CHANNELS=[], commandQueue=Promise.resolve();
+let guideOpen=false, gT0=0, gData=[], gSel={r:0,c:0}, favOnly=false, SEARCH_RESULTS=[], searchT;
 function command(action){commandQueue=commandQueue.then(action).catch(e=>notify(e.message));return commandQueue;}
 async function initRemote(){
   document.getElementById('digits').innerHTML=[1,2,3,4,5,6,7,8,9,'CLR',0,'GO'].map(d=>`<button class="${typeof d==='number'?'number-key':'ghost'}" onclick="digit('${d}')" aria-label="${d==='CLR'?'Clear channel number':d==='GO'?'Tune entered channel':'Digit '+d}">${d}</button>`).join('');
@@ -20,7 +20,17 @@ async function refreshNow(){
 }
 async function refreshChs(){
   const j=await tvApi('/api/channels');CHANNELS=j.channels.filter(c=>c.enabled);
-  document.getElementById('chlist').innerHTML=CHANNELS.map(c=>`<button class="channel-choice ghost" data-channel="${c.number}" onclick="tune(${c.number})"><span class="channel-number">${String(c.number).padStart(2,'0')}</span><span>${esc(c.name)}</span><span class="channel-arrow">›</span></button>`).join('');highlightChannel();
+  renderChList();
+}
+function renderChList(){
+  const list=favOnly?CHANNELS.filter(c=>c.favorite):CHANNELS;
+  document.getElementById('chlist').innerHTML=list.map(c=>`<button class="channel-choice ghost" data-channel="${c.number}" onclick="tune(${c.number})">${c.favorite?'<span class="fav-star">★</span>':''}<span class="channel-number">${String(c.number).padStart(2,'0')}</span><span>${esc(c.name)}</span><span class="channel-arrow">›</span></button>`).join('')||(favOnly?'<p class="hint">No favorite channels yet — set them in Setup.</p>':'');
+  highlightChannel();
+}
+function toggleFavFilter(){
+  favOnly=!favOnly;
+  const b=document.getElementById('favToggle');b.classList.toggle('active',favOnly);b.setAttribute('aria-pressed',String(favOnly));
+  renderChList();
 }
 function highlightChannel(){document.querySelectorAll('[data-channel]').forEach(b=>b.classList.toggle('selected',+b.dataset.channel===CUR_CH));}
 async function tuneNow(ch){await tvApi('/api/tune',{channel:ch});await refreshNow();notify(`Channel ${ch} on your TV`);}
@@ -39,7 +49,46 @@ function volStep(d){return command(async()=>{const r=await tvApi('/api/volume',{
 function muteToggle(){return command(async()=>showVol(await tvApi('/api/volume',{muted:!MUTED})));}
 function pauseToggle(){return command(async()=>{showVol(await tvApi('/api/volume',{toggle_pause:true}));await refreshNow();});}
 function goLive(){if(CUR_CH!=null)return tune(CUR_CH);}
-function showVol(r){VOL=+r.volume;MUTED=r.muted==='1'||r.muted===true;document.getElementById('vol').textContent=MUTED?'MUTED':`VOL ${VOL}`;document.getElementById('muteButton').setAttribute('aria-pressed',String(MUTED));document.getElementById('pauseButton').textContent=r.paused?'▶ RESUME':'Ⅱ PAUSE';}
+function ccToggle(){return command(async()=>{showVol(await tvApi('/api/captions',{enabled:!CC}));});}
+function showVol(r){
+  VOL=+r.volume;MUTED=r.muted==='1'||r.muted===true;
+  if('cc' in r)CC=r.cc==='1'||r.cc===true;
+  document.getElementById('vol').textContent=MUTED?'MUTED':`VOL ${VOL}`;
+  document.getElementById('muteButton').setAttribute('aria-pressed',String(MUTED));
+  document.getElementById('pauseButton').textContent=r.paused?'▶ RESUME':'Ⅱ PAUSE';
+  document.getElementById('ccButton').setAttribute('aria-pressed',String(CC));
+  document.getElementById('ccButton').textContent=CC?'CC ON':'CC OFF';
+}
+function toggleSearch(){const p=document.getElementById('rsearch');p.hidden=!p.hidden;if(!p.hidden)document.getElementById('rsearchInput').focus();}
+function doSearch(){clearTimeout(searchT);searchT=setTimeout(runSearch,250);}
+async function runSearch(){
+  const q=document.getElementById('rsearchInput').value.trim();
+  const box=document.getElementById('rsearchResults');
+  if(!q){box.innerHTML='';SEARCH_RESULTS=[];return;}
+  try{
+    const r=await tvApi('/api/guide/search?q='+encodeURIComponent(q));
+    SEARCH_RESULTS=r.results||[];
+    box.innerHTML=SEARCH_RESULTS.map((e,i)=>`<div class="search-hit" onclick="pickSearch(${i})"><b>CH ${String(e.channel_number).padStart(2,'0')}</b>${esc(e.title)} ${esc(e.subtitle||'')}<br><span class="hint">${e.is_live?'ON NOW':'at '+esc(e.start_fmt)}</span></div>`).join('')||'<p class="hint">No matches.</p>';
+  }catch(err){box.innerHTML='<p class="hint">Search unavailable.</p>';}
+}
+async function pickSearch(i){
+  const e=SEARCH_RESULTS[i];if(!e)return;
+  document.getElementById('rsearch').hidden=true;
+  if(e.is_live)return tune(e.channel_number);
+  try{
+    await tvApi('/api/reminders',{entry_id:e.id});
+    notify(`⏰ Reminder set — ${e.title} at ${e.start_fmt} on CH ${String(e.channel_number).padStart(2,'0')}`);
+  }catch(err){notify(err.message);}
+}
+function toggleReminders(){const p=document.getElementById('rreminders');p.hidden=!p.hidden;if(!p.hidden)loadReminderList();}
+async function loadReminderList(){
+  const box=document.getElementById('rreminderList');
+  try{
+    const r=await tvApi('/api/reminders');
+    box.innerHTML=(r.reminders||[]).map(x=>`<div class="reminder-row"><span><b>${esc(x.title)}</b> ${esc(x.subtitle||'')}<br><span class="hint">CH ${String(x.channel_number).padStart(2,'0')} · ${esc(x.start_fmt)}</span></span><button class="ghost" onclick="cancelReminder(${x.id})">✕</button></div>`).join('')||'<p class="hint">No reminders set.</p>';
+  }catch(err){box.innerHTML='<p class="hint">Could not load reminders.</p>';}
+}
+async function cancelReminder(id){await fetch('/api/reminders/'+id,{method:'DELETE'});loadReminderList();}
 async function showInfo(){
   const p=document.getElementById('rinfo');p.hidden=!p.hidden;
   if(!p.hidden&&CUR_CH!=null){const d=await tvApi('/api/now/'+CUR_CH);p.innerHTML=`<b>${esc(d.entry.title)}</b><p>${esc(d.entry.subtitle)}</p><p>${esc(d.entry.description||'No description available.')}</p><small>${esc(d.range)}</small>`;await tvApi('/api/info',{});}
