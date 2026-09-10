@@ -6,7 +6,8 @@ async function loadDash(){
   const s=await jget('/api/system');
   document.getElementById('dash').innerHTML=s.ok?`
     Episodes: <b>${s.library.episodes}</b> | Movies: <b>${s.library.movies}</b> | Commercials: <b>${s.library.commercials}</b><br>
-    Disk free: <b>${(s.disk.free/1e9).toFixed(1)} GB</b> | mpv: <b>${s.mpv?'installed':'MISSING (fallback cvlc)'}</b> alive=${s.mpv_alive}<br>
+    Disk free: <b>${(s.disk.free/1e9).toFixed(1)} GB</b> of ${(s.disk.total/1e9).toFixed(1)} GB | mpv: <b>${s.mpv?'installed':'MISSING (fallback cvlc)'}</b> alive=${s.mpv_alive}<br>
+    ${(s.disk.breakdown||[]).map(b=>`<span class="chip">${esc(b.path)}: ${(b.free/1e9).toFixed(1)} / ${(b.total/1e9).toFixed(1)} GB free</span>`).join('')}<br><br>
     ${s.library.warnings.map(w=>`<div class="warn">${esc(w.path)}: ${esc(w.compat_warning)}</div>`).join('')||'<div class="okbox">No compatibility warnings.</div>'}`:'err';
 }
 async function rescan(full){const r=await jpost('/api/scan',{full});alert(`Scan: +${r.added} new, ${r.updated} updated, total ${r.total}. Metadata: ${r.metadata_enriched||0} enriched.`);loadDash();loadLib();}

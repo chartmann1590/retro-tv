@@ -275,6 +275,51 @@ def _full_scan(light=False):
         con.close()
     return {"added": added, "updated": updated, "total": len(found)}
 
+def media_disk_usage():
+    """Combined disk space across every distinct filesystem mounted at or under
+    MEDIA_ROOT -- not just shutil.disk_usage(MEDIA_ROOT), which only sees whatever
+    filesystem MEDIA_ROOT itself sits on and misses expansion drives bind-mounted
+    into a subfolder (e.g. TVShows/SSD). Dedupes by device so a drive bind-mounted
+    into multiple category folders (TVShows/SSD, Movies/SSD, ...) is only counted
+    once, not once per bind."""
+    import shutil
+    root = os.path.realpath(config.MEDIA_ROOT)
+    mounts = {}
+    try:
+        root_dev = os.stat(root).st_dev
+        mounts[root_dev] = root
+    except OSError:
+        pass
+    try:
+        with open("/proc/mounts") as f:
+            for line in f:
+                parts = line.split()
+                if len(parts) < 2:
+                    continue
+                mp = parts[1]
+                if mp == root or mp.startswith(root + os.sep):
+                    try:
+                        dev = os.stat(mp).st_dev
+                    except OSError:
+                        continue
+                    mounts.setdefault(dev, mp)
+    except OSError:
+        pass
+    breakdown = []
+    total = used = free = 0
+    for path in mounts.values():
+        try:
+            du = shutil.disk_usage(path)
+        except OSError:
+            continue
+        total += du.total
+        used += du.used
+        free += du.free
+        breakdown.append({"path": path, "total": du.total, "used": du.used, "free": du.free})
+    breakdown.sort(key=lambda b: b["path"])
+    return {"total": total, "used": used, "free": free, "breakdown": breakdown}
+
+
 def library_summary():
     con = database.connect()
     try:

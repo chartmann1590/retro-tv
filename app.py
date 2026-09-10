@@ -534,10 +534,8 @@ def api_settings_save():
 
 @app.route("/api/system")
 def api_system():
-    import shutil
-    du = shutil.disk_usage(config.MEDIA_ROOT)
     return jsonify({"ok": True,
-                    "disk": {"total": du.total, "used": du.used, "free": du.free},
+                    "disk": scanner.media_disk_usage(),
                     "mpv": bool(playback._find_mpv()),
                     "mpv_alive": playback.mpv_alive(),
                     "sessions": streaming.active_sessions(),
