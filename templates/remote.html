@@ -4,11 +4,11 @@
 <div class="remote-layout"><section class="remote-handset">
 <div class="remote-brand">RETRO<span>TV</span><small>UNIVERSAL CABLE REMOTE</small></div>
 <div class="remote-screen" aria-live="polite"><div class="remote-screen-top"><span id="connection">CONNECTING</span><span id="ncLive">TV</span></div><div class="remote-screen-main"><strong id="ncCh">--</strong><div><div id="ncTitle">Connecting to receiver…</div><div id="ncSub"></div></div></div><div class="remote-screen-bottom"><span id="vol">VOL --</span><span id="digitDisplay"></span></div></div>
-<div class="rrow"><button id="guideButton" class="guide-key" onclick="openGuide()">GUIDE</button><button class="ghost" onclick="showInfo()">INFO</button><button class="ghost" onclick="prevCh()">LAST</button></div>
-<div class="dpad" aria-label="Guide navigation">
-<span></span><button onclick="dpadUp()" aria-label="Guide up / channel up">▲</button><span></span>
-<button onclick="dpadLeft()" aria-label="Previous program">◀</button><button class="dpad-ok" onclick="dpadOk()" aria-label="Select">OK</button><button onclick="dpadRight()" aria-label="Next program">▶</button>
-<span></span><button onclick="dpadDown()" aria-label="Guide down / channel down">▼</button><span></span>
+<div class="rrow"><button id="vodButton" class="vod-key" onclick="toggleVod()">ON DEMAND</button><button id="guideButton" class="guide-key" onclick="openGuide()">GUIDE</button><button class="ghost" onclick="showInfo()">INFO</button><button class="ghost" onclick="prevCh()">LAST</button></div>
+<div class="dpad" aria-label="Navigation pad">
+<span></span><button onclick="dpadUp()" aria-label="Up">▲</button><span></span>
+<button onclick="dpadLeft()" aria-label="Left">◀</button><button class="dpad-ok" onclick="dpadOk()" aria-label="Select / OK">OK</button><button onclick="dpadRight()" aria-label="Right">▶</button>
+<span></span><button onclick="dpadDown()" aria-label="Down">▼</button><span></span>
 </div>
 <div id="rinfo" class="rinfo" hidden></div>
 <div id="rsearch" class="rinfo search-panel" hidden><input id="rsearchInput" type="search" placeholder="Search shows or movies…" oninput="doSearch()" aria-label="Search shows or movies"><div id="rsearchResults" class="search-results"></div></div>
@@ -22,4 +22,4 @@
 <div class="lineup-toolbar"><h2 class="section-label">QUICK TUNE</h2><button id="favToggle" class="ghost" onclick="toggleFavFilter()" aria-pressed="false">★ Favorites</button></div>
 <div class="channel-list" id="chlist"></div></section></div>
 {% endblock %}
-{% block js %}<script src="/static/js/remote.js?v=6"></script>{% endblock %}
+{% block js %}<script src="/static/js/remote.js?v=8"></script>{% endblock %}

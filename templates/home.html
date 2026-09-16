@@ -17,4 +17,4 @@
 {% for c in channels %}<button class="channel-choice ghost" data-channel="{{c.number}}" onclick="tuneHDMI({{c.number}})"><span class="channel-number">{{'%02d'|format(c.number)}}</span><span>{{c.name}}</span><span class="channel-arrow">&rsaquo;</span></button>{% else %}<p>Add channels in <a href="/admin">Setup</a> to get started.</p>{% endfor %}
 </div></section><section class="panel phone-card"><p class="eyebrow">PASS THE REMOTE</p><h2>Your phone is the remote.</h2><p class="explain">Connect to the same Wi-Fi, then open this address on your phone.</p><a id="remoteAddress" class="remote-address" href="{{remote_url}}">{{remote_url}}</a><p class="hint">Channel surfing, volume, last channel, and the complete TV guide.</p></section></div>
 {% endblock %}
-{% block js %}<script src="/static/js/tv.js?v=3"></script>{% endblock %}
+{% block js %}<script src="/static/js/tv.js?v=4"></script>{% endblock %}

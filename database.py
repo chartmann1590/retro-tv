@@ -25,7 +25,10 @@ CREATE TABLE IF NOT EXISTS media_files (
 CREATE INDEX IF NOT EXISTS idx_media_kind ON media_files(kind);
 CREATE TABLE IF NOT EXISTS shows (
   id INTEGER PRIMARY KEY,
-  name TEXT UNIQUE NOT NULL
+  name TEXT UNIQUE NOT NULL,
+  poster TEXT DEFAULT '',
+  description TEXT DEFAULT '',
+  meta_source TEXT DEFAULT ''
 );
 CREATE TABLE IF NOT EXISTS episodes (
   id INTEGER PRIMARY KEY,
@@ -166,6 +169,13 @@ def init_db():
         cols = {r["name"] for r in con.execute("PRAGMA table_info(channels)")}
         if "favorite" not in cols:
             con.execute("ALTER TABLE channels ADD COLUMN favorite INTEGER DEFAULT 0")
+        show_cols = {r["name"] for r in con.execute("PRAGMA table_info(shows)")}
+        if "poster" not in show_cols:
+            con.execute("ALTER TABLE shows ADD COLUMN poster TEXT DEFAULT ''")
+        if "description" not in show_cols:
+            con.execute("ALTER TABLE shows ADD COLUMN description TEXT DEFAULT ''")
+        if "meta_source" not in show_cols:
+            con.execute("ALTER TABLE shows ADD COLUMN meta_source TEXT DEFAULT ''")
         for k, v in config.DEFAULT_SETTINGS.items():
             con.execute("INSERT OR IGNORE INTO settings(key,value) VALUES(?,?)", (k, v))
         defaults = [
@@ -179,7 +189,7 @@ def init_db():
             con.execute("INSERT OR IGNORE INTO playback_state(key,value) VALUES(?,?)", (k, v))
         # default remote mappings (keyboard codes)
         remotes = {
-            "GUIDE": "g", "CHANNEL_UP": "Page_Up", "CHANNEL_DOWN": "Page_Down",
+            "GUIDE": "g", "VOD": "v", "CHANNEL_UP": "Page_Up", "CHANNEL_DOWN": "Page_Down",
             "PREV_CHANNEL": "BackSpace", "INFO": "i", "PLAY_PAUSE": "space",
             "BACK": "Escape", "UP": "Up", "DOWN": "Down", "LEFT": "Left",
             "RIGHT": "Right", "OK": "Return", "VOLUME_UP": "plus",

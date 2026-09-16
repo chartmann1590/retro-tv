@@ -1,6 +1,19 @@
-let CH=null, liveOffset=0, mediaKey=null, updating=false, triedHLS=false;
-async function initPlayer(ch,off,wantFS){
-  CH=ch;liveOffset=off||0;const v=document.getElementById('v');
+let CH=null, liveOffset=0, mediaKey=null, updating=false, triedHLS=false, vodItem=null;
+async function initPlayer(ch,off,wantFS,vod){
+  vodItem=vod||null;CH=vodItem?null:ch;liveOffset=off||0;const v=document.getElementById('v');
+  if(vodItem){
+    document.getElementById('now').textContent=`${vodItem.title||''} ${vodItem.subtitle||''}`.trim();
+    v.addEventListener('timeupdate',()=>{
+      if(v.duration){
+        const pct=Math.max(0,Math.min(100,(v.currentTime/v.duration)*100));
+        document.getElementById('bar').style.width=pct+'%';
+      }
+    });
+    v.addEventListener('loadedmetadata',()=>{v.currentTime=0;v.play().then(()=>{document.getElementById('playPrompt').hidden=true;}).catch(()=>{document.getElementById('playPrompt').hidden=false;});});
+    setupWatchControls();
+    if(wantFS&&document.documentElement.requestFullscreen)document.documentElement.requestFullscreen().catch(()=>{});
+    return;
+  }
   if(CH==null){document.getElementById('now').textContent='No channels configured.';return;}
   v.addEventListener('loadedmetadata',()=>{if(Number.isFinite(v.duration))v.currentTime=Math.min(liveOffset,Math.max(0,v.duration-0.1));v.play().then(()=>{document.getElementById('playPrompt').hidden=true;}).catch(()=>{document.getElementById('playPrompt').hidden=false;});});
   v.addEventListener('ended',()=>syncInfo(true));
@@ -17,6 +30,7 @@ async function initPlayer(ch,off,wantFS){
 }
 function goFS(){const v=document.getElementById('v'),target=document.getElementById('tvwrap');if(target.requestFullscreen)target.requestFullscreen().catch(()=>{});else if(v.webkitEnterFullscreen)v.webkitEnterFullscreen();v.play().then(()=>{document.getElementById('playPrompt').hidden=true;}).catch(()=>{document.getElementById('playPrompt').hidden=false;});}
 async function playOnTV(){if(CH==null)return;await tvApi('/api/tune',{channel:CH});notify(`Channel ${CH} is playing on your TV.`);}
+async function playVodOnTV(id){await tvApi('/api/vod/play',{media_id:id});notify('Playing on your living-room TV.');}
 async function syncInfo(force=false){
   if(updating||CH==null||document.hidden)return;updating=true;
   try{

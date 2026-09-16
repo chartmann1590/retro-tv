@@ -12,10 +12,12 @@
 <nav class="nav" aria-label="Main navigation">
 <a href="/" class="{{'on' if request.path=='/' else ''}}">Receiver</a>
 <a href="/guide" class="{{'on' if request.path.startswith('/guide') else ''}}">TV Guide</a>
+<a href="/vod" class="{{'on' if request.path.startswith('/vod') else ''}}">On Demand</a>
 <a href="/remote" class="{{'on' if request.path.startswith('/remote') else ''}}">Remote</a>
 <a href="/watch" class="{{'on' if request.path.startswith('/watch') else ''}}">Watch</a>
 <a href="/admin" class="{{'on' if request.path.startswith('/admin') else ''}}">Setup</a>
-</nav><time class="clock" id="clock"></time>
+</nav>
+<time class="clock" id="clock"></time>
 </header>
 <main class="wrap">{% block body %}{% endblock %}</main>
 <footer class="footer"><span><i class="led"></i> RETRO-TV CABLE SYSTEM</span><span>YOUR CHANNELS. ALWAYS ON.</span></footer>
@@ -25,6 +27,6 @@
 <button onclick="reminderTuneNow()">▶ TUNE NOW</button><button class="ghost" onclick="dismissReminderBanner()" aria-label="Dismiss reminder">✕</button>
 </div>
 <script>window.TV_TIMEZONE={{config_timezone|default('America/New_York')|tojson}};</script>
-<script src="/static/js/common.js?v=5"></script>
+<script src="/static/js/common.js?v=6"></script>
 {% block js %}{% endblock %}
 </body></html>

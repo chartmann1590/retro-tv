@@ -182,5 +182,35 @@ def flash_channel(channel_number, entry):
     _flash_timer.start()
 
 
+def flash_vod(title, subtitle=None):
+    """Classic cable-box On Demand banner: corner VOD badge + bottom info
+    bar, auto-hiding after FLASH_SECONDS."""
+    global _flash_timer
+    if _visible:
+        return
+    ass = []
+
+    def box(x, y, w, h, color):
+        ass.append(f"{{\\an7\\pos({x},{y})\\bord0\\shad0\\1c&H{_color(color)}&\\p1}}m 0 0 l {w} 0 {w} {h} 0 {h}{{\\p0}}")
+
+    def text(x, y, value, size=24, color="EFF2E9"):
+        ass.append(f"{{\\an7\\pos({x},{y})\\fnDejaVu Sans\\fs{size}\\bord0\\shad0\\1c&H{_color(color)}&}}{_text(value)}")
+
+    box(40, 30, 240, 88, "8A1E1E")
+    text(54, 38, "ON DEMAND", 30, "F8CB63")
+    text(54, 82, "RETROFLIX VOD", 15, "EFF2E9")
+    box(40, 588, 1200, 92, "141B26")
+    text(58, 598, title or "On Demand Feature", 28, "F8CB63")
+    text(58, 634, subtitle or "Playing on Demand", 18, "EFF2E9")
+    text(58, 660, "PRESS 'LIVE TV' ON REMOTE TO RETURN TO CABLE", 14, "AAB9CF")
+
+    _send(["osd-overlay", FLASH_OVERLAY_ID, "ass-events", "\n".join(ass), 1280, 720])
+    if _flash_timer:
+        _flash_timer.cancel()
+    _flash_timer = threading.Timer(FLASH_SECONDS, clear_flash)
+    _flash_timer.daemon = True
+    _flash_timer.start()
+
+
 def clear_flash():
     _send(["osd-overlay", FLASH_OVERLAY_ID, "none", ""])

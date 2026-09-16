@@ -1,16 +1,6 @@
 function tab(id){document.querySelectorAll('.tab').forEach(t=>t.classList.remove('on'));document.getElementById('t-'+id).classList.add('on');if(id==='logs')loadLogs();if(id==='ads')loadAds();if(id==='reminders')loadReminders();}
 async function jget(p){return (await fetch(p)).json();}
 async function jpost(p,b){return (await fetch(p,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(b||{})})).json();}
-loadDash();loadCh();loadLib();loadRem();loadHdmi();loadSys();loadSets();renderSrcRows([]);
-async function loadDash(){
-  const s=await jget('/api/system');
-  document.getElementById('dash').innerHTML=s.ok?`
-    Episodes: <b>${s.library.episodes}</b> | Movies: <b>${s.library.movies}</b> | Commercials: <b>${s.library.commercials}</b><br>
-    Disk free: <b>${(s.disk.free/1e9).toFixed(1)} GB</b> of ${(s.disk.total/1e9).toFixed(1)} GB | mpv: <b>${s.mpv?'installed':'MISSING (fallback cvlc)'}</b> alive=${s.mpv_alive}<br>
-    ${(s.disk.breakdown||[]).map(b=>`<span class="chip">${esc(b.path)}: ${(b.free/1e9).toFixed(1)} / ${(b.total/1e9).toFixed(1)} GB free</span>`).join('')}<br><br>
-    ${s.library.warnings.map(w=>`<div class="warn">${esc(w.path)}: ${esc(w.compat_warning)}</div>`).join('')||'<div class="okbox">No compatibility warnings.</div>'}`:'err';
-}
-async function rescan(full){const r=await jpost('/api/scan',{full});alert(`Scan: +${r.added} new, ${r.updated} updated, total ${r.total}. Metadata: ${r.metadata_enriched||0} enriched.`);loadDash();loadLib();}
 
 // ---------- channels ----------
 const SRC_TYPES=[
@@ -22,6 +12,27 @@ const SRC_TYPES=[
   {v:'movie',label:'Single movie'},
   {v:'movie_folder',label:'Movie folder'},
 ];
+
+loadDash();loadCh();loadLib();loadRem();loadHdmi();loadSys();loadSets();renderSrcRows([]);
+async function loadDash(){
+  const s=await jget('/api/system');
+  if(!s.ok){document.getElementById('dash').innerHTML='err';return;}
+  const pb=s.playback_health||{};
+  const sys=s.system_health||{};
+  const tempBadge=sys.cpu_temp_c?`<span class="chip" style="${sys.cpu_temp_c>=80?'background:#8b2020;color:#fff;':'background:#1c3325;color:#8fef9b;'}">CPU: ${sys.cpu_temp_c}°C</span>`:'';
+  const throttleWarn=sys.is_throttled?`<div class="warn" style="margin-top:6px;background:#3a1d1d;border:1px solid #d9534f;padding:6px;border-radius:4px;color:#ffb0b0">⚠️ <b>Thermal/Power Throttling:</b> ${sys.throttled_reasons.join(', ')}</div>`:'';
+  const pbInfo=pb.alive?`<span class="chip">Decoder: <b>${pb.hwdec}</b></span> <span class="chip">Drops: <b>${pb.dropped_frames}</b></span> <span class="chip">A/V Sync: <b>${pb.avsync_ms} ms</b></span> <span class="chip">FPS: <b>${pb.fps}</b></span>`:'<span class="chip">Player Idle</span>';
+
+  document.getElementById('dash').innerHTML=`
+    Episodes: <b>${s.library.episodes}</b> | Movies: <b>${s.library.movies}</b> | Commercials: <b>${s.library.commercials}</b><br>
+    Disk free: <b>${(s.disk.free/1e9).toFixed(1)} GB</b> of ${(s.disk.total/1e9).toFixed(1)} GB | mpv: <b>${s.mpv?'installed':'MISSING'}</b> alive=${s.mpv_alive}<br>
+    Playback: ${pbInfo} | Load: <b>${sys.load_1m}</b> ${tempBadge}
+    ${throttleWarn}
+    <br>${(s.disk.breakdown||[]).map(b=>`<span class="chip">${esc(b.path)}: ${(b.free/1e9).toFixed(1)} / ${(b.total/1e9).toFixed(1)} GB free</span>`).join('')}<br><br>
+    ${s.library.warnings.map(w=>`<div class="warn">${esc(w.path)}: ${esc(w.compat_warning)}</div>`).join('')||'<div class="okbox">No compatibility warnings.</div>'}`;
+}
+async function rescan(full){const r=await jpost('/api/scan',{full});alert(`Scan: +${r.added} new, ${r.updated} updated, total ${r.total}. Metadata: ${r.metadata_enriched||0} enriched.`);loadDash();loadLib();}
+
 let CH_LIST=[];
 async function loadCh(){
   const c=await jget('/api/channels');
@@ -141,7 +152,7 @@ async function loadHdmi(){const r=await jget('/api/hdmi');document.getElementByI
 async function tune(){const r=await jpost('/api/tune',{channel:+document.getElementById('tunech').value});alert(JSON.stringify(r).slice(0,300));loadHdmi();}
 async function restartPb(){const r=await jpost('/api/restart-playback',{});alert(JSON.stringify(r).slice(0,300));}
 async function toggleCC(){const s=await jget('/api/captions');await jpost('/api/captions',{enabled:s.cc!=='1'});loadHdmi();}
-async function loadSys(){const s=await jget('/api/system');document.getElementById('sys').innerHTML=`<pre>${JSON.stringify({disk:s.disk,mpv:s.mpv,sessions:s.sessions},null,2)}</pre>`;
+async function loadSys(){const s=await jget('/api/system');document.getElementById('sys').innerHTML=`<pre>${JSON.stringify({system_health:s.system_health,playback_health:s.playback_health,disk:s.disk,mpv:s.mpv,sessions:s.sessions},null,2)}</pre>`;
   document.getElementById('streams').innerHTML=(s.sessions||[]).map(x=>`<div>${esc(x.id)} ch${x.channel}</div>`).join('')||'no browser sessions';}
 async function loadSets(){const r=await jget('/api/settings');document.getElementById('sets').innerHTML=Object.entries(r.settings).map(([k,v])=>`<div class="kv"><label>${k}</label><input id="set-${k}" value="${esc(v)}"></div>`).join('');}
 async function saveSets(){const o={};document.querySelectorAll('#sets input').forEach(i=>o[i.id.slice(4)]=i.value);await jpost('/api/settings',o);alert('Saved');}

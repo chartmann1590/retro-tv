@@ -17,7 +17,7 @@ log = logging.getLogger("retro-tv.playback")
 _lock = threading.RLock()
 _proc = None
 _monitor_stop = threading.Event()
-_current = {"channel": None, "media": None, "entry_id": None, "started_ts": 0}
+_current = {"channel": None, "media": None, "entry_id": None, "started_ts": 0, "is_vod": False, "vod_info": None}
 
 
 def _find_mpv():
@@ -170,13 +170,13 @@ def play_file(path, offset=0, channel=None, title=None):
         mpv = _find_mpv()
         if not mpv:
             return False
-        # hwdec=drm-copy, not auto/drm: zero-copy drm dmabuf frames decode fine but
-        # labwc/vc4 silently fail to composite them, leaving the desktop background on
-        # screen while mpv itself reports normal playback the whole time.
+        # Hardware decode on Pi 4: v4l2m2m-copy handles H.264/HEVC using the Pi's
+        # hardware V4L2 decoder (/dev/video10). -copy mode copies to RAM so labwc/vc4
+        # compositing works cleanly. Fall back to drm-copy / auto-copy / 4-thread CPU decode.
         cmd = [mpv, "--no-config", "--fullscreen", "--no-terminal", "--idle=yes",
                "--force-window=yes", "--keep-open=no", "--osc=no", "--osd-level=0",
                "--no-input-default-bindings", "--input-ipc-server=" + config.MPV_SOCKET,
-               "--profile=fast", "--hwdec=drm-copy", "--vd-lavc-threads=2",
+               "--profile=fast", "--hwdec=v4l2m2m-copy,drm-copy,auto-copy,auto-safe", "--vd-lavc-threads=4",
                "--demuxer-max-bytes=32MiB", "--demuxer-max-back-bytes=8MiB",
                "--audio-device=" + audio_device(), "--audio-channels=stereo", "--audio-samplerate=48000",
                "--volume=" + database.get_state("volume", "80"),
@@ -230,7 +230,7 @@ def tune(channel_number, reason="user"):
                 database.set_state("prev_channel", previous)
             if previous != str(channel_number):
                 database.set_state("last_channel", channel_number)
-            _current.update(channel=channel_number, media=path, entry_id=entry["id"], started_ts=time.time())
+            _current.update(channel=channel_number, media=path, entry_id=entry["id"], is_vod=False, vod_info=None, started_ts=time.time())
             if reason == "api":
                 import tvguide
                 tvguide.flash_channel(channel_number, entry)
@@ -271,12 +271,117 @@ def restore_last():
     return tune(ch, reason="restore")
 
 
+def play_vod(media_id=None, path=None, title=None, subtitle=None, offset=0):
+    """Play on-demand media file directly in mpv, suspending schedule tracking."""
+    import vod
+    item = None
+    if media_id is not None:
+        item = vod.get_media_item(int(media_id))
+        if not item:
+            return {"ok": False, "error": "Media item not found"}
+        path = item.get("path")
+        title = title or item.get("title")
+        subtitle = subtitle or item.get("subtitle")
+    if not path or not os.path.isfile(path):
+        return {"ok": False, "error": "Media file missing or unreadable"}
+
+    with _lock:
+        display_title = f"ON DEMAND: {title}" + (f" ({subtitle})" if subtitle else "")
+        ok = play_file(path, offset=offset, channel=None, title=display_title)
+        if ok:
+            vod_info = {
+                "media_id": media_id,
+                "title": title or "On Demand",
+                "subtitle": subtitle or "",
+                "duration": item.get("duration") if item else 0,
+                "artwork": item.get("artwork") if item else "",
+                "path": path,
+            }
+            _current.update(
+                channel=None,
+                media=path,
+                entry_id=None,
+                is_vod=True,
+                vod_info=vod_info,
+                started_ts=time.time(),
+            )
+            try:
+                import tvguide
+                tvguide.flash_vod(title, subtitle)
+            except Exception:
+                pass
+            log.info("Started VOD playback: %r (%s)", title, path)
+            return {"ok": True, "title": title, "subtitle": subtitle, "vod_info": vod_info}
+        return {"ok": False, "error": "HDMI player could not start VOD media"}
+
+
+def stop_vod():
+    """Exit VOD mode and resume last tuned cable TV channel."""
+    with _lock:
+        if _current.get("is_vod"):
+            _current.update(is_vod=False, vod_info=None)
+            return restore_last()
+        return {"ok": True}
+
+
 def status():
     with _lock:
         alive = mpv_alive()
-        return {"mpv_alive": alive, "paused": _ipc(["get_property", "pause"]).get("data", False) if alive else False,
-                "volume": database.get_state("volume", "80"), "muted": database.get_state("muted", "0"),
-                "cc": database.get_state("cc_enabled", "0")}
+        return {
+            "mpv_alive": alive,
+            "paused": _ipc(["get_property", "pause"]).get("data", False) if alive else False,
+            "volume": database.get_state("volume", "80"),
+            "muted": database.get_state("muted", "0"),
+            "cc": database.get_state("cc_enabled", "0"),
+            "is_vod": bool(_current.get("is_vod")),
+            "vod_info": _current.get("vod_info"),
+            "current_channel": _current.get("channel"),
+        }
+
+
+def playback_health():
+    """Return live playback performance metrics from mpv IPC."""
+    with _lock:
+        alive = mpv_alive()
+        if not alive:
+            return {
+                "alive": False,
+                "hwdec": "inactive",
+                "hwdec_active": False,
+                "dropped_frames": 0,
+                "delayed_frames": 0,
+                "avsync_ms": 0.0,
+                "fps": 0.0,
+                "video_codec": "",
+            }
+        try:
+            hwdec = _ipc(["get_property", "hwdec-current"]).get("data") or "no"
+            drops = _ipc(["get_property", "frame-drop-count"]).get("data") or 0
+            delayed = _ipc(["get_property", "vo-delayed-frame-count"]).get("data") or 0
+            avsync = _ipc(["get_property", "avsync"]).get("data") or 0.0
+            fps = _ipc(["get_property", "estimated-vf-fps"]).get("data") or 0.0
+            vcodec = _ipc(["get_property", "video-codec"]).get("data") or ""
+            return {
+                "alive": True,
+                "hwdec": str(hwdec),
+                "hwdec_active": str(hwdec) not in ("no", "", "None"),
+                "dropped_frames": int(drops or 0),
+                "delayed_frames": int(delayed or 0),
+                "avsync_ms": round(float(avsync or 0.0) * 1000.0, 2),
+                "fps": round(float(fps or 0.0), 2),
+                "video_codec": str(vcodec or ""),
+            }
+        except Exception:
+            return {
+                "alive": True,
+                "hwdec": "unknown",
+                "hwdec_active": True,
+                "dropped_frames": 0,
+                "delayed_frames": 0,
+                "avsync_ms": 0.0,
+                "fps": 0.0,
+                "video_codec": "",
+            }
 
 
 def show_info():
@@ -317,6 +422,18 @@ def monitor_loop(stop_event, poll=1):
             import tvguide
             tvguide.refresh_if_visible()
             with _lock:
+                if _current.get("is_vod"):
+                    if not mpv_alive():
+                        log.info("VOD player closed, restoring live TV")
+                        _current.update(is_vod=False, vod_info=None)
+                        restore_last()
+                    else:
+                        probe = _ipc(["get_property", "idle-active"])
+                        if probe.get("error") == "success" and probe.get("data") is True:
+                            log.info("VOD video finished playing, restoring live TV")
+                            _current.update(is_vod=False, vod_info=None)
+                            restore_last()
+                    continue
                 ch = _current["channel"]
                 if ch is None or time.monotonic() < retry_at:
                     continue

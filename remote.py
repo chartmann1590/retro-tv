@@ -6,13 +6,13 @@ import database
 
 log = logging.getLogger("retro-tv.remote")
 
-ACTIONS = ["GUIDE", "CHANNEL_UP", "CHANNEL_DOWN", "PREV_CHANNEL", "INFO", "PLAY_PAUSE",
+ACTIONS = ["GUIDE", "VOD", "CHANNEL_UP", "CHANNEL_DOWN", "PREV_CHANNEL", "INFO", "PLAY_PAUSE",
            "BACK", "UP", "DOWN", "LEFT", "RIGHT", "OK", "VOLUME_UP", "VOLUME_DOWN",
            "MUTE", "POWER_MENU", "HOME", "MENU"]
 
 # sensible keyboard defaults incl. common HID remote keys
 DEFAULTS = {
-    "GUIDE": "g", "CHANNEL_UP": "PageUp", "CHANNEL_DOWN": "PageDown",
+    "GUIDE": "g", "VOD": "v", "CHANNEL_UP": "PageUp", "CHANNEL_DOWN": "PageDown",
     "PREV_CHANNEL": "Backspace", "INFO": "i", "PLAY_PAUSE": " ",
     "BACK": "Escape", "UP": "ArrowUp", "DOWN": "ArrowDown", "LEFT": "ArrowLeft",
     "RIGHT": "ArrowRight", "OK": "Enter", "VOLUME_UP": "+", "VOLUME_DOWN": "-",

@@ -1,0 +1,132 @@
+{% extends "base.html" %}
+{% block title %}On Demand · RETRO-TV{% endblock %}
+{% block bodyclass %}vod-page{% endblock %}
+
+{% block body %}
+<div class="vod-container" id="vodContainer" tabindex="0">
+  <!-- Retroflix Marquee / Header Bar -->
+  <div class="vod-header">
+    <div class="vod-brand-wrap">
+      <div class="vod-logo">RETRO<span>FLIX</span></div>
+      <div class="vod-badge">ON DEMAND</div>
+    </div>
+    
+    <div class="vod-search-wrap">
+      <span class="vod-search-icon">🔍</span>
+      <input type="search" id="vodSearch" placeholder="Search all movies, series, episodes…" oninput="onVodSearchInput(this.value)" autocomplete="off" aria-label="Search Video On Demand">
+      <button id="vodClearSearch" class="ghost vod-clear-btn" onclick="clearVodSearch()" hidden aria-label="Clear search">✕</button>
+    </div>
+
+    <div class="vod-header-actions">
+      <a class="btn ghost vod-nav-btn" href="/remote">📱 TV Remote</a>
+      <a class="btn ghost vod-nav-btn" href="/watch">📺 Watch Live</a>
+    </div>
+  </div>
+
+  <!-- Genre & Filter Chips -->
+  <div class="vod-filter-bar" id="vodFilterBar" role="tablist">
+    <button class="vod-chip active" onclick="filterCategory('all', this)" role="tab" aria-selected="true">All Titles</button>
+    <button class="vod-chip" onclick="filterCategory('recent', this)" role="tab" aria-selected="false">★ Recently Added</button>
+    <button class="vod-chip" onclick="filterCategory('movies', this)" role="tab" aria-selected="false">🎬 Feature Films</button>
+    <button class="vod-chip" onclick="filterCategory('shows', this)" role="tab" aria-selected="false">📺 TV Series</button>
+  </div>
+
+  <!-- Search Results Grid (visible when searching) -->
+  <div id="vodSearchResultsSection" class="vod-search-section" hidden>
+    <div class="vod-section-heading">
+      <h2>Search Results <span id="vodSearchCount" class="vod-count-badge">0</span></h2>
+      <span class="hint">Instant matches across movies, series, and episodes</span>
+    </div>
+    <div id="vodSearchGrid" class="vod-search-grid"></div>
+  </div>
+
+  <!-- Main Catalog Rows (carousels) -->
+  <div id="vodCatalogSection" class="vod-catalog-section">
+    <!-- Billboard / Hero Spotlight Banner -->
+    <section id="vodBillboard" class="vod-billboard" aria-label="Featured Title">
+      <div class="vod-billboard-backdrop" id="billboardBackdrop"></div>
+      <div class="vod-billboard-overlay">
+        <div class="vod-billboard-content">
+          <div class="vod-billboard-tag" id="billboardTag">★ FEATURED ON DEMAND</div>
+          <h1 class="vod-billboard-title" id="billboardTitle">Loading Spotlight…</h1>
+          <div class="vod-billboard-meta" id="billboardMeta">
+            <span class="vod-pill" id="billboardKind">MOVIE</span>
+            <span class="vod-pill" id="billboardYear">--</span>
+            <span class="vod-pill" id="billboardQuality">1080p</span>
+            <span class="vod-pill-genre" id="billboardGenre"></span>
+          </div>
+          <p class="vod-billboard-desc" id="billboardDesc"></p>
+          <div class="vod-billboard-buttons">
+            <button class="btn vod-play-btn" id="billboardPlayTV">▶ PLAY ON TV</button>
+            <button class="btn ghost vod-browser-btn" id="billboardWatchBrowser">💻 WATCH IN BROWSER</button>
+            <button class="btn ghost" id="billboardMoreInfo">ℹ DETAILS</button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Dynamic Category Rows -->
+    <div id="vodRowsContainer" class="vod-rows-container">
+      <div class="vod-loading-state">
+        <div class="vod-spinner"></div>
+        <p>Loading Retroflix on-demand library…</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Show Detail / Season & Episode Modal -->
+<div id="vodShowModal" class="vod-modal-backdrop" hidden onclick="closeShowModal(event)">
+  <div class="vod-modal-box" role="dialog" aria-modal="true" aria-labelledby="modalShowTitle">
+    <button class="vod-modal-close" onclick="hideShowModal()" aria-label="Close modal">✕</button>
+    <div class="vod-modal-header">
+      <div class="vod-modal-poster" id="modalShowPoster"></div>
+      <div class="vod-modal-info">
+        <div class="eyebrow" id="modalShowTag">TELEVISION SERIES</div>
+        <h2 id="modalShowTitle">Show Title</h2>
+        <div class="vod-modal-meta">
+          <span id="modalShowSeasonCount" class="vod-pill">0 Seasons</span>
+          <span id="modalShowEpCount" class="vod-pill">0 Episodes</span>
+        </div>
+        <p id="modalShowDesc" class="vod-modal-desc"></p>
+      </div>
+    </div>
+    <div class="vod-modal-body">
+      <div class="vod-seasons-toolbar">
+        <label for="modalSeasonSelect">SEASON:</label>
+        <select id="modalSeasonSelect" onchange="renderModalSeason(this.value)"></select>
+      </div>
+      <div id="modalEpisodesList" class="vod-episodes-list"></div>
+    </div>
+  </div>
+</div>
+
+<!-- Movie Detail Modal -->
+<div id="vodMovieModal" class="vod-modal-backdrop" hidden onclick="closeMovieModal(event)">
+  <div class="vod-modal-box vod-movie-modal-box" role="dialog" aria-modal="true" aria-labelledby="modalMovieTitle">
+    <button class="vod-modal-close" onclick="hideMovieModal()" aria-label="Close modal">✕</button>
+    <div class="vod-modal-header">
+      <div class="vod-modal-poster" id="modalMoviePoster"></div>
+      <div class="vod-modal-info">
+        <div class="eyebrow">FEATURE FILM</div>
+        <h2 id="modalMovieTitle">Movie Title</h2>
+        <div class="vod-modal-meta">
+          <span id="modalMovieYear" class="vod-pill">--</span>
+          <span id="modalMovieDuration" class="vod-pill">--</span>
+          <span id="modalMovieQuality" class="vod-pill">1080p</span>
+          <span id="modalMovieGenre" class="vod-pill-genre"></span>
+        </div>
+        <p id="modalMovieDesc" class="vod-modal-desc"></p>
+        <div class="btnrow vod-modal-actions">
+          <button class="btn vod-play-btn" id="modalMoviePlayTV">▶ PLAY ON TV</button>
+          <button class="btn ghost" id="modalMovieWatchBrowser">💻 WATCH IN BROWSER</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block js %}
+<script src="/static/js/vod.js?v=1"></script>
+{% endblock %}

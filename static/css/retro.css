@@ -63,3 +63,111 @@ h1,h2,p{margin-top:0}h1{font-size:34px;line-height:1.15;margin-bottom:12px;lette
 .guide-screen-actions{flex-wrap:wrap;row-gap:8px}
 .reminder-banner{position:fixed;top:24px;left:50%;transform:translateX(-50%);z-index:60;display:flex;align-items:center;gap:14px;background:#142038;color:#f4f0de;border:2px solid var(--hi);padding:14px 18px;max-width:92vw;box-shadow:0 10px 30px #000a;border-radius:4px}.reminder-banner-text{display:flex;flex-direction:column;gap:2px;min-width:0}.reminder-banner-text b{color:var(--hi);font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:60vw}.reminder-banner-text span{font-size:11px;color:var(--dim)}.reminder-banner button{min-height:38px;padding:9px 14px;font-size:11px;flex-shrink:0}
 .reminder-row{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:9px 4px;border-bottom:1px solid #263450;font-size:12px}
+
+/* ---- VOD (Retroflix On Demand) Styling ---- */
+.vod-key{background:linear-gradient(#9e2b2b,#6b1414);border-color:#d45151;color:#fff;font-weight:bold;text-shadow:0 1px 2px #000}
+.vod-key:hover{background:linear-gradient(#b83333,#7d1919);border-color:#ff6b6b}
+.vod-page{background:#090e17;color:#e8ecf3}
+.vod-container{max-width:1440px;margin:0 auto;padding:0 24px 60px}
+.vod-header{display:flex;align-items:center;justify-content:space-between;gap:20px;padding:24px 0 16px;border-bottom:1px solid #202d42;flex-wrap:wrap}
+.vod-brand-wrap{display:flex;align-items:center;gap:12px}
+.vod-logo{font-size:28px;font-weight:900;letter-spacing:2px;color:#e50914;text-shadow:0 0 12px rgba(229,9,20,0.6);font-style:italic}
+.vod-logo span{color:#f8cb63;text-shadow:0 0 12px rgba(248,203,99,0.5)}
+.vod-badge{background:#8b1818;color:#f8cb63;border:1px solid #d33;border-radius:3px;font-size:9px;font-weight:900;letter-spacing:2px;padding:3px 8px}
+.vod-search-wrap{display:flex;align-items:center;gap:8px;background:#0d1624;border:1px solid #293a52;border-radius:24px;padding:6px 16px;min-width:280px;flex:1;max-width:540px;position:relative}
+.vod-search-wrap:focus-within{border-color:var(--hi);box-shadow:0 0 10px rgba(248,203,99,0.3)}
+.vod-search-icon{font-size:14px;opacity:.7}
+.vod-search-wrap input{background:transparent;border:0;outline:none;padding:6px;font-size:14px;color:#fff;width:100%}
+.vod-clear-btn{border:0;background:transparent;color:#9aa7bb;font-size:14px;padding:4px 8px;min-height:0;box-shadow:none}
+.vod-header-actions{display:flex;gap:10px}
+.vod-nav-btn{font-size:11px;min-height:36px;padding:8px 14px}
+.vod-filter-bar{display:flex;align-items:center;gap:8px;overflow-x:auto;padding:16px 0;scrollbar-width:none}
+.vod-filter-bar::-webkit-scrollbar{display:none}
+.vod-chip{background:#141f30;border:1px solid #283a54;color:#a6b6ce;border-radius:20px;padding:8px 16px;font-size:12px;font-weight:bold;letter-spacing:.5px;white-space:nowrap;min-height:36px;box-shadow:none}
+.vod-chip:hover{background:#1e2d45;color:#fff;border-color:#435c82}
+.vod-chip.active{background:#f8cb63;color:#0b1320;border-color:#f8cb63;box-shadow:0 0 12px rgba(248,203,99,0.4)}
+.vod-billboard{position:relative;border-radius:8px;overflow:hidden;margin:16px 0 32px;background:#0b1320;min-height:380px;display:flex;align-items:flex-end;border:1px solid #23344d;box-shadow:0 12px 36px #0008}
+.vod-billboard-backdrop{position:absolute;inset:0;background-size:cover;background-position:center top;opacity:.85;transition:background-image .3s ease}
+.vod-billboard-overlay{position:relative;z-index:2;width:100%;padding:40px 36px;background:linear-gradient(0deg,#090e17 15%,rgba(9,14,23,0.85) 60%,transparent 100%)}
+.vod-billboard-content{max-width:720px}
+.vod-billboard-tag{display:inline-block;font-size:10px;font-weight:900;letter-spacing:2px;color:var(--hi);background:#1a283e;border:1px solid #3d5578;padding:4px 10px;border-radius:3px;margin-bottom:12px}
+.vod-billboard-title{font-size:42px;font-weight:900;line-height:1.1;margin-bottom:12px;color:#fff;text-shadow:0 2px 8px rgba(0,0,0,0.8);letter-spacing:-.5px}
+.vod-billboard-meta{display:flex;align-items:center;gap:10px;margin-bottom:14px;flex-wrap:wrap}
+.vod-pill{font-size:10px;font-weight:bold;padding:3px 8px;border-radius:3px;background:#18263a;border:1px solid #334a6d;color:#bac8dc;letter-spacing:1px}
+.vod-pill-genre{font-size:12px;color:var(--hi);font-weight:bold}
+.vod-billboard-desc{font-size:15px;color:#c8d3e2;line-height:1.6;margin-bottom:22px;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden;text-shadow:0 1px 4px #000}
+.vod-billboard-buttons{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.vod-play-btn{background:linear-gradient(#f8cb63,#da9f38);border-color:#f8cb63;color:#101722;font-size:13px;font-weight:900;padding:12px 22px}
+.vod-browser-btn{font-size:12px;padding:12px 18px}
+.vod-row-section{margin-bottom:34px;position:relative}
+.vod-row-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px}
+.vod-row-title{font-size:20px;font-weight:800;letter-spacing:-.3px;color:#f0f3f8;margin:0;display:flex;align-items:center;gap:12px}
+.vod-badge-tag{font-size:9px;color:var(--hi);background:#162438;border:1px solid #2d4466;border-radius:3px;padding:2px 7px;letter-spacing:1px;font-weight:bold}
+.vod-row-arrows{display:flex;gap:6px}
+.vod-arrow-btn{width:34px;height:34px;min-height:0;padding:0;border-radius:50%;font-size:18px;line-height:1;background:#162234;border-color:#334766;color:#c1cddf}
+.vod-arrow-btn:hover{background:#273852;color:#fff}
+.vod-carousel{display:flex;gap:16px;overflow-x:auto;scroll-snap-type:x mandatory;padding:8px 4px 18px;scrollbar-width:none;-webkit-overflow-scrolling:touch}
+.vod-carousel::-webkit-scrollbar{display:none}
+.vod-card{flex:0 0 176px;width:176px;scroll-snap-align:start;cursor:pointer;border-radius:6px;overflow:hidden;background:#101a28;border:1px solid #23354d;transition:transform .2s ease,border-color .2s ease,box-shadow .2s ease;outline:none;position:relative}
+.vod-card:hover,.vod-card:focus-visible,.vod-card.vod-focused{transform:translateY(-5px) scale(1.02);border-color:var(--hi);box-shadow:0 8px 24px rgba(0,0,0,0.7),0 0 12px rgba(248,203,99,0.3);z-index:3}
+.vod-card-media{position:relative;width:100%;height:248px;background:#0d1522;overflow:hidden;display:flex;align-items:center;justify-content:center}
+.vod-card-img{width:100%;height:100%;object-fit:cover;display:block}
+.vod-card-fallback{display:flex;flex-direction:column;align-items:center;justify-content:center;width:100%;height:100%;background:linear-gradient(135deg,#162438,#0b1422);color:#92a4bc;padding:14px;text-align:center}
+.vod-card-fallback span{font-size:38px;font-weight:900;color:var(--hi);margin-bottom:6px}
+.vod-card-fallback small{font-size:11px;line-height:1.2;color:#bcc7d7}
+.vod-card-badge{position:absolute;top:8px;right:8px;background:rgba(8,16,28,0.85);backdrop-filter:blur(4px);color:var(--hi);border:1px solid #364c6d;font-size:8px;font-weight:900;letter-spacing:1px;padding:2px 6px;border-radius:3px}
+.vod-card-details{padding:10px 12px 12px}
+.vod-card-title{font-size:13px;font-weight:700;color:#f0f3f8;margin:0 0 4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.vod-card-sub{font-size:11px;color:#8f9fb5;margin:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.vod-card-hover-actions{position:absolute;bottom:0;left:0;right:0;padding:10px;background:linear-gradient(0deg,#090e17 70%,transparent);opacity:0;transition:opacity .15s ease;display:flex;justify-content:center}
+.vod-card:hover .vod-card-hover-actions,.vod-card:focus-visible .vod-card-hover-actions,.vod-card.vod-focused .vod-card-hover-actions{opacity:1}
+.vod-quick-play{width:100%;font-size:11px;min-height:34px;padding:6px;background:#f8cb63;color:#0d1522;font-weight:bold}
+.vod-search-section{margin-top:24px}
+.vod-search-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:20px;margin-top:18px}
+.vod-count-badge{background:var(--hi);color:#101722;padding:2px 8px;border-radius:12px;font-size:12px;vertical-align:middle;margin-left:6px}
+.vod-modal-backdrop{position:fixed;inset:0;background:rgba(0,0,0,0.85);backdrop-filter:blur(6px);z-index:90;display:flex;align-items:center;justify-content:center;padding:20px}
+.vod-modal-box{background:#0f1a2a;border:1px solid #354966;border-radius:8px;box-shadow:0 18px 48px rgba(0,0,0,0.9);max-width:760px;width:100%;max-height:90vh;overflow-y:auto;position:relative;display:flex;flex-direction:column}
+.vod-movie-modal-box{max-width:620px}
+.vod-modal-close{position:absolute;top:14px;right:14px;background:#18283f;border:1px solid #3a5273;color:#d5dfec;width:34px;height:34px;min-height:0;padding:0;border-radius:50%;font-size:16px;z-index:4}
+.vod-modal-header{display:flex;gap:22px;padding:28px 28px 20px;border-bottom:1px solid #1f3047;background:linear-gradient(180deg,#142236,#0f1a2a)}
+.vod-modal-poster{width:130px;height:190px;flex-shrink:0;border-radius:4px;overflow:hidden;background:#09101a;border:1px solid #2f435f}
+.vod-modal-poster img{width:100%;height:100%;object-fit:cover}
+.vod-modal-info{flex:1;min-width:0}
+.vod-modal-info h2{font-size:26px;color:#fff;margin-bottom:8px}
+.vod-modal-meta{display:flex;gap:8px;align-items:center;margin-bottom:12px;flex-wrap:wrap}
+.vod-modal-desc{font-size:13px;color:#bcc7d7;line-height:1.6;margin:0}
+.vod-modal-actions{margin-top:18px}
+.vod-modal-body{padding:20px 28px 28px}
+.vod-seasons-toolbar{display:flex;align-items:center;gap:12px;margin-bottom:16px}
+.vod-seasons-toolbar label{font-size:11px;letter-spacing:1px;color:var(--hi);font-weight:900}
+.vod-seasons-toolbar select{max-width:240px;padding:8px 12px;font-size:13px;background:#152438;border-color:#384e6c}
+.vod-episodes-list{display:flex;flex-direction:column;gap:10px;max-height:360px;overflow-y:auto;padding-right:6px}
+.vod-ep-row{display:flex;align-items:center;gap:14px;padding:10px 12px;background:#121f31;border:1px solid #23364f;border-radius:4px}
+.vod-ep-row:hover{background:#1a2b43;border-color:#3e577c}
+.vod-ep-thumb-wrap{position:relative;width:90px;height:55px;flex-shrink:0;background:#0a121c;border-radius:3px;overflow:hidden;display:flex;align-items:center;justify-content:center}
+.vod-ep-thumb{width:100%;height:100%;object-fit:cover}
+.vod-ep-badge{position:absolute;bottom:2px;left:2px;background:rgba(0,0,0,0.8);color:var(--hi);font-size:8px;font-weight:bold;padding:1px 4px;border-radius:2px}
+.vod-ep-main{flex:1;min-width:0}
+.vod-ep-header{display:flex;align-items:baseline;justify-content:space-between;gap:8px;margin-bottom:4px}
+.vod-ep-header h4{font-size:13px;color:#f0f3f8;margin:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.vod-ep-runtime{font-size:11px;color:#8596ac;flex-shrink:0}
+.vod-ep-desc{font-size:11px;color:#9cb0c8;margin:0;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;line-height:1.4}
+.vod-ep-actions{display:flex;gap:6px;flex-shrink:0}
+.vod-ep-actions .btn{min-height:34px;padding:6px 12px;font-size:11px}
+.vod-loading-state{text-align:center;padding:60px 20px;color:#9aaec7}
+.vod-spinner{width:36px;height:36px;border:3px solid #20334c;border-top-color:var(--hi);border-radius:50%;animation:vod-spin 1s linear infinite;margin:0 auto 16px}
+@keyframes vod-spin{to{transform:rotate(360deg)}}
+
+/* ---- Remote Webpage On-Demand Status Indicator ---- */
+.vod-mode .remote-screen{border-color:#d45151;box-shadow:inset 0 2px 8px #0008,0 0 14px rgba(212,81,81,0.4)}
+
+@media(max-width:768px){
+  .vod-billboard{min-height:300px}
+  .vod-billboard-overlay{padding:24px 18px}
+  .vod-billboard-title{font-size:28px}
+  .vod-card{flex:0 0 138px;width:138px}
+  .vod-card-media{height:196px}
+  .vod-modal-header{flex-direction:column;align-items:center;text-align:center;gap:14px}
+  .vod-modal-poster{width:100px;height:145px}
+  .vod-modal-meta{justify-content:center}
+}

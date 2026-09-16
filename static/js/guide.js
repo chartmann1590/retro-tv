@@ -126,10 +126,10 @@ async function remindMe(id,btn){
 async function playOnTV(){const {row,e}=curSel();if(!e||!isLive(e)||e.kind==='slate')return;await tvApi('/api/tune',{channel:row.channel.number});tvGuideVisible=false;guideControls();notify(`TV tuned to ${row.channel.number} · ${row.channel.name}`);}
 document.addEventListener('keydown',e=>{
   if(/INPUT|TEXTAREA|SELECT/.test(e.target.tagName))return;
-  const actions={ArrowUp:()=>moveCh(-1),ArrowDown:()=>moveCh(1),ArrowLeft:()=>moveCell(-1),ArrowRight:()=>moveCell(1)};
-  if(actions[e.key]){e.preventDefault();actions[e.key]();}
-  else if(e.key==='Enter'&&(e.target===document.body||e.target.closest('#grid'))){e.preventDefault();playOnTV();}
-  else if(e.key==='Escape')location.href='/';
+  const action=remoteAction(e);
+  const dpad={UP:()=>moveCh(-1),DOWN:()=>moveCh(1),LEFT:()=>moveCell(-1),RIGHT:()=>moveCell(1)};
+  if(dpad[action]){e.preventDefault();dpad[action]();}
+  else if(action==='OK'&&(e.target===document.body||e.target.closest('#grid'))){e.preventDefault();playOnTV();}
 });
 document.getElementById('guideZone').textContent=window.TV_TIMEZONE;
 fetchGuide();setInterval(()=>{if(!document.hidden)fetchGuide();},30000);document.addEventListener('visibilitychange',()=>{if(!document.hidden)fetchGuide();});

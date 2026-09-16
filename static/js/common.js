@@ -10,6 +10,22 @@ async function tvApi(path,data){
 }
 function clockTick(){document.getElementById('clock').textContent=new Date().toLocaleString('en-US',{timeZone:window.TV_TIMEZONE,weekday:'short',hour:'numeric',minute:'2-digit'});}
 clockTick();setInterval(()=>{if(!document.hidden)clockTick();},15000);
+
+// Physical remotes (2.4GHz air mice etc.) present as USB HID keyboards; Setup ->
+// Remote Setup captures each button's e.key into remote_mappings. Load that map
+// once so every page can translate a keydown into an action name instead of
+// hardcoding literal keys, so a remapped button works without a code change.
+let REMOTE_MAP={};
+async function loadRemoteMap(){try{const r=await tvApi('/api/remote');REMOTE_MAP={};for(const[action,code]of Object.entries(r.mappings||{}))REMOTE_MAP[code]=action;}catch(e){/* best-effort; falls back to no action matches */}}
+function remoteAction(e){return REMOTE_MAP[e.key];}
+loadRemoteMap();
+document.addEventListener('keydown',e=>{
+  if(/INPUT|TEXTAREA|SELECT/.test(e.target.tagName))return;
+  const action=remoteAction(e);
+  if(action==='HOME'&&location.pathname!=='/'){e.preventDefault();location.href='/';}
+  else if(action==='MENU'&&!location.pathname.startsWith('/guide')){e.preventDefault();location.href='/guide';}
+  else if(action==='BACK'&&location.pathname!=='/'){e.preventDefault();location.href='/';}
+});
 window.addEventListener('unhandledrejection',e=>{notify(e.reason?.message||'Connection lost. Check your Wi-Fi and try again.');e.preventDefault();});
 
 // Favorite-channel "starting soon" toast, polled from every page so it fires

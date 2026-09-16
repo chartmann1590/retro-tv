@@ -64,6 +64,14 @@ font-family:Arial,Helvetica,sans-serif;overflow:hidden}}
 </style></head><body>{body}</body></html>"""
 
 
+def _deprioritized():
+    """preexec_fn for card-rendering subprocesses: this generation work has no
+    deadline, but it shares the Pi's 4 cores with the always-live mpv decode --
+    niced down so the scheduler favors mpv whenever the two collide instead of
+    stalling live playback."""
+    os.nice(15)
+
+
 def _render_card(body_html, out_png, extra_css=""):
     fd_path = out_png + ".tmp.html"
     with open(fd_path, "w") as f:
@@ -73,7 +81,7 @@ def _render_card(body_html, out_png, extra_css=""):
             ["chromium", "--headless=new", "--disable-gpu", "--no-sandbox",
              f"--screenshot={out_png}", f"--window-size={CARD_W},{CARD_H}",
              "--virtual-time-budget=2000", "file://" + fd_path],
-            check=True, capture_output=True, timeout=30)
+            check=True, capture_output=True, timeout=30, preexec_fn=_deprioritized)
     finally:
         os.unlink(fd_path)
 
@@ -103,10 +111,10 @@ def _mux(image_path, audio_path, out_mp4):
          # High profile with B-frames, which the Pi 4's hardware H.264 decoder
          # doesn't handle -- mpv silently falls back to software decode for it
          # (~90% CPU vs ~40-50% for the rest of the library, all Main/no-B).
-         "-c:v", "libx264", "-tune", "stillimage", "-profile:v", "main", "-bf", "0",
+         "-c:v", "libx264", "-preset", "ultrafast", "-tune", "stillimage", "-profile:v", "main", "-bf", "0",
          "-r", "2", "-pix_fmt", "yuv420p",
          "-c:a", "aac", "-b:a", "128k", "-t", f"{audio_duration + 0.3:.2f}", out_mp4],
-        check=True, capture_output=True, timeout=180)
+        check=True, capture_output=True, timeout=180, preexec_fn=_deprioritized)
 
 
 def _build_loop(card_mp4s, out_path, target_seconds):

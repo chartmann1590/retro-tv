@@ -19,6 +19,7 @@ import streaming
 import livecontent
 import reminders
 import remote as remote_mod
+import vod
 
 TZ = ZoneInfo(config.TIMEZONE)
 os.makedirs(config.LOGS_DIR, exist_ok=True)
@@ -56,6 +57,12 @@ def fmt_range(s, e):
 _bg_stop = threading.Event()
 
 def bg_loop():
+    # Deprioritize background worker so playback and remote responses take priority
+    try:
+        if hasattr(os, "nice"):
+            os.nice(10)
+    except Exception:
+        pass
     # One worker owns startup and maintenance; never scan/generate twice at boot.
     try:
         scheduler.ensure_schedules()
@@ -67,7 +74,8 @@ def bg_loop():
     while not _bg_stop.is_set():
         try:
             scanner.full_scan(light=True)
-            from metadata import enrich_episodes, enrich_movies
+            from metadata import enrich_shows, enrich_episodes, enrich_movies
+            enrich_shows()
             enrich_episodes()
             enrich_movies()
             scheduler.auto_create_channels()
@@ -84,6 +92,10 @@ def bg_loop():
         except Exception:
             log.exception("Background maintenance failed")
         _bg_stop.wait(config.SCAN_INTERVAL_SEC)
+
+@app.route("/favicon.ico")
+def favicon():
+    return "", 204
 
 # ---------- pages ----------
 @app.route("/")
@@ -103,6 +115,16 @@ def home():
 @app.route("/watch")
 @app.route("/watch/<int:ch>")
 def watch(ch=None):
+    vod_id = request.args.get("vod")
+    if vod_id:
+        try:
+            vod_id = int(vod_id)
+            item = vod.get_media_item(vod_id)
+            if item:
+                channels = scheduler.get_channels()
+                return render_template("watch.html", channels=channels, current=None, entry=item, offset=0, vod=item)
+        except Exception:
+            pass
     channels = scheduler.get_channels()
     if not channels:
         return render_template("watch.html", channels=[], current=None, entry=None, offset=0)
@@ -114,6 +136,10 @@ def watch(ch=None):
             ch = channels[0]["number"]
     entry, offset, path, dur = streaming.resolve_live(ch)
     return render_template("watch.html", channels=channels, current=ch, entry=entry, offset=int(offset or 0))
+
+@app.route("/vod")
+def vod_page():
+    return render_template("vod.html")
 
 @app.route("/guide")
 def guide():
@@ -376,10 +402,11 @@ def api_scan():
     full = (request.get_json(silent=True) or {}).get("full", False)
     res = scanner.full_scan(light=not full)
     try:
-        from metadata import enrich_episodes, enrich_movies
+        from metadata import enrich_shows, enrich_episodes, enrich_movies
+        sh_en, sh_fail = enrich_shows()
         en, fail = enrich_episodes()
         mv_en, mv_fail = enrich_movies()
-        res.update(metadata_enriched=en + mv_en, metadata_failed=fail + mv_fail)
+        res.update(metadata_enriched=sh_en + en + mv_en, metadata_failed=sh_fail + fail + mv_fail)
     except Exception as e:
         res["metadata_error"] = str(e)
     try:
@@ -441,13 +468,122 @@ def api_tune():
     if res.get("ok"):
         import tvguide
         tvguide.close()
+        try:
+            import tvvod
+            tvvod.close_vod()
+        except Exception:
+            pass
     if res.get("entry"):
         e = res["entry"]
         res["entry_fmt"] = fmt_range(e["start_ts"], e["end_ts"]) if e.get("start_ts") else ""
     return jsonify(res)
 
+@app.route("/api/vod/catalog")
+def api_vod_catalog():
+    return jsonify({"ok": True, **vod.get_catalog()})
+
+@app.route("/api/vod/show/<int:show_id>")
+def api_vod_show(show_id):
+    show = vod.get_show_details(show_id)
+    if not show:
+        return jsonify({"ok": False, "error": "Show not found"}), 404
+    return jsonify({"ok": True, "show": show})
+
+@app.route("/api/vod/movie/<int:media_id>")
+def api_vod_movie(media_id):
+    movie = vod.get_movie_details(media_id)
+    if not movie:
+        return jsonify({"ok": False, "error": "Movie not found"}), 404
+    return jsonify({"ok": True, "movie": movie})
+
+@app.route("/api/vod/search")
+def api_vod_search():
+    q = request.args.get("q", "")
+    return jsonify({"ok": True, **vod.search_vod(q)})
+
+@app.route("/api/vod/play", methods=["POST"])
+def api_vod_play():
+    d = request.get_json(silent=True) or {}
+    media_id = d.get("media_id")
+    if not media_id:
+        return jsonify({"ok": False, "error": "Missing media_id"}), 400
+    res = playback.play_vod(media_id=media_id)
+    if res.get("ok"):
+        import tvguide
+        tvguide.close()
+        try:
+            import tvvod
+            tvvod.close_vod()
+        except Exception:
+            pass
+    return jsonify(res)
+
+@app.route("/api/vod/stop", methods=["POST"])
+def api_vod_stop():
+    try:
+        import tvvod
+        tvvod.close_vod()
+    except Exception:
+        pass
+    res = playback.stop_vod()
+    return jsonify(res)
+
+@app.route("/api/tv-vod", methods=["POST"])
+def api_tv_vod():
+    import tvvod
+    d = request.get_json(silent=True) or {}
+    act = d.get("action", "toggle")
+    if act == "close":
+        ok = tvvod.close_vod()
+        return jsonify({"ok": ok, "visible": False})
+    elif act == "open":
+        st = tvvod.open_vod()
+        return jsonify(st)
+    elif act == "toggle":
+        if tvvod.is_visible():
+            ok = tvvod.close_vod()
+            return jsonify({"ok": ok, "visible": False})
+        else:
+            st = tvvod.open_vod()
+            return jsonify(st)
+    return jsonify({"ok": False, "error": "Invalid action"}), 400
+
+@app.route("/api/tv-vod/nav", methods=["POST"])
+def api_tv_vod_nav():
+    import tvvod
+    d = request.get_json(silent=True) or {}
+    action = d.get("action", "select")
+    query = d.get("query")
+    res = tvvod.nav(action, query=query)
+    return jsonify(res)
+
+@app.route("/api/tv-vod/status")
+def api_tv_vod_status():
+    import tvvod
+    return jsonify(tvvod.get_status())
+
 @app.route("/api/hdmi")
 def api_hdmi():
+    st = playback.status()
+    is_vod = st.get("is_vod", False)
+    vod_info = st.get("vod_info")
+    if is_vod:
+        return jsonify({
+            "ok": True,
+            "channel": None,
+            "prev_channel": None,
+            "is_vod": True,
+            "vod_info": vod_info,
+            "entry": {
+                "title": vod_info.get("title") if vod_info else "On Demand",
+                "subtitle": vod_info.get("subtitle") if vod_info else "",
+                "duration": vod_info.get("duration", 0) if vod_info else 0,
+                "artwork": vod_info.get("artwork", "") if vod_info else "",
+            },
+            "mpv": bool(playback._find_mpv()),
+            **st,
+            "server_time": time.time(),
+        })
     last = database.get_state("last_channel", "")
     try:
         ch = int(last) if last else None
@@ -459,8 +595,17 @@ def api_hdmi():
     except Exception:
         prev = None
     entry = scheduler.now_playing(ch) if ch else None
-    return jsonify({"ok": True, "channel": ch, "prev_channel": prev, "entry": entry,
-                    "mpv": bool(playback._find_mpv()), **playback.status(), "server_time": time.time()})
+    return jsonify({
+        "ok": True,
+        "channel": ch,
+        "prev_channel": prev,
+        "is_vod": False,
+        "vod_info": None,
+        "entry": entry,
+        "mpv": bool(playback._find_mpv()),
+        **st,
+        "server_time": time.time(),
+    })
 
 @app.route("/api/volume", methods=["GET", "POST"])
 def api_volume():
@@ -486,6 +631,11 @@ def api_captions():
 @app.route("/api/tv-guide", methods=["POST"])
 def api_tv_guide():
     import tvguide
+    try:
+        import tvvod
+        tvvod.close_vod()
+    except Exception:
+        pass
     d = request.get_json(silent=True) or {}
     if d.get("action") == "close":
         return jsonify({"ok": tvguide.close()})
@@ -532,14 +682,66 @@ def api_settings_save():
         database.set_setting(k, str(v))
     return jsonify({"ok": True})
 
+def get_system_health():
+    """Return live CPU temp, load average, and throttling metrics."""
+    import subprocess
+    temp_c = None
+    try:
+        with open("/sys/class/thermal/thermal_zone0/temp") as f:
+            temp_c = round(int(f.read().strip()) / 1000.0, 1)
+    except Exception:
+        pass
+
+    throttled_hex = ""
+    throttled_reasons = []
+    try:
+        res = subprocess.run(["vcgencmd", "get_throttled"], capture_output=True, text=True, timeout=2)
+        if res.returncode == 0 and "throttled=" in res.stdout:
+            val_str = res.stdout.strip().split("throttled=")[-1]
+            throttled_hex = val_str
+            val = int(val_str, 16)
+            if val & 0x1:
+                throttled_reasons.append("Under-voltage detected (power supply below 4.63V)")
+            if val & 0x2:
+                throttled_reasons.append("ARM frequency capped (thermal limit)")
+            if val & 0x4:
+                throttled_reasons.append("Currently throttled")
+            if val & 0x8:
+                throttled_reasons.append("Soft temperature limit reached (over 80°C)")
+            if val & 0x10000:
+                throttled_reasons.append("Under-voltage occurred previously")
+            if val & 0x20000:
+                throttled_reasons.append("ARM frequency capping occurred previously")
+            if val & 0x40000:
+                throttled_reasons.append("Throttling occurred previously")
+            if val & 0x80000:
+                throttled_reasons.append("Soft temperature limit occurred previously")
+    except Exception:
+        pass
+
+    load_1, load_5, load_15 = os.getloadavg() if hasattr(os, "getloadavg") else (0, 0, 0)
+    return {
+        "cpu_temp_c": temp_c,
+        "load_1m": round(load_1, 2),
+        "load_5m": round(load_5, 2),
+        "load_15m": round(load_15, 2),
+        "throttled_hex": throttled_hex,
+        "throttled_reasons": throttled_reasons,
+        "is_throttled": bool(throttled_reasons and any("Currently" in r or "reached" in r or "detected" in r or "capped" in r for r in throttled_reasons)),
+    }
+
 @app.route("/api/system")
 def api_system():
-    return jsonify({"ok": True,
-                    "disk": scanner.media_disk_usage(),
-                    "mpv": bool(playback._find_mpv()),
-                    "mpv_alive": playback.mpv_alive(),
-                    "sessions": streaming.active_sessions(),
-                    "library": scanner.library_summary()})
+    return jsonify({
+        "ok": True,
+        "disk": scanner.media_disk_usage(),
+        "mpv": bool(playback._find_mpv()),
+        "mpv_alive": playback.mpv_alive(),
+        "sessions": streaming.active_sessions(),
+        "library": scanner.library_summary(),
+        "playback_health": playback.playback_health(),
+        "system_health": get_system_health(),
+    })
 
 @app.route("/api/logs")
 def api_logs():

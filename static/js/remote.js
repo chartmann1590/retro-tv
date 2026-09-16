@@ -1,20 +1,31 @@
 let CUR_CH=null, PREV_CH=null, digits='', digitT, VOL=80, MUTED=false, CC=false, CHANNELS=[], commandQueue=Promise.resolve();
 let guideOpen=false, gT0=0, gData=[], gSel={r:0,c:0}, favOnly=false, SEARCH_RESULTS=[], searchT;
+let vodOpen=false, IS_VOD_PLAYING=false;
 function command(action){commandQueue=commandQueue.then(action).catch(e=>notify(e.message));return commandQueue;}
 async function initRemote(){
   document.getElementById('digits').innerHTML=[1,2,3,4,5,6,7,8,9,'CLR',0,'GO'].map(d=>`<button class="${typeof d==='number'?'number-key':'ghost'}" onclick="digit('${d}')" aria-label="${d==='CLR'?'Clear channel number':d==='GO'?'Tune entered channel':'Digit '+d}">${d}</button>`).join('');
   await refreshNow();await refreshChs();
 }
 async function refreshNow(){
-  if(document.hidden||guideOpen)return;
+  if(document.hidden||guideOpen||vodOpen)return;
   try{
-    const h=await tvApi('/api/hdmi');CUR_CH=h.channel;PREV_CH=h.prev_channel;
-    const e=h.entry||{};
+    const h=await tvApi('/api/hdmi');
     document.getElementById('connection').textContent='● CONNECTED';
-    document.getElementById('ncCh').textContent=CUR_CH==null?'--':String(CUR_CH).padStart(2,'0');
-    document.getElementById('ncTitle').textContent=e.title||'Off air';
-    document.getElementById('ncSub').textContent=e.subtitle||'';
-    document.getElementById('ncLive').textContent=h.mpv_alive?(h.paused?'PAUSED':'LIVE'):'OFF AIR';
+    if(h.is_vod){
+      IS_VOD_PLAYING=true;
+      document.getElementById('ncCh').textContent='OD';
+      document.getElementById('ncTitle').textContent=h.vod_info?.title||'On Demand';
+      document.getElementById('ncSub').textContent=h.vod_info?.subtitle||'';
+      document.getElementById('ncLive').textContent=h.paused?'PAUSED':'ON DEMAND';
+    }else{
+      IS_VOD_PLAYING=false;
+      CUR_CH=h.channel;PREV_CH=h.prev_channel;
+      const e=h.entry||{};
+      document.getElementById('ncCh').textContent=CUR_CH==null?'--':String(CUR_CH).padStart(2,'0');
+      document.getElementById('ncTitle').textContent=e.title||'Off air';
+      document.getElementById('ncSub').textContent=e.subtitle||'';
+      document.getElementById('ncLive').textContent=h.mpv_alive?(h.paused?'PAUSED':'LIVE'):'OFF AIR';
+    }
     showVol(h);highlightChannel();
   }catch(e){document.getElementById('connection').textContent='RECONNECTING…';}
 }
@@ -36,7 +47,13 @@ function highlightChannel(){document.querySelectorAll('[data-channel]').forEach(
 async function tuneNow(ch){await tvApi('/api/tune',{channel:ch});await refreshNow();notify(`Channel ${ch} on your TV`);}
 function tune(ch){return command(()=>tuneNow(ch));}
 function chStep(d){return command(()=>chStepNow(d));}
-function prevCh(){return command(()=>{if(PREV_CH!=null)return tuneNow(PREV_CH);notify('No previous channel yet.');});}
+function prevCh(){
+  return command(async()=>{
+    if(vodOpen){await sendTvVodNav('back');return;}
+    if(PREV_CH!=null)return tuneNow(PREV_CH);
+    notify('No previous channel yet.');
+  });
+}
 function digit(d){
   clearTimeout(digitT);
   if(d==='CLR')digits='';
@@ -48,7 +65,18 @@ function updateDigits(){document.getElementById('digitDisplay').textContent=digi
 function volStep(d){return command(async()=>{const r=await tvApi('/api/volume',{volume:Math.max(0,Math.min(100,VOL+d)),muted:false});showVol(r);});}
 function muteToggle(){return command(async()=>showVol(await tvApi('/api/volume',{muted:!MUTED})));}
 function pauseToggle(){return command(async()=>{showVol(await tvApi('/api/volume',{toggle_pause:true}));await refreshNow();});}
-function goLive(){if(CUR_CH!=null)return tune(CUR_CH);}
+function goLive(){
+  if(vodOpen)closeVodNow();
+  if(IS_VOD_PLAYING){
+    return command(async()=>{
+      IS_VOD_PLAYING=false;
+      await tvApi('/api/vod/stop');
+      await refreshNow();
+      notify('Resumed live cable TV');
+    });
+  }
+  if(CUR_CH!=null)return tune(CUR_CH);
+}
 function ccToggle(){return command(async()=>{showVol(await tvApi('/api/captions',{enabled:!CC}));});}
 function showVol(r){
   VOL=+r.volume;MUTED=r.muted==='1'||r.muted===true;
@@ -63,6 +91,10 @@ function toggleSearch(){const p=document.getElementById('rsearch');p.hidden=!p.h
 function doSearch(){clearTimeout(searchT);searchT=setTimeout(runSearch,250);}
 async function runSearch(){
   const q=document.getElementById('rsearchInput').value.trim();
+  if(vodOpen){
+    await sendTvVodNav('search', q);
+    return;
+  }
   const box=document.getElementById('rsearchResults');
   if(!q){box.innerHTML='';SEARCH_RESULTS=[];return;}
   try{
@@ -131,17 +163,19 @@ function openGuide(){
   });
 }
 async function closeGuideNow(){
-  await tvApi('/api/tv-guide',{action:'close'});
   guideOpen=false;
   document.body.classList.remove('guide-mode');
   setGuideButtonLabel('GUIDE');
+  try{
+    await tvApi('/api/tv-guide',{action:'close'});
+  }catch(e){}
   await refreshNow();
 }
-function dpadUp(){return command(async()=>{if(guideOpen)await moveGuideCh(-1);else await chStepNow(1);});}
-function dpadDown(){return command(async()=>{if(guideOpen)await moveGuideCh(1);else await chStepNow(-1);});}
-function dpadLeft(){return command(async()=>{if(guideOpen)await moveGuideCell(-1);});}
-function dpadRight(){return command(async()=>{if(guideOpen)await moveGuideCell(1);});}
-function dpadOk(){return command(async()=>{if(guideOpen)await selectGuideNow();});}
+function dpadUp(){return command(async()=>{if(vodOpen)await sendTvVodNav('up');else if(guideOpen)await moveGuideCh(-1);else await chStepNow(1);});}
+function dpadDown(){return command(async()=>{if(vodOpen)await sendTvVodNav('down');else if(guideOpen)await moveGuideCh(1);else await chStepNow(-1);});}
+function dpadLeft(){return command(async()=>{if(vodOpen)await sendTvVodNav('left');else if(guideOpen)await moveGuideCell(-1);});}
+function dpadRight(){return command(async()=>{if(vodOpen)await sendTvVodNav('right');else if(guideOpen)await moveGuideCell(1);});}
+function dpadOk(){return command(async()=>{if(vodOpen)await sendTvVodNav('select');else if(guideOpen)await selectGuideNow();});}
 async function chStepNow(d){if(!CHANNELS.length)await refreshChs();const n=CHANNELS.map(c=>c.number);if(!n.length)return;const i=n.indexOf(CUR_CH);await tuneNow(n[i<0?0:(i+d+n.length)%n.length]);}
 async function moveGuideCh(d){
   const old=gEntry();
@@ -174,6 +208,95 @@ async function selectGuideNow(){
   setGuideButtonLabel('GUIDE');
   await refreshNow();
   notify(`Tuned to ${row.channel.number} · ${row.channel.name}`);
+}
+
+// ---- On-Demand (VOD) On-TV Control ----
+function toggleVod(){
+  return command(async()=>{
+    if(guideOpen)await closeGuideNow();
+    if(vodOpen){
+      await closeVodNow();
+      return;
+    }
+    await openVodNow();
+  });
+}
+
+async function openVodNow(){
+  try{
+    const res=await tvApi('/api/tv-vod',{action:'open'});
+    if(res.visible){
+      vodOpen=true;
+      document.body.classList.add('vod-mode');
+      const b=document.getElementById('vodButton');
+      if(b)b.textContent='EXIT VOD';
+      updateVodLcd(res);
+      notify('On Demand screen opened on TV');
+    }else{
+      notify('Could not open On Demand on TV');
+    }
+  }catch(err){
+    notify('Failed to open VOD: '+err.message);
+  }
+}
+
+async function closeVodNow(){
+  vodOpen=false;
+  document.body.classList.remove('vod-mode');
+  const b=document.getElementById('vodButton');
+  if(b)b.textContent='ON DEMAND';
+  try{
+    await tvApi('/api/tv-vod',{action:'close'});
+  }catch(e){}
+  await refreshNow();
+  notify('Closed On Demand');
+}
+
+function updateVodLcd(st){
+  if(!st)return;
+  document.getElementById('ncCh').textContent='OD';
+  document.getElementById('ncLive').textContent='ON DEMAND';
+  if(st.mode==='show'){
+    document.getElementById('ncTitle').textContent=st.title||st.show_name||'Episode';
+    document.getElementById('ncSub').textContent=`${st.show_name} S${st.season} • Press OK`;
+  }else{
+    document.getElementById('ncTitle').textContent=st.title||'On Demand';
+    const cat=st.category?`${st.category} • `:''
+    const prompt=st.kind==='show'?'Press OK for Episodes':'Press OK to Play';
+    document.getElementById('ncSub').textContent=cat+prompt;
+  }
+}
+
+async function sendTvVodNav(action,query){
+  try{
+    const res=await tvApi('/api/tv-vod/nav',{action,query});
+    if(res.playing){
+      vodOpen=false;
+      IS_VOD_PLAYING=true;
+      document.body.classList.remove('vod-mode');
+      const b=document.getElementById('vodButton');
+      if(b)b.textContent='ON DEMAND';
+      document.getElementById('ncCh').textContent='OD';
+      document.getElementById('ncLive').textContent='ON DEMAND';
+      document.getElementById('ncTitle').textContent=res.title||'On Demand';
+      document.getElementById('ncSub').textContent=res.subtitle||'';
+      notify(`▶ Playing on TV: ${res.title}`);
+      return;
+    }
+    if(res.closed){
+      vodOpen=false;
+      document.body.classList.remove('vod-mode');
+      const b=document.getElementById('vodButton');
+      if(b)b.textContent='ON DEMAND';
+      await refreshNow();
+      return;
+    }
+    if(res.visible){
+      updateVodLcd(res);
+    }
+  }catch(err){
+    notify('Navigation error: '+err.message);
+  }
 }
 
 function fitRemote(){

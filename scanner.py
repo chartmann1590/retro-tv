@@ -84,11 +84,18 @@ def parse_movie(relpath):
     title = re.sub(r"(?i)\b(1080p|720p|2160p|4k|bluray|web-?dl|webrip|hdtv|x264|x265|hevc|aac|ac3|dts|proper|extended|remux|director.?s.?cut)\b.*", "", title).strip(" -_.")
     return {"title": title or fname, "year": year}
 
+def _deprioritize():
+    try:
+        if hasattr(os, "nice"):
+            os.nice(10)
+    except Exception:
+        pass
+
 def ffprobe(path):
     try:
         out = subprocess.run(
             ["ffprobe", "-v", "quiet", "-print_format", "json", "-show_format", "-show_streams", path],
-            capture_output=True, text=True, timeout=30)
+            capture_output=True, text=True, timeout=30, preexec_fn=_deprioritize)
         if out.returncode != 0:
             return {}
         return json.loads(out.stdout or "{}")
@@ -273,6 +280,11 @@ def _full_scan(light=False):
         con.commit()
     finally:
         con.close()
+    try:
+        import vod
+        vod.clear_cache()
+    except Exception:
+        pass
     return {"added": added, "updated": updated, "total": len(found)}
 
 def media_disk_usage():

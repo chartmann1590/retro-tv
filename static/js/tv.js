@@ -19,13 +19,17 @@ async function chDelta(d){const j=await tvApi('/api/channels');const n=j.channel
 function prevCh(){if(PREV!=null)return tuneHDMI(PREV);notify('No previous channel yet.');}
 document.addEventListener('keydown',async e=>{
   if(/INPUT|TEXTAREA|SELECT/.test(e.target.tagName))return;
-  if(e.key==='PageUp'){e.preventDefault();await chDelta(1);}
-  else if(e.key==='PageDown'){e.preventDefault();await chDelta(-1);}
-  else if(e.key.toLowerCase()==='g')location.href='/guide';
-  else if(e.key.toLowerCase()==='i')await tvApi('/api/info',{});
-  else if(e.key.toLowerCase()==='m'){const h=await tvApi('/api/hdmi');await tvApi('/api/volume',{muted:h.muted!=='1'});}
-  else if(e.key===' '){e.preventDefault();await tvApi('/api/volume',{toggle_pause:true});}
-  else if(/^[0-9]$/.test(e.key)){digitBuf=(digitBuf+e.key).slice(-3);clearTimeout(digitTimer);digitTimer=setTimeout(()=>{tuneHDMI(+digitBuf);digitBuf='';},1000);}
+  const action=remoteAction(e);
+  if(action==='CHANNEL_UP'||action==='UP'){e.preventDefault();await chDelta(1);}
+  else if(action==='CHANNEL_DOWN'||action==='DOWN'){e.preventDefault();await chDelta(-1);}
+  else if(action==='PREV_CHANNEL')await prevCh();
+  else if(action==='GUIDE')location.href='/guide';
+  else if(action==='VOD')await tvApi('/api/tv-vod',{action:'toggle'});
+  else if(action==='INFO')await tvApi('/api/info',{});
+  else if(action==='MUTE'){const h=await tvApi('/api/hdmi');await tvApi('/api/volume',{muted:h.muted!=='1'});}
+  else if(action==='PLAY_PAUSE'){e.preventDefault();await tvApi('/api/volume',{toggle_pause:true});}
+  else if(action==='VOLUME_UP'||action==='VOLUME_DOWN'){e.preventDefault();const h=await tvApi('/api/hdmi');await tvApi('/api/volume',{volume:Math.max(0,Math.min(100,+h.volume+(action==='VOLUME_UP'?5:-5))),muted:false});}
+  else if(action&&/^[0-9]$/.test(action)){digitBuf=(digitBuf+action).slice(-3);clearTimeout(digitTimer);digitTimer=setTimeout(()=>{tuneHDMI(+digitBuf);digitBuf='';},1000);}
 });
 
 refreshTV();setInterval(refreshTV,5000);document.addEventListener('visibilitychange',refreshTV);
