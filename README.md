@@ -40,6 +40,11 @@ media on the local network.
 - **Fair commercial rotation** — long commercial compilations are sliced into
   segments and rotated fairly across breaks instead of repeating from the
   start every time.
+- **Movie genre channels** — genres with at least five available movies get
+  dedicated channels automatically. Each day has a shuffled lineup with
+  90–180-second commercial breaks between movies. The hourly scheduler keeps
+  three days ready; newly indexed movies enter new schedules as they are built.
+  Existing genre channels, including disabled ones, retain their settings.
 - **On-TV program guide** — a classic channel guide overlay, driven entirely
   over the HDMI output (no second video layer needed).
 - **Phone remote** — control the TV, browse the guide, and jump channels from
@@ -120,6 +125,8 @@ All paths, the timezone, and the port live in `config.py`. Notable settings:
 | `MEDIA_ROOT` | Root directory containing `TVShows/`, `Movies/`, `Commercials/` |
 | `TIMEZONE` | Timezone used for schedule days (default `America/New_York`) |
 | `SCHEDULE_DAYS_AHEAD` | How many days of schedule to keep generated per channel |
+| `AUTO_MOVIE_CHANNEL_GENRES` | Movie genres eligible for automatic channel creation |
+| `AUTO_MOVIE_CHANNEL_MIN_MOVIES` | Available movies required to create a genre channel (default 5) |
 | `RETRO_TV_AUDIO_DEVICE` (env var) | Overrides automatic HDMI audio device discovery |
 | `OMDB_API_KEY` (env var) | Free key from omdbapi.com; enables movie genre channels |
 | `WEATHER_ZIP` (env var) | ZIP code for the Local Weather channel (default `12308`) |

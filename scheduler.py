@@ -1,6 +1,7 @@
 """Scheduling engine: multi-day lineups, commercial breaks, no-repeat rules, reboot-safe."""
 import json
 import logging
+import os
 import random
 import re
 import sqlite3
@@ -84,6 +85,52 @@ def auto_create_channels():
         next_num += 1
     return created
 
+@serialized
+def auto_create_movie_channels():
+    """Create missing genre channels; existing/disabled channels retain their settings.
+
+    Genre sources stay dynamic, so newly scanned movies enter subsequent daily
+    schedules without maintaining a copied list of movie paths.
+    """
+    con = database.connect()
+    created = []
+    try:
+        con.execute("BEGIN IMMEDIATE")
+        covered = {(r["source_value"] or "").strip().casefold() for r in con.execute(
+            "SELECT source_value FROM channel_sources WHERE source_type='genre'")}
+        genres = {}
+        for movie in con.execute("""SELECT mo.media_id,mo.genre,m.path FROM movies mo
+                JOIN media_files m ON m.id=mo.media_id WHERE m.kind='movie'"""):
+            if not os.path.isfile(movie["path"]):
+                continue
+            for genre in (movie["genre"] or "").split(","):
+                genres.setdefault(genre.strip().casefold(), set()).add(movie["media_id"])
+        number, sort_order = con.execute(
+            "SELECT COALESCE(MAX(number),0),COALESCE(MAX(sort_order),0) FROM channels").fetchone()
+        for genre in config.AUTO_MOVIE_CHANNEL_GENRES:
+            key = genre.casefold()
+            count = len(genres.get(key, ()))
+            if key in covered or count < config.AUTO_MOVIE_CHANNEL_MIN_MOVIES:
+                continue
+            number += 1
+            sort_order += 1
+            name = f"{genre} Movies"
+            color = config.AUTO_CHANNEL_COLORS[number % len(config.AUTO_CHANNEL_COLORS)]
+            con.execute("""INSERT INTO channels(number,name,color,ordering,commercial_mode,
+                max_repeats_per_day,sort_order) VALUES(?,?,?,'shuffle','between',2,?)""",
+                (number, name, color, sort_order))
+            con.execute("""INSERT INTO channel_sources(channel_number,source_type,source_value)
+                VALUES(?,'genre',?)""", (number, genre))
+            covered.add(key)
+            created.append({"number": number, "name": name, "genre": genre, "movies": count})
+        con.commit()
+    finally:
+        con.close()
+    for channel in created:
+        log.info("Auto-created movie channel %s", channel)
+    return created
+
+
 def channel_pool(ch_number):
     """Return (episodes, movies, commercials_all) eligible for channel."""
     con = database.connect()
@@ -119,9 +166,10 @@ def channel_pool(ch_number):
                     mvs = [dict(r) for r in con.execute("SELECT mo.*, m.path, m.duration FROM movies mo JOIN media_files m ON m.id=mo.media_id")]
                 elif t == "genre":
                     candidates = (dict(r) for r in con.execute(
-                        "SELECT mo.*, m.path, m.duration FROM movies mo JOIN media_files m ON m.id=mo.media_id WHERE mo.genre<>''"))
+                        "SELECT mo.*, m.path, m.duration FROM movies mo JOIN media_files m ON m.id=mo.media_id WHERE mo.genre<>'' AND m.kind='movie'"))
                     mvs += [c for c in candidates
-                            if v.lower() in [g.strip().lower() for g in c["genre"].split(",")]]
+                            if v.strip().casefold() in [g.strip().casefold() for g in c["genre"].split(",")]
+                            and os.path.isfile(c["path"])]
                 elif t == "movie":
                     mvs += [dict(r) for r in con.execute("SELECT mo.*, m.path, m.duration FROM movies mo JOIN media_files m ON m.id=mo.media_id WHERE m.path=?", (v,))]
                 elif t == "movie_folder":
@@ -365,6 +413,7 @@ def generate_day(channel, day_str, seed_extra=0):
     return len(rows)
 
 def ensure_schedules(days_ahead=config.SCHEDULE_DAYS_AHEAD):
+    auto_create_movie_channels()
     channels = get_channels()
     today = datetime.now(TZ)
     total = 0
