@@ -18,7 +18,8 @@ class VodTests(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
         self.addCleanup(self.tmp.cleanup)
-        for key, value in {"DB_PATH": os.path.join(self.tmp.name, "test.db"), "DATA_DIR": self.tmp.name}.items():
+        for key, value in {"DB_PATH": os.path.join(self.tmp.name, "test.db"), "DATA_DIR": self.tmp.name,
+                           "MPV_SOCKET": os.path.join(self.tmp.name, "mpv.sock")}.items():
             patcher = patch.object(config, key, value)
             patcher.start()
             self.addCleanup(patcher.stop)
@@ -197,6 +198,20 @@ class VodTests(unittest.TestCase):
         self.assertIn(b"ON DEMAND", r_remote.data)
         self.assertNotIn(b'id="remoteVod"', r_remote.data)
         self.assertNotIn(b'id="rvodShowModal"', r_remote.data)
+
+    def test_live_tv_restores_even_without_vod_flag(self):
+        with patch.dict(playback._current, is_vod=False), \
+             patch.object(playback, "restore_last", return_value={"ok": True}) as restore:
+            self.assertTrue(playback.stop_vod()["ok"])
+            restore.assert_called_once()
+
+    def test_failed_live_restore_preserves_vod_state_for_retry(self):
+        info = {"title": "Still playing"}
+        with patch.dict(playback._current, is_vod=True, vod_info=info), \
+             patch.object(playback, "restore_last", return_value={"ok": False, "error": "No channels yet"}):
+            self.assertFalse(playback.stop_vod()["ok"])
+            self.assertTrue(playback._current["is_vod"])
+            self.assertEqual(playback._current["vod_info"], info)
 
     def test_on_tv_vod_overlay_and_navigation(self):
         import tvvod

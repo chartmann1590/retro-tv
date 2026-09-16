@@ -29,7 +29,8 @@ class ReceiverTests(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
         self.addCleanup(self.tmp.cleanup)
-        for key, value in {"DB_PATH": os.path.join(self.tmp.name, "test.db"), "DATA_DIR": self.tmp.name}.items():
+        for key, value in {"DB_PATH": os.path.join(self.tmp.name, "test.db"), "DATA_DIR": self.tmp.name,
+                           "MPV_SOCKET": os.path.join(self.tmp.name, "mpv.sock")}.items():
             patcher = patch.object(config, key, value)
             patcher.start()
             self.addCleanup(patcher.stop)
@@ -90,6 +91,43 @@ class ReceiverTests(unittest.TestCase):
             popen.assert_not_called()
             ipc.assert_any_call(['loadfile', path, 'replace', -1, {'start': '123.5'}])
             ipc.assert_any_call(['set_property', 'pause', False])
+
+    def test_background_work_preserves_vod_and_starts_player_at_normal_priority(self):
+        import app as app_module
+        import metadata
+        calls = []
+        stop_event = Mock()
+        stop_event.is_set.side_effect = [False, True]
+        with patch.object(app_module, '_bg_stop', stop_event), \
+             patch.object(app_module.os, 'nice', side_effect=lambda _: calls.append('nice')), \
+             patch.object(playback, 'restore_last', side_effect=lambda: calls.append('play')) as restore, \
+             patch.dict(playback._current, channel=None, is_vod=True), \
+             patch.object(scheduler, 'ensure_schedules'), \
+             patch.object(scheduler, 'auto_create_channels'), \
+             patch.object(app_module.scanner, 'full_scan'), \
+             patch.object(metadata, 'enrich_shows'), \
+             patch.object(metadata, 'enrich_episodes'), \
+             patch.object(metadata, 'enrich_movies'):
+            app_module.bg_loop()
+        self.assertEqual(calls, ['play', 'nice'])
+        restore.assert_called_once()
+
+    def test_player_launch_prioritizes_video_and_tolerates_priority_denial(self):
+        path = self.add_episode()
+        for denied in (False, True):
+            with self.subTest(denied=denied), \
+                 patch.object(playback, '_proc', None), patch.dict(playback._current), \
+                 patch.object(config, 'LOGS_DIR', self.tmp.name), \
+                 patch.object(playback, '_find_mpv', return_value='/usr/bin/mpv'), \
+                 patch.object(playback, 'audio_device', return_value='auto'), \
+                 patch.object(playback, '_ipc', return_value={'error': 'success', 'data': False}), \
+                 patch.object(playback.subprocess, 'Popen', return_value=Mock(pid=123, poll=Mock(return_value=None))) as launch, \
+                 patch.object(playback.os, 'setpriority', side_effect=PermissionError if denied else None) as priority:
+                self.assertTrue(playback.play_file(path))
+                priority.assert_called_once_with(os.PRIO_PROCESS, 123, -10)
+                options = launch.call_args.args[0]
+                hwdec = next(option for option in options if option.startswith('--hwdec='))
+                self.assertTrue(hwdec.startswith('--hwdec=drm,'))
 
     def test_ranges_support_suffix_and_reject_out_of_bounds(self):
         path = self.add_episode()

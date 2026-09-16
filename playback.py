@@ -170,13 +170,13 @@ def play_file(path, offset=0, channel=None, title=None):
         mpv = _find_mpv()
         if not mpv:
             return False
-        # Hardware decode on Pi 4: v4l2m2m-copy handles H.264/HEVC using the Pi's
-        # hardware V4L2 decoder (/dev/video10). -copy mode copies to RAM so labwc/vc4
-        # compositing works cleanly. Fall back to drm-copy / auto-copy / 4-thread CPU decode.
+        # Pi HEVC needs direct DRM frames: copying 4K 10-bit frames back to RAM
+        # overwhelms memory bandwidth and falls behind audio. Keep V4L2 copy
+        # decoding for H.264, with portable fallbacks for other receivers.
         cmd = [mpv, "--no-config", "--fullscreen", "--no-terminal", "--idle=yes",
                "--force-window=yes", "--keep-open=no", "--osc=no", "--osd-level=0",
                "--no-input-default-bindings", "--input-ipc-server=" + config.MPV_SOCKET,
-               "--profile=fast", "--hwdec=v4l2m2m-copy,drm-copy,auto-copy,auto-safe", "--vd-lavc-threads=4",
+               "--profile=fast", "--hwdec=drm,v4l2m2m-copy,auto-safe", "--vd-lavc-threads=4",
                "--demuxer-max-bytes=32MiB", "--demuxer-max-back-bytes=8MiB",
                "--audio-device=" + audio_device(), "--audio-channels=stereo", "--audio-samplerate=48000",
                "--volume=" + database.get_state("volume", "80"),
@@ -188,6 +188,12 @@ def play_file(path, offset=0, channel=None, title=None):
             with open(os.path.join(config.LOGS_DIR, "mpv.log"), "a") as output:
                 log.info("Starting HDMI player: %s", cmd)
                 _proc = subprocess.Popen(cmd, env=_mpv_env(), stdout=output, stderr=output, start_new_session=True)
+            # The Pi desktop permits negative nice values. Give video decoding
+            # priority over Chromium card rendering; other hosts may forbid it.
+            try:
+                os.setpriority(os.PRIO_PROCESS, _proc.pid, -10)
+            except (AttributeError, OSError):
+                log.debug("Playback priority adjustment unavailable")
             for _ in range(30):
                 if _proc.poll() is not None:
                     return False
@@ -316,12 +322,12 @@ def play_vod(media_id=None, path=None, title=None, subtitle=None, offset=0):
 
 
 def stop_vod():
-    """Exit VOD mode and resume last tuned cable TV channel."""
+    """Resume live TV using receiver state, even if a remote has stale state."""
     with _lock:
-        if _current.get("is_vod"):
+        result = restore_last()
+        if result.get("ok"):
             _current.update(is_vod=False, vod_info=None)
-            return restore_last()
-        return {"ok": True}
+        return result
 
 
 def status():

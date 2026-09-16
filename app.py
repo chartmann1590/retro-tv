@@ -57,18 +57,18 @@ def fmt_range(s, e):
 _bg_stop = threading.Event()
 
 def bg_loop():
-    # Deprioritize background worker so playback and remote responses take priority
-    try:
-        if hasattr(os, "nice"):
-            os.nice(10)
-    except Exception:
-        pass
     # One worker owns startup and maintenance; never scan/generate twice at boot.
+    # Launch playback before lowering this thread's priority: mpv inherits it.
     try:
         scheduler.ensure_schedules()
         playback.restore_last()
     except Exception:
         log.exception("Startup playback failed")
+    try:
+        if hasattr(os, "nice"):
+            os.nice(10)
+    except Exception:
+        pass
     last_schedule = time.monotonic()
     last_backup = last_schedule
     while not _bg_stop.is_set():
@@ -83,7 +83,7 @@ def bg_loop():
                 scheduler.ensure_schedules()
                 streaming.cleanup_hls()
                 last_schedule = time.monotonic()
-            if not playback._current["channel"]:
+            if not playback._current["channel"] and not playback._current.get("is_vod"):
                 scheduler.ensure_schedules()
                 playback.restore_last()
             if time.monotonic() - last_backup >= 86400:

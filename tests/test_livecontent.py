@@ -10,6 +10,18 @@ import livecontent
 
 
 class LiveContentTests(unittest.TestCase):
+    def test_card_mux_bounds_input_rate_and_encoder_threads(self):
+        with patch.object(livecontent.scanner, "probe_info", return_value={"duration": 10}), \
+             patch.object(livecontent.subprocess, "run") as run:
+            livecontent._mux("card.png", "speech.mp3", "card.mp4")
+        cmd = run.call_args.args[0]
+        self.assertEqual(cmd[cmd.index("-framerate") + 1], "2")
+        self.assertLess(cmd.index("-framerate"), cmd.index("-i"))
+        encoder = cmd.index("-threads:v")
+        self.assertGreater(encoder, max(i for i, value in enumerate(cmd) if value == "-i"))
+        self.assertEqual(cmd[encoder + 1], "1")
+        self.assertEqual(cmd[cmd.index("-t") + 1], "10.30")
+
     def test_strip_tags_removes_markup_and_unescapes_entities(self):
         self.assertEqual(livecontent._strip_tags("<p>Troy, N.Y. &#8211; a story</p>"), "Troy, N.Y. – a story")
         self.assertEqual(livecontent._strip_tags(None), "")

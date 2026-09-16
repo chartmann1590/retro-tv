@@ -106,12 +106,15 @@ def _mux(image_path, audio_path, out_mp4):
     # sidesteps whatever duration-estimation quirk causes that.
     audio_duration = scanner.probe_info(audio_path)["duration"] or 4.0
     subprocess.run(
-        ["ffmpeg", "-y", "-threads", "1", "-loop", "1", "-i", image_path, "-i", audio_path,
+        ["ffmpeg", "-y", "-filter_threads", "1", "-threads", "1",
+         "-framerate", "2", "-loop", "1", "-i", image_path, "-i", audio_path,
          # profile:main + bf 0: libx264's default (even with tune=stillimage) is
          # High profile with B-frames, which the Pi 4's hardware H.264 decoder
          # doesn't handle -- mpv silently falls back to software decode for it
          # (~90% CPU vs ~40-50% for the rest of the library, all Main/no-B).
-         "-c:v", "libx264", "-preset", "ultrafast", "-tune", "stillimage", "-profile:v", "main", "-bf", "0",
+         # Input -threads only limits the decoder. Also bound the encoder so
+         # background news/weather refreshes don't contend with movie playback.
+         "-c:v", "libx264", "-threads:v", "1", "-preset", "ultrafast", "-tune", "stillimage", "-profile:v", "main", "-bf", "0",
          "-r", "2", "-pix_fmt", "yuv420p",
          "-c:a", "aac", "-b:a", "128k", "-t", f"{audio_duration + 0.3:.2f}", out_mp4],
         check=True, capture_output=True, timeout=180, preexec_fn=_deprioritized)

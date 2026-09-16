@@ -66,16 +66,13 @@ function volStep(d){return command(async()=>{const r=await tvApi('/api/volume',{
 function muteToggle(){return command(async()=>showVol(await tvApi('/api/volume',{muted:!MUTED})));}
 function pauseToggle(){return command(async()=>{showVol(await tvApi('/api/volume',{toggle_pause:true}));await refreshNow();});}
 function goLive(){
-  if(vodOpen)closeVodNow();
-  if(IS_VOD_PLAYING){
-    return command(async()=>{
-      IS_VOD_PLAYING=false;
-      await tvApi('/api/vod/stop');
-      await refreshNow();
-      notify('Resumed live cable TV');
-    });
-  }
-  if(CUR_CH!=null)return tune(CUR_CH);
+  return command(async()=>{
+    if(vodOpen)await closeVodNow();
+    if(guideOpen)await closeGuideNow();
+    await tvApi('/api/vod/stop',{});
+    await refreshNow();
+    notify('Resumed live cable TV');
+  });
 }
 function ccToggle(){return command(async()=>{showVol(await tvApi('/api/captions',{enabled:!CC}));});}
 function showVol(r){
