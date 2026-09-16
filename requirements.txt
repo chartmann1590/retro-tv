@@ -2,3 +2,4 @@ Flask>=3.0
 requests>=2.31
 Waitress>=3.0,<4
 edge-tts>=6.1
+Pillow>=10.0

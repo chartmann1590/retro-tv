@@ -13,6 +13,7 @@ import time
 from datetime import datetime
 
 import config
+import metadata
 import scheduler
 import vod
 
@@ -24,6 +25,17 @@ _socket = None
 _reader = None
 
 VOD_OVERLAY_ID = 42  # Shares the full-screen menu overlay slot with tvguide
+CARD_OVERLAY_START = 20
+CARD_OVERLAY_COUNT = 5
+SPOTLIGHT_OVERLAY_ID = 30
+SHOW_OVERLAY_ID = 31
+
+def _clear_bitmap_overlays():
+    for oid in range(CARD_OVERLAY_START, CARD_OVERLAY_START + CARD_OVERLAY_COUNT):
+        _send(["overlay-remove", oid])
+    _send(["overlay-remove", SPOTLIGHT_OVERLAY_ID])
+    _send(["overlay-remove", SHOW_OVERLAY_ID])
+
 
 _mode = "browse"        # "browse" or "show"
 _categories = []
@@ -146,6 +158,7 @@ def close_vod():
         _visible = False
         _mode = "browse"
         _show_data = None
+        _clear_bitmap_overlays()
         res = _send(["osd-overlay", VOD_OVERLAY_ID, "none", ""])
         return res.get("error") == "success"
 
@@ -337,7 +350,18 @@ def _render_browse(ass, box, text):
 
     if item:
         title = item.get("title") or item.get("name", "Untitled")
-        text(62, 138, title, 30, "FFFFFF", clip=(60, 134, 1210, 178), bold=True)
+        text(62, 138, title, 30, "FFFFFF", clip=(60, 134, 1100, 178), bold=True)
+
+        # Spotlight poster thumbnail on the right
+        box(1118, 136, 100, 134, "263347")
+        box(1120, 138, 96, 130, "0A0E15")
+        spot_art = item.get("raw_artwork") or item.get("artwork") or item.get("poster")
+        raw_spot = metadata.get_raw_bitmap(spot_art, 96, 130) if spot_art else None
+        if raw_spot:
+            _send(["overlay-add", SPOTLIGHT_OVERLAY_ID, 1120, 138, raw_spot, 0, "bgra", 96, 130, 96 * 4, 96, 130])
+        else:
+            _send(["overlay-remove", SPOTLIGHT_OVERLAY_ID])
+            text(1150, 180, (title[0].upper() if title else "?"), 36, "2A384F", bold=True)
 
         # Meta row
         is_show = item.get("kind") == "show"
@@ -367,7 +391,7 @@ def _render_browse(ass, box, text):
 
         # Description
         desc = item.get("description") or item.get("subtitle") or "Available on demand."
-        text(62, 212, desc, 16, "C5D1DE", clip=(60, 210, 1210, 246))
+        text(62, 212, desc, 16, "C5D1DE", clip=(60, 210, 1100, 246))
 
         # Prompt
         if is_show:
@@ -375,6 +399,7 @@ def _render_browse(ass, box, text):
         else:
             text(62, 252, "[ ▶ PRESS OK TO PLAY MOVIE ON TV ]", 15, "F8CB63", bold=True)
     else:
+        _send(["overlay-remove", SPOTLIGHT_OVERLAY_ID])
         text(62, 150, "No items in this category", 22, "A2B4C7")
 
     # Carousel Row Header
@@ -388,11 +413,13 @@ def _render_browse(ass, box, text):
     card_w = 216
     card_h = 280
     gap = 25
-    visible_count = 5
+    visible_count = CARD_OVERLAY_COUNT
     start_idx = max(0, min(_item_idx - 2, max(0, len(items) - visible_count)))
     end_idx = min(len(items), start_idx + visible_count)
 
+    used_slots = set()
     for slot, i in enumerate(range(start_idx, end_idx)):
+        used_slots.add(slot)
         card = items[i]
         cx = 48 + slot * (card_w + gap)
         cy = 324
@@ -407,19 +434,27 @@ def _render_browse(ass, box, text):
             box(cx, cy, card_w, 2, "263347")
 
         # Card Media Box (Art placeholder / Poster slot)
-        box(cx + 10, cy + 10, card_w - 20, 160, "0A0E15")
+        img_w = card_w - 20
+        img_h = 160
+        box(cx + 10, cy + 10, img_w, img_h, "0A0E15")
+
+        card_art = card.get("raw_artwork") or card.get("artwork") or card.get("poster")
+        raw_card = metadata.get_raw_bitmap(card_art, img_w, img_h) if card_art else None
+        if raw_card:
+            _send(["overlay-add", CARD_OVERLAY_START + slot, cx + 10, cy + 10, raw_card, 0, "bgra", img_w, img_h, img_w * 4, img_w, img_h])
+        else:
+            _send(["overlay-remove", CARD_OVERLAY_START + slot])
+            card_title = card.get("title") or card.get("name", "")
+            initial = card_title[0].upper() if card_title else "?"
+            text(cx + 90, cy + 65, initial, 46, "2A384F", bold=True)
+
         badge = "TV" if card.get("kind") == "show" else "FILM"
         badge_col = "204E8A" if card.get("kind") == "show" else "8A1E1E"
         box(cx + 16, cy + 16, 46, 20, badge_col)
         text(cx + 22, cy + 19, badge, 12, "FFFFFF", bold=True)
 
-        card_title = card.get("title") or card.get("name", "")
-        # Big initial for classic poster placeholder
-        initial = card_title[0].upper() if card_title else "?"
-        text(cx + 90, cy + 65, initial, 46, "2A384F", bold=True)
-
         # Card Bottom Info
-        text(cx + 10, cy + 182, card_title, 17, "FFFFFF" if is_selected else "EFF2E9",
+        text(cx + 10, cy + 182, card.get("title") or card.get("name", ""), 17, "FFFFFF" if is_selected else "EFF2E9",
              clip=(cx + 8, cy + 180, cx + card_w - 8, cy + 224), bold=is_selected)
 
         card_sub = card.get("subtitle") or (f"{card.get('episode_count')} eps" if card.get("kind") == "show" else str(card.get("year") or ""))
@@ -429,12 +464,21 @@ def _render_browse(ass, box, text):
         if is_selected:
             text(cx + 10, cy + 256, "▶ PRESS OK", 13, "F8CB63", bold=True)
 
+    for s in range(visible_count):
+        if s not in used_slots:
+            _send(["overlay-remove", CARD_OVERLAY_START + s])
+
     # Bottom Hint Bar (y: 640..694)
     box(40, 640, 1200, 54, "121824")
     text(56, 656, "▲ / ▼ CATEGORY   •   ◀ / ▶ BROWSE   •   OK SELECT / PLAY   •   PRESS 'LIVE TV' TO RETURN TO CABLE", 16, "F8CB63", bold=True)
 
 
 def _render_show(ass, box, text):
+    # Clear carousel card overlays when in show details mode
+    for s in range(CARD_OVERLAY_COUNT):
+        _send(["overlay-remove", CARD_OVERLAY_START + s])
+    _send(["overlay-remove", SPOTLIGHT_OVERLAY_ID])
+
     if not _show_data or not _show_data.get("show"):
         box(40, 100, 1200, 200, "151D2A")
         text(60, 130, "Show information unavailable", 24, "F8CB63")
@@ -449,6 +493,16 @@ def _render_show(ass, box, text):
     box(40, 80, 1200, 108, "131A26")
     box(40, 80, 6, 108, "204E8A")  # Blue series accent
     text(58, 90, show.get("name", "TV Series"), 28, "FFFFFF", clip=(56, 88, 1000, 128), bold=True)
+
+    # Show poster on the right
+    box(1118, 86, 100, 96, "204E8A")
+    box(1120, 88, 96, 92, "0A0E15")
+    show_art = show.get("raw_artwork") or show.get("artwork") or show.get("poster")
+    raw_show = metadata.get_raw_bitmap(show_art, 96, 92) if show_art else None
+    if raw_show:
+        _send(["overlay-add", SHOW_OVERLAY_ID, 1120, 88, raw_show, 0, "bgra", 96, 92, 96 * 4, 96, 92])
+    else:
+        _send(["overlay-remove", SHOW_OVERLAY_ID])
 
     # Show meta
     meta = f"{len(seasons)} Seasons   •   {show.get('episode_count', 0)} Episodes   •   {show.get('genre', '')}"

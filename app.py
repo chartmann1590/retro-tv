@@ -478,6 +478,18 @@ def api_tune():
         res["entry_fmt"] = fmt_range(e["start_ts"], e["end_ts"]) if e.get("start_ts") else ""
     return jsonify(res)
 
+@app.route("/api/art")
+@app.route("/api/vod/art")
+def api_art():
+    url = request.args.get("url")
+    if not url:
+        return "Missing url", 400
+    import metadata
+    local_path = metadata.get_cached_image_file(url)
+    if local_path and os.path.exists(local_path):
+        return send_file(local_path, mimetype="image/jpeg", max_age=2592000)
+    return "Image unavailable", 404
+
 @app.route("/api/vod/catalog")
 def api_vod_catalog():
     return jsonify({"ok": True, **vod.get_catalog()})

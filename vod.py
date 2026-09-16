@@ -4,12 +4,21 @@ Automated: dynamically queries SQLite media tables populated by scanner.py and m
 import logging
 import random
 import time
+import urllib.parse
 import database
 
 log = logging.getLogger("retro-tv.vod")
 
 _catalog_cache = {"data": None, "ts": 0}
 CACHE_TTL = 30  # seconds
+
+def art_proxy_url(url):
+    """Wrap remote art URLs with local /api/art proxy for caching and referrer immunity."""
+    if not url:
+        return ""
+    if url.startswith("http://") or url.startswith("https://"):
+        return f"/api/art?url={urllib.parse.quote(url, safe='')}"
+    return url
 
 # Curated genres to highlight as dedicated Netflix-style rows if sufficient media exists
 POPULAR_GENRES = [
@@ -52,6 +61,8 @@ def get_all_shows(con):
         d = dict(r)
         d["kind"] = "show"
         d["title"] = d["name"]
+        d["raw_artwork"] = d.get("artwork") or ""
+        d["artwork"] = art_proxy_url(d.get("artwork"))
         out.append(d)
     return out
 
@@ -69,6 +80,8 @@ def get_all_movies(con):
     for r in rows:
         d = dict(r)
         d["kind"] = "movie"
+        d["raw_artwork"] = d.get("artwork") or ""
+        d["artwork"] = art_proxy_url(d.get("artwork"))
         out.append(d)
     return out
 
@@ -93,6 +106,8 @@ def get_recently_added(con, limit=24):
     out = []
     for r in rows:
         d = dict(r)
+        d["raw_artwork"] = d.get("artwork") or ""
+        d["artwork"] = art_proxy_url(d.get("artwork"))
         if d["kind"] == "episode":
             d["subtitle"] = f"{d['show_name']} • S{d.get('season', 1):02d}E{d.get('episode', 1):02d}"
         else:
@@ -235,12 +250,17 @@ def get_show_details(show_id):
         artwork = show_dict.get("poster") or next((e["artwork"] for e in episodes if e.get("artwork")), "")
         desc = show_dict.get("description") or next((e["description"] for e in episodes if e.get("description")), "")
 
+        for ep in episodes:
+            ep["raw_artwork"] = ep.get("artwork") or ""
+            ep["artwork"] = art_proxy_url(ep.get("artwork"))
+
         return {
             "id": show_dict["id"],
             "name": show_dict["name"],
             "title": show_dict["name"],
             "kind": "show",
-            "artwork": artwork,
+            "raw_artwork": artwork,
+            "artwork": art_proxy_url(artwork),
             "description": desc,
             "episode_count": len(episodes),
             "season_count": len(seasons_list),
@@ -265,6 +285,8 @@ def get_movie_details(media_id):
             return None
         d = dict(row)
         d["kind"] = "movie"
+        d["raw_artwork"] = d.get("artwork") or ""
+        d["artwork"] = art_proxy_url(d.get("artwork"))
         return d
     finally:
         con.close()
@@ -291,7 +313,8 @@ def get_media_item(media_id):
                     "season": ep.get("season"),
                     "episode": ep.get("episode"),
                     "description": ep.get("description") or "",
-                    "artwork": ep.get("artwork") or "",
+                    "raw_artwork": ep.get("artwork") or "",
+                    "artwork": art_proxy_url(ep.get("artwork")),
                     "duration": mf["duration"],
                     "path": mf["path"],
                 }
@@ -303,11 +326,10 @@ def get_media_item(media_id):
                     "media_id": media_id,
                     "kind": "movie",
                     "title": mo.get("title") or "Movie",
-                    "subtitle": f"{mo.get('year') or ''} • {mo.get('genre') or ''}".strip(" •"),
-                    "year": mo.get("year"),
-                    "genre": mo.get("genre") or "",
+                    "subtitle": str(mo.get("year") or ""),
                     "description": mo.get("description") or "",
-                    "artwork": mo.get("artwork") or "",
+                    "raw_artwork": mo.get("artwork") or "",
+                    "artwork": art_proxy_url(mo.get("artwork")),
                     "duration": mf["duration"],
                     "path": mf["path"],
                 }
@@ -317,6 +339,7 @@ def get_media_item(media_id):
             "title": "On Demand Video",
             "subtitle": "",
             "description": "",
+            "raw_artwork": "",
             "artwork": "",
             "duration": mf["duration"],
             "path": mf["path"],
@@ -338,7 +361,8 @@ def search_vod(query, limit=40):
         like = f"%{query}%"
 
         # 1. Search movies
-        movies = [dict(r) for r in con.execute("""
+        movies = []
+        for r in con.execute("""
             SELECT mo.id, mo.media_id, mo.title, mo.year, mo.genre, mo.description,
                    mo.artwork, mf.duration, mf.resolution, 'movie' AS kind
             FROM movies mo
@@ -346,10 +370,15 @@ def search_vod(query, limit=40):
             WHERE mo.title LIKE ? OR mo.genre LIKE ? OR mo.description LIKE ?
             ORDER BY mo.title ASC
             LIMIT ?
-        """, (like, like, like, limit))]
+        """, (like, like, like, limit)):
+            d = dict(r)
+            d["raw_artwork"] = d.get("artwork") or ""
+            d["artwork"] = art_proxy_url(d.get("artwork"))
+            movies.append(d)
 
         # 2. Search TV shows
-        shows = [dict(r) for r in con.execute("""
+        shows = []
+        for r in con.execute("""
             SELECT s.id, s.name, COUNT(e.id) AS episode_count,
                    COUNT(DISTINCT e.season) AS season_count,
                    COALESCE(NULLIF(s.poster, ''), MAX(NULLIF(e.artwork, '')), '') AS artwork,
@@ -360,10 +389,15 @@ def search_vod(query, limit=40):
             GROUP BY s.id
             ORDER BY s.name ASC
             LIMIT ?
-        """, (like, limit))]
+        """, (like, limit)):
+            d = dict(r)
+            d["raw_artwork"] = d.get("artwork") or ""
+            d["artwork"] = art_proxy_url(d.get("artwork"))
+            shows.append(d)
 
         # 3. Search individual episodes (matching title or description)
-        episodes = [dict(r) for r in con.execute("""
+        episodes = []
+        for r in con.execute("""
             SELECT e.id, e.media_id, e.show_id, e.show_name, e.season, e.episode,
                    e.title, e.description, e.runtime, e.artwork,
                    mf.duration, mf.resolution, 'episode' AS kind
@@ -372,7 +406,11 @@ def search_vod(query, limit=40):
             WHERE e.title LIKE ? OR e.description LIKE ?
             ORDER BY e.show_name, e.season, e.episode
             LIMIT ?
-        """, (like, like, limit))]
+        """, (like, like, limit)):
+            d = dict(r)
+            d["raw_artwork"] = d.get("artwork") or ""
+            d["artwork"] = art_proxy_url(d.get("artwork"))
+            episodes.append(d)
 
         total = len(movies) + len(shows) + len(episodes)
         return {

@@ -549,3 +549,102 @@ def enrich_all():
         "episodes_enriched": ep_en, "episodes_failed": ep_fail,
         "movies_enriched": mv_en, "movies_failed": mv_fail,
     }
+
+
+def get_art_cache_dir():
+    import os
+    d = os.path.join(config.DATA_DIR, "art_cache")
+    os.makedirs(d, exist_ok=True)
+    return d
+
+
+def get_cached_image_file(url):
+    """Ensure remote image URL is cached locally on disk in DATA_DIR/art_cache.
+    Returns the absolute path to the local .jpg file, or None if unavailable.
+    """
+    import os
+    import hashlib
+    if not url:
+        return None
+    if url.startswith("/") and os.path.exists(url):
+        return url
+    cache_dir = get_art_cache_dir()
+    h = hashlib.sha256(url.encode("utf-8")).hexdigest()
+    jpg_path = os.path.join(cache_dir, f"{h}.jpg")
+    if os.path.exists(jpg_path) and os.path.getsize(jpg_path) > 0:
+        return jpg_path
+    import requests
+    try:
+        r = requests.get(url, headers={"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) retro-tv/1.0"}, timeout=10)
+        if r.status_code == 200 and r.content:
+            tmp_path = jpg_path + ".tmp"
+            with open(tmp_path, "wb") as f:
+                f.write(r.content)
+            os.replace(tmp_path, jpg_path)
+            return jpg_path
+    except Exception as e:
+        log.warning("Failed to cache art from %s: %s", url, e)
+    return None
+
+
+def get_raw_bitmap(url_or_path, width, height):
+    """Return path to a raw BGRA bitmap of given dimensions for mpv overlay-add.
+    Caches converted .raw file in DATA_DIR/art_cache.
+    """
+    import os
+    import hashlib
+    if not url_or_path:
+        return None
+    cache_dir = get_art_cache_dir()
+    h = hashlib.sha256(url_or_path.encode("utf-8")).hexdigest()
+    raw_path = os.path.join(cache_dir, f"{h}_{width}x{height}.raw")
+    expected_size = width * height * 4
+    if os.path.exists(raw_path) and os.path.getsize(raw_path) == expected_size:
+        return raw_path
+
+    local_img = get_cached_image_file(url_or_path)
+    if not local_img:
+        return None
+
+    try:
+        from PIL import Image
+        img = Image.open(local_img).convert("RGBA")
+        img = img.resize((width, height), Image.Resampling.BILINEAR)
+        r, g, b, a = img.split()
+        bgra = Image.merge("RGBA", (b, g, r, a)).tobytes()
+        tmp_raw = raw_path + ".tmp"
+        with open(tmp_raw, "wb") as f:
+            f.write(bgra)
+        os.replace(tmp_raw, raw_path)
+        return raw_path
+    except Exception as e:
+        log.warning("Failed to generate raw bitmap for %s: %s", local_img, e)
+        return None
+
+
+def precache_catalog_art(limit=100):
+    """Pre-cache images and raw bitmaps for catalog items in background."""
+    con = database.connect()
+    try:
+        movie_rows = con.execute("SELECT artwork FROM movies WHERE artwork IS NOT NULL AND artwork != '' LIMIT ?", (limit,)).fetchall()
+        show_rows = con.execute("SELECT poster FROM shows WHERE poster IS NOT NULL AND poster != '' LIMIT ?", (limit,)).fetchall()
+    finally:
+        con.close()
+
+    cached = 0
+    for r in movie_rows:
+        art = r["artwork"]
+        if art:
+            raw = get_raw_bitmap(art, 196, 160)
+            if raw:
+                cached += 1
+                get_raw_bitmap(art, 100, 130)
+
+    for r in show_rows:
+        art = r["poster"]
+        if art:
+            raw = get_raw_bitmap(art, 196, 160)
+            if raw:
+                cached += 1
+                get_raw_bitmap(art, 100, 130)
+    return cached

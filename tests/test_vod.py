@@ -276,7 +276,38 @@ class VodTests(unittest.TestCase):
             self.assertEqual(r_close.status_code, 200)
             self.assertFalse(r_close.get_json()["visible"])
 
+    def test_art_proxy_and_caching(self):
+        import metadata
+        # 1. Test art_proxy_url
+        self.assertEqual(vod.art_proxy_url(""), "")
+        self.assertTrue(vod.art_proxy_url("https://example.com/art.jpg").startswith("/api/art?url="))
+
+        # 2. Test /api/art endpoint with local file
+        test_img_path = os.path.join(self.tmp.name, "sample.jpg")
+        from PIL import Image
+        img = Image.new("RGB", (60, 80), color=(255, 0, 0))
+        img.save(test_img_path, "JPEG")
+
+        with patch.object(metadata, "get_cached_image_file", return_value=test_img_path):
+            res = self.client.get("/api/art?url=https://example.com/sample.jpg")
+            self.assertEqual(res.status_code, 200)
+            self.assertEqual(res.mimetype, "image/jpeg")
+
+    def test_raw_bitmap_generation(self):
+        import metadata
+        test_img_path = os.path.join(self.tmp.name, "poster_test.jpg")
+        from PIL import Image
+        img = Image.new("RGB", (100, 100), color=(0, 255, 0))
+        img.save(test_img_path, "JPEG")
+
+        with patch.object(metadata, "get_cached_image_file", return_value=test_img_path):
+            raw = metadata.get_raw_bitmap("https://example.com/test.jpg", 196, 160)
+            self.assertIsNotNone(raw)
+            self.assertTrue(os.path.exists(raw))
+            self.assertEqual(os.path.getsize(raw), 196 * 160 * 4)
+
 
 if __name__ == "__main__":
     unittest.main()
+
 
