@@ -12,6 +12,7 @@ from zoneinfo import ZoneInfo
 import config
 import database
 import scheduler
+import transcode
 
 log = logging.getLogger("retro-tv.streaming")
 TZ = ZoneInfo(config.TIMEZONE)
@@ -62,7 +63,7 @@ def resolve_live(ch_number, ts=None):
             t = offset
             for slot in cids:
                 mid = slot["media_id"] if isinstance(slot, dict) else slot
-                r = con.execute("SELECT path, duration FROM media_files WHERE id=?", (mid,)).fetchone()
+                r = con.execute("SELECT path, duration, transcode_status, transcode_path FROM media_files WHERE id=?", (mid,)).fetchone()
                 if not r:
                     if isinstance(slot, dict):
                         t -= slot["duration"]
@@ -71,9 +72,10 @@ def resolve_live(ch_number, ts=None):
                 length = slot["duration"] if isinstance(slot, dict) else source_duration
                 source_offset = slot.get("offset", 0) if isinstance(slot, dict) else 0
                 if t < length:
-                    if not r["path"] or not os.path.isfile(r["path"]):
+                    play_path = transcode.playable_path(dict(r))
+                    if not play_path or not os.path.isfile(play_path):
                         return entry, offset, None, length
-                    return {**entry, "segment_offset": source_offset}, source_offset + t, r["path"], source_duration
+                    return {**entry, "segment_offset": source_offset}, source_offset + t, play_path, source_duration
                 t -= length
             return entry, offset, None, entry["end_ts"] - entry["start_ts"]
         finally:
@@ -82,12 +84,15 @@ def resolve_live(ch_number, ts=None):
         return entry, 0, None, entry["end_ts"] - entry["start_ts"]
     con = database.connect()
     try:
-        r = con.execute("SELECT path, duration, vcodec, acodec, container FROM media_files WHERE id=?", (entry["media_id"],)).fetchone()
+        r = con.execute("SELECT path, duration, vcodec, acodec, container, transcode_status, transcode_path FROM media_files WHERE id=?", (entry["media_id"],)).fetchone()
     finally:
         con.close()
-    if not r or not r["path"] or not os.path.exists(r["path"]):
+    if not r or not r["path"]:
         return entry, offset, None, 0
-    return entry, offset, r["path"], r["duration"] or (entry["end_ts"] - entry["start_ts"])
+    play_path = transcode.playable_path(dict(r))
+    if not play_path or not os.path.exists(play_path):
+        return entry, offset, None, 0
+    return entry, offset, play_path, r["duration"] or (entry["end_ts"] - entry["start_ts"])
 
 def needs_remux(path, vcodec="", acodec="", container=""):
     c = (container or os.path.splitext(path)[1].lower().lstrip(".")).lower()

@@ -6,6 +6,7 @@ import random
 import time
 import urllib.parse
 import database
+import transcode
 
 log = logging.getLogger("retro-tv.vod")
 
@@ -316,7 +317,7 @@ def get_media_item(media_id):
                     "raw_artwork": ep.get("artwork") or "",
                     "artwork": art_proxy_url(ep.get("artwork")),
                     "duration": mf["duration"],
-                    "path": mf["path"],
+                    "path": transcode.playable_path(mf),
                 }
         elif mf["kind"] == "movie":
             mo = con.execute("SELECT * FROM movies WHERE media_id=?", (media_id,)).fetchone()
@@ -331,7 +332,7 @@ def get_media_item(media_id):
                     "raw_artwork": mo.get("artwork") or "",
                     "artwork": art_proxy_url(mo.get("artwork")),
                     "duration": mf["duration"],
-                    "path": mf["path"],
+                    "path": transcode.playable_path(mf),
                 }
         return {
             "media_id": media_id,
@@ -342,7 +343,7 @@ def get_media_item(media_id):
             "raw_artwork": "",
             "artwork": "",
             "duration": mf["duration"],
-            "path": mf["path"],
+            "path": transcode.playable_path(mf),
         }
     finally:
         con.close()

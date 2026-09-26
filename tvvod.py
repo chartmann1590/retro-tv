@@ -131,6 +131,11 @@ def open_vod():
             tvguide.close()
         except Exception:
             pass
+        try:
+            import tvsports
+            tvsports.close_sports()
+        except Exception:
+            pass
 
         if not playback.mpv_alive():
             playback.restore_last()

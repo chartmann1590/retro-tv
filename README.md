@@ -113,8 +113,48 @@ as root.
   TV and phone. Pick a program, then press **TUNE TV**.
 - **Watch:** `/watch` streams the live channel to whatever device opened the
   page.
+- **Sports:** `/sports` provides a dedicated interactive sports screen featuring
+  live/upcoming games, scores, SVG gameplay field radar (football gridiron with
+  down & distance, baseball diamond with runners, basketball court, hockey rink,
+  soccer pitch), play-by-play with Kokoro TTS audio commentary, box scores,
+  and news. Press **SPORTS** on the remote to launch the interactive on-TV
+  Sports Center overlay.
+- **Sports Channel:** Channel 38 ("Retro Sports") broadcasts a continuous loop
+  of sports news, live game scores, matchups, and standings narrated by natural
+  Kokoro TTS voices.
 - **Admin:** `/admin` manages channels, triggers media scans, and inspects
   schedules.
+
+### XING WEI USB remote
+
+The XING WEI 2.4G receiver (USB `1915:1025`) works alongside the phone remote,
+even when mpv has focus. Install `requirements.txt` and give the service user
+read access to its input devices (the `input` group on this Pi). The service
+automatically reconnects the keyboard and consumer-control interfaces after
+unplugging/reconnecting the receiver. Only those two receiver interfaces are
+grabbed, preventing duplicate desktop volume or browser actions; mouse input
+and other keyboards remain available.
+
+| Button | TV action |
+|---|---|
+| Numbers, then OK (or wait 1.5 seconds) | Tune that channel |
+| CH + / − | Next / previous channel |
+| D-pad and OK | Navigate/select the on-TV guide or On Demand; up/down change channels when no menu is open |
+| Menu | Open/close the guide |
+| Home | Return to live TV |
+| Back | Back/close the menu; return to live TV outside menus |
+| Play/Pause | Pause/resume |
+| FF / Rewind, Next / Previous | Seek forward/back 30 seconds within the current program |
+| Volume and Mute | Control receiver volume |
+| Search | Open title search; type on the back keyboard, then OK to see results |
+| Keyboard V / G / I | On Demand / Guide / Info |
+
+Use **Setup → Remote → USB TV Remote** to learn a different button assignment.
+USB assignments are stored separately from browser keyboard mappings. The phone
+remote follows the shared on-TV menu selection and remains usable at any time.
+The Home button restores the scheduled live position after seeking or pausing.
+
+USB regression tests: `venv/bin/python -m unittest tests.test_usbremote -v`.
 
 ## Configuration
 

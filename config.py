@@ -15,6 +15,11 @@ TV_DIR = os.path.join(MEDIA_ROOT, "TVShows")
 MOVIES_DIR = os.path.join(MEDIA_ROOT, "Movies")
 COMMERCIALS_DIR = os.path.join(MEDIA_ROOT, "Commercials")
 
+# Pi-safe transcoded copies (transcode.py) are large -- put them on the same
+# external drive as the media library (already bind-mounted into MEDIA_ROOT
+# for TVShows/Movies/Commercials) rather than the small root filesystem.
+TRANSCODE_DIR = "/mnt/media-ssd/transcoded"
+
 TIMEZONE = "America/New_York"
 HOST = "0.0.0.0"
 PORT = 5000
@@ -80,6 +85,15 @@ TTS_VOICE_NEWS = os.environ.get("TTS_VOICE_NEWS", "en-US-GuyNeural")
 NEWS_RSS_URL = os.environ.get("NEWS_RSS_URL", "https://wnyt.com/feed/")
 NEWS_ARTICLE_COUNT = 5
 
+# ArenaPulse Sports API & Dedicated Sports Channel
+ARENAPULSE_URL = os.environ.get("ARENAPULSE_URL", "http://10.0.0.110:3000")
+SPORTS_SHOW = "Retro Sports"
+SPORTS_CHANNEL_NAME = "Retro Sports"
+SPORTS_CHANNEL_NUMBER = 38
+TTS_VOICE_SPORTS = os.environ.get("TTS_VOICE_SPORTS", "am_michael")
+TTS_VOICE_SPORTS_NEWS = os.environ.get("TTS_VOICE_SPORTS_NEWS", "af_nicole")
+SPORTS_REFRESH_SEC = 15 * 60
+
 # Reminders (reminders.py): user sets one for a specific upcoming airing (from the
 # guide or a search result); a background loop fires it this many seconds before
 # start -- flashed on the TV via mpv's OSD and, if Gotify is configured above,
@@ -88,3 +102,4 @@ NEWS_ARTICLE_COUNT = 5
 REMINDER_LEAD_SEC = 120
 REMINDER_CHECK_INTERVAL_SEC = 15
 REMINDER_OSD_MS = 10000
+

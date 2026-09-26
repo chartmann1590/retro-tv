@@ -1,0 +1,233 @@
+"""Background transcoding for video files the Pi 4's hardware HEVC decoder
+corrupts (see scanner.needs_hw_transcode). Produces a Pi-safe 1080p 8-bit
+H.264 copy alongside the original -- the original file is never touched.
+"""
+import logging
+import os
+import subprocess
+import threading
+import time
+
+import config
+import database
+
+log = logging.getLogger("retro-tv.transcode")
+
+TRANSCODE_DIR = config.TRANSCODE_DIR
+
+
+def _deprioritize():
+    try:
+        if hasattr(os, "nice"):
+            os.nice(10)
+    except Exception:
+        pass
+
+
+def playable_path(row):
+    """Prefer a finished Pi-safe transcode over the original path, when present."""
+    if row.get("transcode_status") == "done":
+        alt = row.get("transcode_path")
+        if alt and os.path.isfile(alt):
+            return alt
+    return row.get("path")
+
+
+def next_pending(con):
+    return con.execute(
+        "SELECT id, path, duration FROM media_files WHERE transcode_status='pending' ORDER BY id LIMIT 1"
+    ).fetchone()
+
+
+def _progress_path(media_id):
+    return os.path.join(TRANSCODE_DIR, f".progress_{media_id}")
+
+
+def read_progress(media_id, source_duration):
+    """Parse ffmpeg's -progress key=value stream for the job's most recent
+    values (later lines win on repeated keys, since ffmpeg appends a full
+    block on every report rather than truncating the file)."""
+    path = _progress_path(media_id)
+    try:
+        with open(path) as f:
+            lines = f.readlines()
+    except OSError:
+        return None
+    fields = {}
+    for line in lines:
+        if "=" in line:
+            k, v = line.strip().split("=", 1)
+            fields[k] = v
+    out_time_us = fields.get("out_time_us") or fields.get("out_time_ms")
+    try:
+        out_time_sec = max(0.0, float(out_time_us) / 1_000_000)
+    except (TypeError, ValueError):
+        out_time_sec = 0.0
+    percent = min(99.0, out_time_sec / source_duration * 100) if source_duration > 0 else 0.0
+    speed_str = (fields.get("speed") or "").strip().rstrip("x")
+    try:
+        speed = float(speed_str)
+    except ValueError:
+        speed = 0.0
+    eta_sec = int((source_duration - out_time_sec) / speed) if speed > 0 else None
+    return {
+        "media_id": media_id, "percent": round(percent, 1), "speed": speed,
+        "out_time_sec": round(out_time_sec), "source_duration": source_duration,
+        "eta_sec": eta_sec, "done": fields.get("progress") == "end",
+    }
+
+
+def current_status():
+    """Snapshot for the admin UI: the actively running job's live progress
+    (if any) plus what's queued up next."""
+    con = database.connect()
+    try:
+        running = con.execute(
+            "SELECT id, path, duration FROM media_files WHERE transcode_status='running' LIMIT 1").fetchone()
+        pending = con.execute(
+            "SELECT id, path, duration FROM media_files WHERE transcode_status='pending' ORDER BY id").fetchall()
+    finally:
+        con.close()
+    result = {"running": None, "pending": []}
+    if running:
+        progress = read_progress(running["id"], running["duration"] or 0)
+        result["running"] = {"media_id": running["id"], "path": running["path"],
+                              "duration": running["duration"], **(progress or {})}
+    result["pending"] = [{"media_id": r["id"], "path": r["path"], "duration": r["duration"]} for r in pending]
+    return result
+
+
+def _ffprobe_duration(path):
+    # No preexec_fn here -- this runs inside run_loop's thread, which has already
+    # niced itself; a forked child inherits that automatically. Adding another
+    # os.nice(10) on top would compound to the OS-capped floor of 19, starving
+    # this (and the ffmpeg encode below) far more than intended.
+    try:
+        out = subprocess.run(
+            ["ffprobe", "-v", "quiet", "-show_entries", "format=duration", "-of", "csv=p=0", path],
+            capture_output=True, text=True, timeout=30)
+        return float((out.stdout or "0").strip() or 0)
+    except Exception:
+        return 0
+
+
+def _encode(src_path, out_path, source_duration, media_id):
+    """Software-decode (avoids the same buggy hevc_v4l2m2m HW decoder), downscale
+    to 1080p max, drop to 8-bit, and hardware-encode back to H.264 -- the exact
+    codec/depth/resolution class already proven reliable throughout this library.
+    Falls back to libx264 if the Pi's h264_v4l2m2m encoder errors on this input."""
+    progress_path = _progress_path(media_id)
+    base_cmd = ["ffmpeg", "-y", "-i", src_path, "-map", "0:v:0", "-map", "0:a:0?",
+                "-vf", "scale='min(1920,iw)':-2", "-pix_fmt", "yuv420p",
+                "-c:a", "copy", "-f", "matroska", "-progress", progress_path, "-nostats"]
+    attempts = [
+        base_cmd + ["-c:v", "h264_v4l2m2m", "-b:v", "8M"],
+        base_cmd + ["-c:v", "libx264", "-preset", "veryfast", "-crf", "20"],
+    ]
+    last_err = ""
+    for cmd in attempts:
+        try:
+            # No preexec_fn: run_loop's thread is already niced, and ffmpeg inherits
+            # that via fork -- stacking another os.nice(10) here would compound to
+            # the OS-capped nice 19 floor instead of the intended nice 10.
+            result = subprocess.run(cmd + [out_path], capture_output=True, text=True)
+        except (OSError, subprocess.SubprocessError) as e:
+            last_err = str(e)
+            continue
+        if result.returncode == 0 and os.path.isfile(out_path):
+            out_duration = _ffprobe_duration(out_path)
+            if source_duration <= 0 or abs(out_duration - source_duration) < max(5, source_duration * 0.02):
+                return True, ""
+            last_err = f"duration mismatch: source={source_duration:.1f}s output={out_duration:.1f}s"
+        else:
+            last_err = (result.stderr or "")[-2000:]
+        try:
+            os.remove(out_path)
+        except OSError:
+            pass
+    return False, last_err
+
+
+def run_one(media_id, src_path, source_duration):
+    os.makedirs(TRANSCODE_DIR, exist_ok=True)
+    final_path = os.path.join(TRANSCODE_DIR, f"{media_id}.mkv")
+    tmp_path = final_path + ".tmp"
+    con = database.connect()
+    try:
+        con.execute("UPDATE media_files SET transcode_status='running' WHERE id=?", (media_id,))
+        con.commit()
+    finally:
+        con.close()
+    log.info("Transcode starting: media_id=%s %r", media_id, src_path)
+    t0 = time.monotonic()
+    try:
+        ok, err = _encode(src_path, tmp_path, source_duration, media_id)
+    except Exception:
+        log.exception("Transcode crashed: media_id=%s", media_id)
+        ok, err = False, "internal error, see log"
+    finally:
+        try:
+            os.remove(_progress_path(media_id))
+        except OSError:
+            pass
+    con = database.connect()
+    try:
+        if ok:
+            os.replace(tmp_path, final_path)
+            con.execute(
+                "UPDATE media_files SET transcode_status='done', transcode_path=?, transcode_error='' WHERE id=?",
+                (final_path, media_id))
+            log.info("Transcode finished: media_id=%s in %.0fs -> %s", media_id, time.monotonic() - t0, final_path)
+        else:
+            for p in (tmp_path, final_path):
+                try:
+                    os.remove(p)
+                except OSError:
+                    pass
+            con.execute(
+                "UPDATE media_files SET transcode_status='failed', transcode_error=? WHERE id=?",
+                (err[-2000:], media_id))
+            log.warning("Transcode failed: media_id=%s: %s", media_id, err[-500:])
+        con.commit()
+    finally:
+        con.close()
+
+
+def run_loop(stop_event=None):
+    stop_event = stop_event or threading.Event()
+    _deprioritize()
+    # A restart (deploy, crash, reboot) mid-job orphans its row at 'running' forever,
+    # since nothing else ever re-queues it -- reclaim those back to 'pending' once,
+    # at startup, before the poll loop begins.
+    try:
+        con = database.connect()
+        try:
+            con.execute("UPDATE media_files SET transcode_status='pending' WHERE transcode_status='running'")
+            con.commit()
+        finally:
+            con.close()
+    except Exception:
+        log.exception("Failed to reclaim orphaned running transcode jobs")
+    while not stop_event.is_set():
+        try:
+            con = database.connect()
+            try:
+                job = next_pending(con)
+            finally:
+                con.close()
+            if job and os.path.isfile(job["path"]):
+                run_one(job["id"], job["path"], job["duration"])
+                continue
+            elif job:
+                # source vanished since being queued
+                con = database.connect()
+                try:
+                    con.execute("UPDATE media_files SET transcode_status='failed', transcode_error='source file missing' WHERE id=?",
+                                (job["id"],))
+                    con.commit()
+                finally:
+                    con.close()
+                continue
+        except Exception:
+            log.exception("Transcode loop iteration failed")
+        stop_event.wait(60)

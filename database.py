@@ -176,6 +176,17 @@ def init_db():
             con.execute("ALTER TABLE shows ADD COLUMN description TEXT DEFAULT ''")
         if "meta_source" not in show_cols:
             con.execute("ALTER TABLE shows ADD COLUMN meta_source TEXT DEFAULT ''")
+        mf_cols = {r["name"] for r in con.execute("PRAGMA table_info(media_files)")}
+        if "pix_fmt" not in mf_cols:
+            con.execute("ALTER TABLE media_files ADD COLUMN pix_fmt TEXT DEFAULT ''")
+        if "bit_depth" not in mf_cols:
+            con.execute("ALTER TABLE media_files ADD COLUMN bit_depth INTEGER DEFAULT 8")
+        if "transcode_status" not in mf_cols:
+            con.execute("ALTER TABLE media_files ADD COLUMN transcode_status TEXT DEFAULT ''")
+        if "transcode_path" not in mf_cols:
+            con.execute("ALTER TABLE media_files ADD COLUMN transcode_path TEXT DEFAULT ''")
+        if "transcode_error" not in mf_cols:
+            con.execute("ALTER TABLE media_files ADD COLUMN transcode_error TEXT DEFAULT ''")
         for k, v in config.DEFAULT_SETTINGS.items():
             con.execute("INSERT OR IGNORE INTO settings(key,value) VALUES(?,?)", (k, v))
         defaults = [
@@ -187,17 +198,13 @@ def init_db():
         ]
         for k, v in defaults:
             con.execute("INSERT OR IGNORE INTO playback_state(key,value) VALUES(?,?)", (k, v))
-        # default remote mappings (keyboard codes)
-        remotes = {
-            "GUIDE": "g", "VOD": "v", "CHANNEL_UP": "Page_Up", "CHANNEL_DOWN": "Page_Down",
-            "PREV_CHANNEL": "BackSpace", "INFO": "i", "PLAY_PAUSE": "space",
-            "BACK": "Escape", "UP": "Up", "DOWN": "Down", "LEFT": "Left",
-            "RIGHT": "Right", "OK": "Return", "VOLUME_UP": "plus",
-            "VOLUME_DOWN": "minus", "MUTE": "m", "POWER_MENU": "p",
-            "HOME": "Home", "MENU": "Menu",
-        }
-        for a, c in remotes.items():
-            con.execute("INSERT OR IGNORE INTO remote_mappings(action,code) VALUES(?,?)", (a, c))
+        # No default remote_mappings seeding here: remote.get_mappings() already merges
+        # remote.DEFAULTS (correct browser KeyboardEvent.key values, e.g. "ArrowDown")
+        # under any DB rows. A duplicate seed list used to live here with wrong,
+        # X11-keysym-style values ("Down", "Return", "Page_Up", "BackSpace", "space",
+        # "plus", "minus") that silently broke every browser-side remote/guide keyboard
+        # action, since a pre-existing DB row always wins over remote.DEFAULTS and
+        # INSERT OR IGNORE re-planted those wrong rows on every restart.
         con.commit()
     finally:
         con.close()

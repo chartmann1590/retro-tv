@@ -232,7 +232,7 @@ def enrich_shows(limit=50):
     try:
         rows = con.execute("""SELECT id, name FROM shows
                               WHERE (poster IS NULL OR poster = '')
-                              AND name NOT IN ('Local News', 'Local Weather', 'Season 7', 'Specials')
+                              AND name NOT IN ('Local News', 'Local Weather', 'Retro Sports', 'Season 7', 'Specials')
                               LIMIT ?""", (limit,)).fetchall()
         rows = [dict(r) for r in rows]
     finally:
@@ -241,7 +241,7 @@ def enrich_shows(limit=50):
     enriched = failed = 0
     for s in rows:
         name = s["name"]
-        if name in ("Local News", "Local Weather", "Season 7", "Specials"):
+        if name in ("Local News", "Local Weather", "Retro Sports", "Season 7", "Specials"):
             con = database.connect()
             try:
                 con.execute("UPDATE shows SET meta_source='checked' WHERE id=?", (s["id"],))

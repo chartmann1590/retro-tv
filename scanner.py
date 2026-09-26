@@ -105,7 +105,8 @@ def ffprobe(path):
 
 def probe_info(path):
     info = {"duration": 0, "container": os.path.splitext(path)[1].lower().lstrip("."),
-            "width": 0, "height": 0, "resolution": "", "vcodec": "", "acodec": "", "bitrate": 0}
+            "width": 0, "height": 0, "resolution": "", "vcodec": "", "acodec": "", "bitrate": 0,
+            "pix_fmt": "", "bit_depth": 8}
     data = ffprobe(path)
     try:
         fmt = data.get("format", {})
@@ -117,6 +118,8 @@ def probe_info(path):
                 info["vcodec"] = (s.get("codec_name") or "").lower()
                 info["width"] = int(s.get("width") or 0)
                 info["height"] = int(s.get("height") or 0)
+                info["pix_fmt"] = (s.get("pix_fmt") or "").lower()
+                info["bit_depth"] = 10 if "10" in info["pix_fmt"] else 8
             if s.get("codec_type") == "audio" and not info["acodec"]:
                 info["acodec"] = (s.get("codec_name") or "").lower()
         h = info["height"]
@@ -135,6 +138,38 @@ def probe_info(path):
         log.warning("probe parse failed %s: %s", path, e)
     return info
 
+def needs_hw_transcode(info):
+    """True for the video class confirmed to corrupt the picture on the Pi 4's
+    zero-copy HEVC hardware decode path (rpi-hevc-dec's drm_prime/rpi4_10 output):
+    any 10-bit HEVC/Main10, not just 4K -- confirmed at both 2160p (Sinners) and
+    720p (Fight Club). mpv reports decoding as fully successful while the actual
+    output is a blank/blue frame. The only other options on this hardware --
+    v4l2m2m-copy and software decode -- are also confirmed broken/unusably slow
+    for this content (see transcode.py), so any 10-bit HEVC file needs a
+    background-transcoded 8-bit copy for reliable playback."""
+    vc = (info.get("vcodec") or "").lower()
+    return vc in ("hevc", "h265") and info.get("bit_depth") == 10
+
+def _transcode_headroom_ok(source_size):
+    """Guard against auto-queueing more transcode work than the disk can hold.
+
+    The transcoded copy lands alongside the original (never replacing it), on
+    config.TRANSCODE_DIR's filesystem (the media SSD, not the small root
+    filesystem). A library can still have more 10-bit HEVC content than even
+    that has free -- e.g. this box once had 249 newly-flagged files (~188GB of
+    source). Require real headroom (a multiple of the source size, since even
+    a compressed re-encode of a large file needs real room, plus a fixed floor
+    so we never run the disk to zero) before auto-queueing; compat_warning()
+    still surfaces the file either way.
+    """
+    import shutil
+    try:
+        os.makedirs(config.TRANSCODE_DIR, exist_ok=True)
+        free = shutil.disk_usage(config.TRANSCODE_DIR).free
+    except OSError:
+        return False
+    return free > max(source_size * 2, 4_000_000_000)
+
 def compat_warning(info, kind):
     warns = []
     h = info.get("height", 0)
@@ -142,7 +177,9 @@ def compat_warning(info, kind):
     ac = (info.get("acodec") or "").lower()
     cont = (info.get("container") or "").lower()
     br = info.get("bitrate", 0)
-    if h >= 2000:
+    if needs_hw_transcode(info):
+        warns.append("10-bit HEVC: Pi4 HW decoder corrupts output (blue/blank picture) -- auto-transcoding a Pi-safe copy")
+    elif h >= 2000:
         warns.append("4K may stutter on Pi 4; prefer 1080p")
     if br and br > 20_000_000:
         warns.append(f"high bitrate {br//1_000_000}Mbps may stutter")
@@ -150,7 +187,7 @@ def compat_warning(info, kind):
         warns.append("AV1 has no HW decode on Pi 4 (CPU-heavy)")
     if vc in ("vp9",) and h >= 1000:
         warns.append("VP9 1080p+ is CPU-decoded; may struggle")
-    if vc in ("hevc", "h265") and h >= 2000:
+    if vc in ("hevc", "h265") and h >= 2000 and not needs_hw_transcode(info):
         warns.append("HEVC 4K is heavy; 1080p HEVC OK via V4L2")
     if vc not in ("h264", "avc", "hevc", "h265", "mpeg2video", "mpeg4", ""):
         warns.append(f"codec {vc or '?'} may need transcode for browsers")
@@ -204,36 +241,62 @@ def _full_scan(light=False):
         found.add(path)
         kind = classify(path)
         prev = existing.get(path)
-        if light and prev and prev["size"] == st.st_size and abs(prev["mtime"] - st.st_mtime) < 1:
+        if light and prev and prev["size"] == st.st_size and abs(prev["mtime"] - st.st_mtime) < 1 \
+                and not (prev.get("vcodec", "").lower() in ("hevc", "h265") and not prev.get("pix_fmt")):
             continue
-        needs_probe = True
-        if prev and prev["size"] == st.st_size and abs(prev["mtime"] - st.st_mtime) < 1 and prev["duration"]:
-            needs_probe = False
+        unchanged = prev and prev["size"] == st.st_size and abs(prev["mtime"] - st.st_mtime) < 1
+        # One-time backfill: rows probed before pix_fmt/bit_depth existed need a cheap
+        # re-probe (ffprobe only, not a re-transcode) so existing HEVC files get checked
+        # against needs_hw_transcode() too -- otherwise already-scanned broken files like
+        # Sinners would never get flagged.
+        needs_backfill = unchanged and prev.get("vcodec", "").lower() in ("hevc", "h265") and not prev.get("pix_fmt")
+        needs_probe = not unchanged or not prev["duration"] or needs_backfill
         info = {}
         if needs_probe:
             info = probe_info(path)
         else:
             info = {"duration": prev["duration"], "container": prev["container"],
                     "resolution": prev["resolution"], "width": prev["width"], "height": prev["height"],
-                    "vcodec": prev["vcodec"], "acodec": prev["acodec"], "bitrate": prev["bitrate"]}
+                    "vcodec": prev["vcodec"], "acodec": prev["acodec"], "bitrate": prev["bitrate"],
+                    "pix_fmt": prev.get("pix_fmt", ""), "bit_depth": prev.get("bit_depth", 8)}
         if not info.get("duration"):
             info["duration"] = 1320 if kind == "episode" else (5400 if kind == "movie" else 30)
         warn = compat_warning(info, kind)
+        hw_risk = needs_hw_transcode(info)
         con = database.connect()
         try:
             if prev:
+                # Only (re)queue a transcode if this file is newly-flagged or its content
+                # changed -- never clobber an in-progress/finished job on an unrelated rescan.
+                # Re-read live rather than trusting the `existing` snapshot taken at the start
+                # of this (possibly many-minutes-long) scan pass: the transcode worker runs
+                # concurrently and can move pending->running->done/failed while we're still
+                # iterating, and writing back the stale snapshot value would clobber that.
+                live_status = con.execute("SELECT transcode_status FROM media_files WHERE id=?", (prev["id"],)).fetchone()
+                prev_status = live_status["transcode_status"] if live_status else ""
+                if hw_risk and (not unchanged or prev_status == "") and _transcode_headroom_ok(st.st_size):
+                    new_status = "pending"
+                elif not hw_risk:
+                    new_status = ""
+                else:
+                    new_status = prev_status
                 con.execute("""UPDATE media_files SET kind=?,size=?,mtime=?,duration=?,container=?,
-                    resolution=?,width=?,height=?,vcodec=?,acodec=?,bitrate=?,compat_warning=? WHERE path=?""",
+                    resolution=?,width=?,height=?,vcodec=?,acodec=?,bitrate=?,compat_warning=?,
+                    pix_fmt=?,bit_depth=?,transcode_status=? WHERE path=?""",
                     (kind, st.st_size, st.st_mtime, info["duration"], info["container"], info["resolution"],
-                     info["width"], info["height"], info["vcodec"], info["acodec"], info["bitrate"], warn, path))
+                     info["width"], info["height"], info["vcodec"], info["acodec"], info["bitrate"], warn,
+                     info["pix_fmt"], info["bit_depth"], new_status, path))
                 updated += 1
                 media_id = prev["id"]
             else:
                 try:
                     cur = con.execute("""INSERT INTO media_files(path,kind,size,mtime,duration,container,resolution,
-                        width,height,vcodec,acodec,bitrate,compat_warning) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+                        width,height,vcodec,acodec,bitrate,compat_warning,pix_fmt,bit_depth,transcode_status)
+                        VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
                         (path, kind, st.st_size, st.st_mtime, info["duration"], info["container"], info["resolution"],
-                         info["width"], info["height"], info["vcodec"], info["acodec"], info["bitrate"], warn))
+                         info["width"], info["height"], info["vcodec"], info["acodec"], info["bitrate"], warn,
+                         info["pix_fmt"], info["bit_depth"],
+                         "pending" if (hw_risk and _transcode_headroom_ok(st.st_size)) else ""))
                     media_id = cur.lastrowid
                     added += 1
                 except sqlite3.IntegrityError:
@@ -345,7 +408,10 @@ def library_summary():
         genre_rows = con.execute("SELECT DISTINCT genre FROM movies WHERE genre<>''").fetchall()
         genres = sorted({g.strip() for r in genre_rows for g in r["genre"].split(",") if g.strip()})
         warns = [dict(r) for r in con.execute("SELECT path, compat_warning FROM media_files WHERE compat_warning<>'' ORDER BY path")]
+        transcodes = [dict(r) for r in con.execute(
+            "SELECT path, transcode_status, transcode_error FROM media_files WHERE transcode_status<>'' ORDER BY id")]
         return {"episodes": n_ep, "movies": n_mv, "commercials": n_ad, "shows": shows,
-                "movie_list": movie_list, "movie_folders": movie_folders, "genres": genres, "warnings": warns}
+                "movie_list": movie_list, "movie_folders": movie_folders, "genres": genres, "warnings": warns,
+                "transcodes": transcodes}
     finally:
         con.close()

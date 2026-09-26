@@ -13,7 +13,48 @@ const SRC_TYPES=[
   {v:'movie_folder',label:'Movie folder'},
 ];
 
-loadDash();loadCh();loadLib();loadRem();loadHdmi();loadSys();loadSets();renderSrcRows([]);
+function transcodeRows(list){
+  const style={pending:'background:#3a2f14;border:1px solid var(--warn);color:var(--warn)',
+    running:'background:#142a3a;border:1px solid var(--hi);color:var(--hi)',
+    done:'background:#1c3325;border:1px solid var(--ok);color:var(--ok)',
+    failed:'background:#3a1d1d;border:1px solid var(--bad);color:var(--bad)'};
+  const label={pending:'queued',running:'transcoding…',done:'Pi-safe copy ready',failed:'transcode failed'};
+  return (list||[]).map(t=>`<div class="warn" style="${style[t.transcode_status]||''}">${esc(t.path)}: ${label[t.transcode_status]||esc(t.transcode_status)}${t.transcode_status==='failed'&&t.transcode_error?' — '+esc(t.transcode_error):''}</div>`).join('');
+}
+function fmtEta(sec){
+  if(sec==null)return'calculating…';
+  if(sec<60)return sec+'s';
+  const m=Math.round(sec/60);
+  if(m<60)return m+' min';
+  return (m/60).toFixed(1)+' hr';
+}
+async function loadTranscodeStatus(){
+  const el=document.getElementById('transcodeQueue');
+  if(!el)return;
+  let s;
+  try{s=await jget('/api/transcode/status');}catch(e){return;}
+  if(!s.ok){el.innerHTML='';return;}
+  const parts=[];
+  if(s.running){
+    const r=s.running;
+    parts.push(`<div class="panel" style="margin-bottom:14px">
+      <div style="display:flex;justify-content:space-between;gap:12px;margin-bottom:8px">
+        <b>⚙ Transcoding now:</b> ${esc(r.title)}
+        <span class="hint">${r.speed?r.speed+'x speed · ':''}ETA ${fmtEta(r.eta_sec)}</span>
+      </div>
+      <div class="progress"><div style="width:${r.percent||0}%"></div></div>
+      <div class="hint" style="margin-top:4px">${r.percent||0}% · ${fmtEta(r.out_time_sec)} of ${fmtEta(r.source_duration)} encoded</div>
+    </div>`);
+  }
+  if(s.pending&&s.pending.length){
+    parts.push(`<div class="panel"><b>Queued next (${s.pending.length}):</b><br>${
+      s.pending.map((p,i)=>`<span class="chip">${i+1}. ${esc(p.title)}</span>`).join('')
+    }</div>`);
+  }
+  el.innerHTML=parts.join('');
+}
+loadDash();loadCh();loadLib();loadRem();loadHdmi();loadSys();loadSets();renderSrcRows([]);loadTranscodeStatus();
+setInterval(loadTranscodeStatus,5000);
 async function loadDash(){
   const s=await jget('/api/system');
   if(!s.ok){document.getElementById('dash').innerHTML='err';return;}
@@ -29,6 +70,7 @@ async function loadDash(){
     Playback: ${pbInfo} | Load: <b>${sys.load_1m}</b> ${tempBadge}
     ${throttleWarn}
     <br>${(s.disk.breakdown||[]).map(b=>`<span class="chip">${esc(b.path)}: ${(b.free/1e9).toFixed(1)} / ${(b.total/1e9).toFixed(1)} GB free</span>`).join('')}<br><br>
+    ${transcodeRows(s.library.transcodes)}
     ${s.library.warnings.map(w=>`<div class="warn">${esc(w.path)}: ${esc(w.compat_warning)}</div>`).join('')||'<div class="okbox">No compatibility warnings.</div>'}`;
 }
 async function rescan(full){const r=await jpost('/api/scan',{full});alert(`Scan: +${r.added} new, ${r.updated} updated, total ${r.total}. Metadata: ${r.metadata_enriched||0} enriched.`);loadDash();loadLib();}
@@ -129,7 +171,7 @@ function renderLib(){
   const movies=LIB.movie_list.filter(m=>!q||m.title.toLowerCase().includes(q));
   document.getElementById('lib').innerHTML=`<b>Shows (${LIB.shows.length}):</b><br>${shows.map(s=>`<span class="chip">${esc(s.name)} (${s.c})</span>`).join('')||'none matching'}<br><br>
   <b>Movies (${LIB.movie_list.length}):</b><br>${movies.map(m=>`<span class="chip">${esc(m.title)}${m.year?` (${m.year})`:''}</span>`).join('')||'none matching'}<br><br>
-  Episodes ${LIB.episodes} | Movies ${LIB.movies} | Commercials ${LIB.commercials}<br>${LIB.warnings.map(w=>`<div class="warn">${esc(w.path)}: ${esc(w.compat_warning)}</div>`).join('')}`;
+  Episodes ${LIB.episodes} | Movies ${LIB.movies} | Commercials ${LIB.commercials}<br>${transcodeRows(LIB.transcodes)}${LIB.warnings.map(w=>`<div class="warn">${esc(w.path)}: ${esc(w.compat_warning)}</div>`).join('')}`;
 }
 
 async function loadSched(){
@@ -177,3 +219,20 @@ async function loadAds(){
     <span>${a.last_played_ts?new Date(a.last_played_ts*1000).toLocaleString():'never aired'}</span>
   </div>`).join('')||'No commercials in rotation yet.';
 }
+
+async function loadUsbRemote(){
+  try{
+    const result=await tvApi('/api/remote/usb');
+    const select=document.getElementById('usbRemoteAction');
+    if(!select.options.length)select.innerHTML=(result.actions||[]).map(action=>`<option value="${esc(action)}">${esc(action.replaceAll('_',' '))}</option>`).join('');
+    document.getElementById('usbRemoteStatus').textContent=result.learning
+      ?`Press the USB button for ${result.learning.replaceAll('_',' ')} (30 seconds).`
+      :`${result.connected?'Connected: '+result.devices.length+' input interfaces':'Receiver not connected'}${result.last_key?' · Last button: '+result.last_key+' → '+(result.last_action||'unmapped'):''}${result.error?' · '+result.error:''}`;
+  }catch(error){document.getElementById('usbRemoteStatus').textContent=error.message;}
+}
+async function learnUsbRemote(cancel=false){
+  await tvApi('/api/remote/usb',{action:cancel?null:document.getElementById('usbRemoteAction').value});
+  await loadUsbRemote();
+}
+loadUsbRemote();
+setInterval(()=>{if(!document.hidden&&document.getElementById('t-rem').classList.contains('on'))loadUsbRemote();},1500);
