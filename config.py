@@ -2,6 +2,27 @@
 import os
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+
+def _load_dotenv():
+    """Load key-value pairs from .env or ~/.env into os.environ if not already set."""
+    for p in (os.path.join(BASE_DIR, ".env"), os.path.expanduser("~/.env")):
+        if os.path.isfile(p):
+            try:
+                with open(p, "r", encoding="utf-8") as f:
+                    for line in f:
+                        line = line.strip()
+                        if not line or line.startswith("#") or "=" not in line:
+                            continue
+                        k, v = line.split("=", 1)
+                        k = k.strip()
+                        v = v.strip().strip("'\"")
+                        if k and k not in os.environ:
+                            os.environ[k] = v
+            except Exception:
+                pass
+
+_load_dotenv()
+
 DATA_DIR = os.path.join(BASE_DIR, "data")
 LOGS_DIR = os.path.join(BASE_DIR, "logs")
 HLS_DIR = os.path.join(BASE_DIR, "hls_cache")
@@ -85,8 +106,8 @@ TTS_VOICE_NEWS = os.environ.get("TTS_VOICE_NEWS", "en-US-GuyNeural")
 NEWS_RSS_URL = os.environ.get("NEWS_RSS_URL", "https://wnyt.com/feed/")
 NEWS_ARTICLE_COUNT = 5
 
-# ArenaPulse Sports API & Dedicated Sports Channel
-ARENAPULSE_URL = os.environ.get("ARENAPULSE_URL", "http://10.0.0.110:3000")
+# ArenaPulse Sports API & Dedicated Sports Channel (https://github.com/chartmann1590/sports-dashboard)
+ARENAPULSE_URL = os.environ.get("ARENAPULSE_URL", "http://localhost:3000").rstrip("/")
 SPORTS_SHOW = "Retro Sports"
 SPORTS_CHANNEL_NAME = "Retro Sports"
 SPORTS_CHANNEL_NUMBER = 38

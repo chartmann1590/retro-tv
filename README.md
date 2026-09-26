@@ -125,6 +125,31 @@ as root.
 - **Admin:** `/admin` manages channels, triggers media scans, and inspects
   schedules.
 
+### Setting up the Sports Backend (ArenaPulse)
+
+The sports channel and interactive sports screen connect to the
+[ArenaPulse Sports Dashboard](https://github.com/chartmann1590/sports-dashboard).
+Run it with Docker on the same machine or anywhere on your local network:
+
+```bash
+git clone https://github.com/chartmann1590/sports-dashboard.git
+cd sports-dashboard
+docker compose --profile tts up -d
+```
+*(Running with `--profile tts` enables the local Kokoro neural TTS announcer sidecar).*
+
+To configure Retro-TV, copy `.env.example` to `.env` and set `ARENAPULSE_URL`:
+
+```bash
+cp .env.example .env
+```
+
+```bash
+# In .env:
+ARENAPULSE_URL=http://<sports-server-address>:3000
+```
+If `.env` is omitted, Retro-TV defaults to `http://localhost:3000`.
+
 ### XING WEI USB remote
 
 The XING WEI 2.4G receiver (USB `1915:1025`) works alongside the phone remote,
