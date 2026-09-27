@@ -64,6 +64,13 @@ restart_app() {
 }
 trap restart_app EXIT
 
+# An SMB client can keep its working directory on the stale filesystem after
+# Retro TV stops. Disconnect only the SSD share so the old mount can unmount;
+# Samba will accept a fresh connection after recovery.
+if command -v smbcontrol >/dev/null 2>&1; then
+  smbcontrol smbd close-share MediaSSD >/dev/null 2>&1 || true
+fi
+
 for mountpoint in /srv/media/Commercials/SSD /srv/media/Movies/SSD /srv/media/TVShows/SSD "$SSD_MOUNT"; do
   if mountpoint -q "$mountpoint"; then
     umount "$mountpoint"
