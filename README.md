@@ -1,5 +1,9 @@
 # Retro TV
 
+[![Buy Me A Coffee](https://img.shields.io/badge/Buy%20Me%20A%20Coffee-Support%20Author-orange?style=for-the-badge&logo=buy-me-a-coffee)](https://buymeacoffee.com/charleshartmann)
+[![Live Showcase Website](https://img.shields.io/badge/Live%20Showcase-Website-blue?style=for-the-badge&logo=google-chrome)](https://chartmann1590.github.io/retro-tv/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=for-the-badge)](LICENSE)
+
 Turn a personal media library into a live cable-TV experience. Retro TV builds
 continuous, multi-day channel schedules from your own video files, plays them
 on an HDMI-connected TV like a real cable box, and lets you change channels
@@ -9,23 +13,37 @@ tune in to whatever's "on" right now.
 Runs on a Raspberry Pi 4 (or similar Linux box) with a TV on HDMI and your
 media on the local network.
 
+🌐 **Explore the interactive showcase website:** [https://chartmann1590.github.io/retro-tv/](https://chartmann1590.github.io/retro-tv/)  
+☕ **Support this project:** [buymeacoffee.com/charleshartmann](https://buymeacoffee.com/charleshartmann)
+
 ## Screenshots
 
-<p align="center"><img src="screenshots/hdmi-tv.png" width="720" alt="The actual HDMI TV output, mid channel-change, showing the classic cable-box channel banner"></p>
+<p align="center"><img src="screenshots/hdmi-tv.png" width="760" alt="The actual HDMI TV output, mid channel-change, showing the classic cable-box channel banner"></p>
 <p align="center"><em>The real HDMI output — punching in a channel shows a classic cable-box banner, then fades away.</em></p>
 
 <table>
 <tr>
-<td width="50%"><img src="screenshots/receiver.png" width="100%" alt="The receiver home page"><br><em>Home — current channel, live program, and your lineup</em></td>
-<td width="50%"><img src="screenshots/guide.png" width="100%" alt="The TV guide grid"><br><em>TV Guide — a real multi-channel program grid</em></td>
+<td width="50%"><img src="screenshots/vod.png" width="100%" alt="Retroflix Video On Demand"><br><em><b>On Demand (VOD)</b> — spotlight hero billboard, category carousels, instant search, and one-click play on TV (`/vod`)</em></td>
+<td width="50%"><img src="screenshots/sports.png" width="100%" alt="Retro Sports Center and Live Gameplay Field Radar"><br><em><b>Sports Center</b> — live scores, vector SVG gameplay field radars (football, baseball, basketball, hockey, soccer) (`/sports`)</em></td>
 </tr>
 <tr>
-<td width="50%"><img src="screenshots/remote.png" width="50%" alt="The phone remote"><br><em>Phone remote — channel keypad, guide, volume</em></td>
-<td width="50%"><img src="screenshots/admin.png" width="100%" alt="The admin dashboard"><br><em>Setup — library stats and channel management</em></td>
+<td width="50%"><img src="screenshots/sports-game.png" width="100%" alt="Sports Game Center Modal and Play-by-Play"><br><em><b>Game Center Modal</b> — interactive field radar, box score, team stats, and neural TTS announcer play-by-play</em></td>
+<td width="50%"><img src="screenshots/sports-channel.png" width="100%" alt="Dedicated Sports Broadcast Channel"><br><em><b>Sports Channel (Ch 38)</b> — 1280x720 broadcast loop with news wire, live game scores, and natural voice narration</em></td>
 </tr>
 <tr>
-<td width="50%"><img src="screenshots/weather.png" width="100%" alt="The generated Local Weather channel"><br><em>Local Weather — live NWS forecast, narrated, generated on-device</em></td>
-<td width="50%"><img src="screenshots/news.png" width="100%" alt="The generated Local News channel"><br><em>Local News — live local headlines with photos, narrated, generated on-device</em></td>
+<td width="50%"><img src="screenshots/weather.png" width="100%" alt="Local Weather Scan and Live Doppler Radar"><br><em><b>Local Weather Scan</b> — observations, NWS narrative, hourly trajectory, 7-day outlook, and live Doppler radar map (`/weather`)</em></td>
+<td width="50%"><img src="screenshots/guide.png" width="100%" alt="The TV guide grid"><br><em><b>TV Guide</b> — real multi-channel program grid with synchronous time scale (`/guide`)</em></td>
+</tr>
+<tr>
+<td width="50%"><img src="screenshots/remote.png" width="50%" alt="The phone remote with SPORTS button"><br><em><b>Phone Remote</b> — tactile handset with amber LCD screen, green SPORTS button, ON DEMAND, and D-pad (`/remote`)</em></td>
+<td width="50%"><img src="screenshots/receiver.png" width="100%" alt="The receiver home page"><br><em><b>Receiver Home</b> — brushed hardware housing, green LED display, current program, and channel lineup</em></td>
+</tr>
+<tr>
+<td width="50%"><img src="screenshots/weather-channel.png" width="100%" alt="The generated Local Weather channel"><br><em><b>Local Weather TV Channel</b> — live NWS forecast video card, narrated, generated on-device every 30 minutes</em></td>
+<td width="50%"><img src="screenshots/news.png" width="100%" alt="The generated Local News channel"><br><em><b>Local News TV Channel</b> — live local headlines with photos and natural voice narration, generated on-device</em></td>
+</tr>
+<tr>
+<td colspan="2" width="100%"><img src="screenshots/admin.png" width="100%" alt="The admin dashboard"><br><em><b>Setup & Admin</b> — library stats, channel management, transcode disk headroom, and schedule inspection (`/admin`)</em></td>
 </tr>
 </table>
 
@@ -111,8 +129,9 @@ as root.
   network. The receiver's homepage shows its current network address.
 - **Guide:** press **GUIDE** on the remote to show the channel guide on the
   TV and phone. Pick a program, then press **TUNE TV**.
-- **Watch:** `/watch` streams the live channel to whatever device opened the
-  page.
+- **On Demand (VOD):** `/vod` opens the Retroflix on-demand catalog with spotlight
+  hero banner, genre filter chips, and instant play on TV or in-browser. Press
+  **ON DEMAND** on the phone or USB remote to launch the on-TV VOD browser.
 - **Sports:** `/sports` provides a dedicated interactive sports screen featuring
   live/upcoming games, scores, SVG gameplay field radar (football gridiron with
   down & distance, baseball diamond with runners, basketball court, hockey rink,
@@ -122,6 +141,11 @@ as root.
 - **Sports Channel:** Channel 38 ("Retro Sports") broadcasts a continuous loop
   of sports news, live game scores, matchups, and standings narrated by natural
   Kokoro TTS voices.
+- **Weather:** `/weather` provides an interactive local weather scan with live
+  observations, NWS forecast narrative, hourly trajectory, 7-day outlook,
+  live Doppler radar sweeps, and audio narration playback.
+- **Watch:** `/watch` streams the live channel to whatever device opened the
+  page.
 - **Admin:** `/admin` manages channels, triggers media scans, and inspects
   schedules.
 
@@ -242,6 +266,14 @@ Run only one instance of Retro TV per media directory. The scheduler, HDMI
 player, and TV guide overlay all share in-process state (current playback
 position, the mpv IPC socket, and the schedule lock) — a second instance
 against the same data will corrupt playback state.
+
+## Sponsor & Support
+
+If you enjoy Retro TV and want to support ongoing development, new features, and hardware testing, consider buying me a coffee:
+
+☕ **[buymeacoffee.com/charleshartmann](https://buymeacoffee.com/charleshartmann)**
+
+[![Buy Me A Coffee](https://img.shields.io/badge/Buy%20Me%20A%20Coffee-Support%20Author-orange?style=for-the-badge&logo=buy-me-a-coffee)](https://buymeacoffee.com/charleshartmann)
 
 ## License
 

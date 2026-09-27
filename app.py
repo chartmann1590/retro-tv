@@ -146,6 +146,10 @@ def vod_page():
 def sports_page():
     return render_template("sports.html")
 
+@app.route("/weather")
+def weather_page():
+    return render_template("weather.html")
+
 @app.route("/guide")
 def guide():
     try:
@@ -698,6 +702,18 @@ def api_tv_sports_nav():
 def api_tv_sports_status():
     import tvsports
     return jsonify(tvsports.get_status())
+
+@app.route("/api/weather")
+def api_weather():
+    import livecontent
+    return jsonify(livecontent.get_latest_weather())
+
+@app.route("/api/weather/radar")
+def api_weather_radar():
+    radar_path = os.path.join(config.LIVE_CONTENT_DIR, "weather", "radar.gif")
+    if os.path.exists(radar_path):
+        return send_file(radar_path, mimetype="image/gif")
+    return jsonify({"error": "radar unavailable"}), 404
 
 @app.route("/api/hdmi")
 def api_hdmi():

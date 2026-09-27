@@ -311,10 +311,49 @@ def _build_show_loop(cards, out_dir, voice, show_name, title, subtitle):
     return total
 
 
+def get_latest_weather():
+    out_dir = os.path.join(config.LIVE_CONTENT_DIR, "weather")
+    json_path = os.path.join(out_dir, "weather_data.json")
+    if os.path.exists(json_path):
+        try:
+            with open(json_path, "r") as f:
+                return json.load(f)
+        except Exception:
+            pass
+    try:
+        data = _fetch_weather()
+        save_data = {
+            "city": data["city"],
+            "state": data["state"],
+            "forecast": data["forecast"],
+            "hourly": data["hourly"][:24],
+            "updated_at": datetime.now().isoformat(),
+        }
+        os.makedirs(out_dir, exist_ok=True)
+        with open(json_path, "w") as f:
+            json.dump(save_data, f)
+        return save_data
+    except Exception as e:
+        log.warning("get_latest_weather fetch failed: %s", e)
+        return {"city": "Local", "state": "Area", "forecast": [], "hourly": [], "updated_at": None}
+
+
 def refresh_weather():
     out_dir = os.path.join(config.LIVE_CONTENT_DIR, "weather")
     os.makedirs(out_dir, exist_ok=True)
     data = _fetch_weather()
+    try:
+        save_data = {
+            "city": data["city"],
+            "state": data["state"],
+            "forecast": data["forecast"],
+            "hourly": data["hourly"][:24],
+            "updated_at": datetime.now().isoformat(),
+        }
+        with open(os.path.join(out_dir, "weather_data.json"), "w") as f:
+            json.dump(save_data, f)
+    except Exception as e:
+        log.warning("Failed saving weather_data.json: %s", e)
     cards = _weather_cards(data)
     total = _build_show_loop(cards, out_dir, config.TTS_VOICE_WEATHER, WEATHER_SHOW,
                               "Local Weather", f"{data['city']}, {data['state']}")

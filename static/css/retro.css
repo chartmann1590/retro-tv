@@ -333,3 +333,80 @@ h1,h2,p{margin-top:0}h1{font-size:34px;line-height:1.15;margin-bottom:12px;lette
   .sports-info-grid{grid-template-columns:1fr}
 }
 
+/* Local Weather Scan Dashboard */
+.weather-container{max-width:1240px;margin:0 auto}
+.weather-header{display:flex;align-items:center;justify-content:space-between;gap:20px;padding:20px 24px;background:linear-gradient(135deg,#0e2344,#081730);border:1px solid #1f3b64;border-radius:10px;margin-bottom:28px;box-shadow:0 8px 24px rgba(0,0,0,0.4)}
+.weather-brand{display:flex;flex-direction:column;gap:4px}
+.weather-badge{font-size:10px;font-weight:900;letter-spacing:2px;color:#f8cb63;background:#172c4e;padding:4px 10px;border-radius:4px;width:fit-content;border:1px solid #294a7a}
+.weather-callsign{font-size:16px;font-weight:900;letter-spacing:2px;color:#fff;font-family:monospace}
+.weather-location-box{text-align:center}
+.weather-location-label{font-size:10px;letter-spacing:2px;color:#8ba2c4;font-weight:bold}
+.weather-city-state{font-size:32px;font-weight:900;color:#fff;margin:4px 0 0;letter-spacing:-0.5px}
+.weather-actions{display:flex;align-items:center;gap:10px}
+.weather-audio-btn{background:#1a365d;color:#f8cb63;border-color:#31548a}
+.weather-audio-btn:hover{background:#23477a;color:#fff}
+
+.weather-main-grid{display:grid;grid-template-columns:1.2fr 1fr;gap:24px;margin-bottom:32px}
+.weather-card{background:linear-gradient(160deg,#0d203d,#071428);border:1px solid #1d3962;border-radius:10px;padding:24px;box-shadow:0 6px 20px rgba(0,0,0,0.35);display:flex;flex-direction:column}
+.weather-card-header{display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid #193155;padding-bottom:12px;margin-bottom:18px}
+.weather-timestamp{font-size:11px;font-family:monospace;color:#8ba2c4}
+.radar-live-badge{font-size:11px;font-weight:bold;color:#2ecc71;letter-spacing:1px}
+
+.weather-hero-row{display:flex;justify-content:space-between;align-items:center;margin-bottom:20px}
+.weather-temp-main{font-size:96px;font-weight:900;line-height:0.95;color:#f8cb63;text-shadow:0 0 25px rgba(248,203,99,0.3)}
+.weather-temp-main .unit{font-size:36px;color:#8ba2c4;margin-left:4px;font-weight:normal}
+.weather-condition-text{font-size:24px;font-weight:bold;color:#fff;margin-top:8px}
+.weather-big-icon{font-size:72px;display:block}
+
+.weather-metrics-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:20px}
+.metric-cell{background:#09162a;border:1px solid #162c4c;border-radius:6px;padding:10px 12px;text-align:center}
+.metric-label{display:block;font-size:9px;font-weight:bold;letter-spacing:1.5px;color:#8ba2c4;margin-bottom:4px}
+.metric-val{display:block;font-size:16px;font-weight:bold;color:#fff;font-family:monospace}
+
+.weather-narrative-box{background:#081324;border-left:3px solid #f8cb63;border-radius:0 6px 6px 0;padding:14px 18px}
+.narrative-tag{display:block;font-size:9px;font-weight:900;letter-spacing:1.5px;color:#f8cb63;margin-bottom:6px}
+.weather-narrative-box p{margin:0;font-size:13px;line-height:1.6;color:#c8d5e6}
+
+.radar-viewport{position:relative;background:#030914;border:2px solid #1f3f6c;border-radius:8px;overflow:hidden;height:320px;display:flex;align-items:center;justify-content:center}
+.radar-image{width:100%;height:100%;object-fit:cover;image-rendering:pixelated}
+.radar-crosshairs{position:absolute;inset:0;background:radial-gradient(circle,transparent 30%,rgba(0,255,100,0.05) 31%,transparent 32%),linear-gradient(rgba(0,255,100,0.08) 1px,transparent 1px),linear-gradient(90deg,rgba(0,255,100,0.08) 1px,transparent 1px);background-size:100% 100%,40px 40px,40px 40px;pointer-events:none}
+.radar-overlay-badge{position:absolute;bottom:10px;left:10px;background:rgba(7,20,40,0.85);border:1px solid #1e3a63;padding:4px 10px;font-size:10px;font-family:monospace;color:#2ecc71;border-radius:4px;letter-spacing:1px}
+
+.radar-legend{display:flex;align-items:center;justify-content:space-between;margin-top:14px;padding:8px 12px;background:#09162a;border-radius:6px;border:1px solid #162c4c}
+.legend-label{font-size:10px;font-weight:bold;color:#8ba2c4;letter-spacing:1px}
+.legend-bar{display:flex;gap:4px}
+.leg-stop{font-size:9px;font-weight:bold;padding:2px 8px;border-radius:3px;color:#fff}
+.leg-light{background:#1e824c}
+.leg-mod{background:#27ae60}
+.leg-heavy{background:#f39c12}
+.leg-severe{background:#e74c3c}
+
+.weather-section-head{display:flex;align-items:baseline;justify-content:space-between;margin:32px 0 16px;border-bottom:1px solid #1e3a63;padding-bottom:8px}
+.weather-section-head h2{font-size:20px;color:#fff;margin:0}
+
+.hourly-scroll-wrap{overflow-x:auto;padding-bottom:12px}
+.hourly-track{display:flex;gap:12px;min-width:max-content}
+.hourly-card{background:linear-gradient(180deg,#0d203d,#081528);border:1px solid #1b355d;border-radius:8px;padding:14px 16px;min-width:105px;text-align:center;box-shadow:0 4px 12px rgba(0,0,0,0.25)}
+.h-time{font-size:12px;font-weight:bold;color:#8ba2c4;margin-bottom:8px}
+.h-icon{font-size:28px;margin-bottom:6px}
+.h-temp{font-size:20px;font-weight:900;color:#f8cb63}
+.h-cond{font-size:11px;color:#c0d0e4;margin:6px 0 4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:90px}
+.h-wind{font-size:10px;color:#6b829e}
+
+.forecast-days-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:14px;margin-bottom:40px}
+.forecast-day-card{background:linear-gradient(180deg,#0d203d,#081528);border:1px solid #1b355d;border-radius:8px;padding:16px;text-align:center;box-shadow:0 4px 12px rgba(0,0,0,0.25)}
+.f-day-name{font-size:14px;font-weight:bold;color:#fff;margin-bottom:8px}
+.f-icon{font-size:36px;margin-bottom:8px}
+.f-temp{font-size:26px;font-weight:900;color:#f8cb63}
+.f-unit{font-size:14px;color:#8ba2c4;font-weight:normal;margin-left:2px}
+.f-cond{font-size:12px;color:#c0d0e4;margin:8px 0 4px;line-height:1.3}
+.f-wind{font-size:10px;color:#6b829e}
+
+@media(max-width:960px){
+  .weather-header{flex-direction:column;text-align:center}
+  .weather-main-grid{grid-template-columns:1fr}
+  .weather-hero-row{flex-direction:column;text-align:center;gap:14px}
+  .weather-metrics-grid{grid-template-columns:repeat(2,1fr)}
+}
+
+
