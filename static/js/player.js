@@ -1,4 +1,4 @@
-let CH=null, liveOffset=0, mediaKey=null, updating=false, triedHLS=false, vodItem=null;
+let CH=null, liveOffset=0, mediaKey=null, updating=false, vodItem=null, streamStart=0, streamOpenedAt=0;
 async function initPlayer(ch,off,wantFS,vod){
   vodItem=vod||null;CH=vodItem?null:ch;liveOffset=off||0;const v=document.getElementById('v');
   if(vodItem){
@@ -9,19 +9,16 @@ async function initPlayer(ch,off,wantFS,vod){
         document.getElementById('bar').style.width=pct+'%';
       }
     });
-    v.addEventListener('loadedmetadata',()=>{v.currentTime=0;v.play().then(()=>{document.getElementById('playPrompt').hidden=true;}).catch(()=>{document.getElementById('playPrompt').hidden=false;});});
+    v.addEventListener('loadedmetadata',()=>{v.play().then(()=>{document.getElementById('playPrompt').hidden=true;}).catch(()=>{document.getElementById('playPrompt').hidden=false;});});
+    v.src='/stream/file/'+vodItem.media_id+'?fragment=1&start=0';
     setupWatchControls();
     if(wantFS&&document.documentElement.requestFullscreen)document.documentElement.requestFullscreen().catch(()=>{});
     return;
   }
   if(CH==null){document.getElementById('now').textContent='No channels configured.';return;}
-  v.addEventListener('loadedmetadata',()=>{if(Number.isFinite(v.duration))v.currentTime=Math.min(liveOffset,Math.max(0,v.duration-0.1));v.play().then(()=>{document.getElementById('playPrompt').hidden=true;}).catch(()=>{document.getElementById('playPrompt').hidden=false;});});
+  v.addEventListener('loadedmetadata',()=>{v.play().then(()=>{document.getElementById('playPrompt').hidden=true;}).catch(()=>{document.getElementById('playPrompt').hidden=false;});});
   v.addEventListener('ended',()=>syncInfo(true));
-  v.addEventListener('error',async()=>{
-    if(triedHLS||!v.canPlayType('application/vnd.apple.mpegurl')){notify('This browser cannot play the file. Use “Play on living-room TV” for HDMI playback.');return;}
-    triedHLS=true;
-    try{const h=await tvApi('/api/hls/'+CH);liveOffset=h.offset;v.src=h.url;}catch(e){notify(e.message);}
-  });
+  v.addEventListener('error',()=>notify('This show could not be streamed. Try another channel.'));
   setupWatchControls();
   if(wantFS&&document.documentElement.requestFullscreen)document.documentElement.requestFullscreen().catch(()=>{});
   await syncInfo();setInterval(()=>syncInfo(),5000);
@@ -36,9 +33,12 @@ async function syncInfo(force=false){
   try{
     const r=await tvApi('/api/now/'+CH),v=document.getElementById('v'),changed=mediaKey!==null&&mediaKey!==r.media_key;
     liveOffset=r.offset;
-    if(changed||(force&&v.ended)){triedHLS=false;if(r.has_media){v.src='/stream/live/'+CH+'?program='+r.media_key;v.load();}else{v.removeAttribute('src');v.load();}}
+    if(mediaKey===null||changed||(force&&v.ended)){
+      if(r.has_media){streamStart=r.offset;streamOpenedAt=Date.now();v.src='/stream/live/'+CH+'?fragment=1&start='+encodeURIComponent(streamStart)+'&program='+r.media_key;v.load();}
+      else{v.removeAttribute('src');v.load();}
+    }
     mediaKey=r.media_key;
-    if(!changed&&!v.paused&&Number.isFinite(v.duration)&&Math.abs(v.currentTime-r.offset)>12)v.currentTime=Math.min(r.offset,Math.max(0,v.duration-0.1));
+    if(!changed&&!v.paused&&v.readyState>=2&&Date.now()-streamOpenedAt>30000&&Math.abs(streamStart+v.currentTime-r.offset)>90){streamStart=r.offset;streamOpenedAt=Date.now();v.src='/stream/live/'+CH+'?fragment=1&start='+encodeURIComponent(streamStart);v.load();}
     document.getElementById('now').textContent=`${r.entry.title||''} ${r.entry.subtitle||''} | ${r.range}`;
     const pct=Math.max(0,Math.min(100,r.offset/(r.duration||1)*100));
     document.getElementById('bar').style.width=pct+'%';

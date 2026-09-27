@@ -645,6 +645,158 @@
       .nav-links { display: none; }
       .footer-inner { flex-direction: column; text-align: center; }
     }
+
+    /* Mobile App Detection Modal */
+    .mobile-prompt-overlay {
+      position: fixed;
+      inset: 0;
+      z-index: 10000;
+      background: rgba(5, 10, 18, 0.85);
+      backdrop-filter: blur(10px);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+      animation: fadeInModal 0.25s ease-out;
+    }
+    @keyframes fadeInModal {
+      from { opacity: 0; }
+      to { opacity: 1; }
+    }
+    .mobile-prompt-modal {
+      background: #0e1726;
+      border: 2px solid var(--hi);
+      border-radius: 16px;
+      box-shadow: 0 24px 60px rgba(0, 0, 0, 0.8), 0 0 30px rgba(248, 203, 99, 0.25);
+      max-width: 440px;
+      width: 100%;
+      padding: 24px 22px;
+      position: relative;
+      animation: scaleInModal 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+    @keyframes scaleInModal {
+      from { transform: scale(0.92) translateY(20px); opacity: 0; }
+      to { transform: scale(1) translateY(0); opacity: 1; }
+    }
+    .mobile-prompt-close {
+      position: absolute;
+      top: 14px;
+      right: 14px;
+      background: rgba(255, 255, 255, 0.06);
+      border: 1px solid var(--card-border);
+      color: var(--text-dim);
+      font-size: 16px;
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .mobile-prompt-close:hover {
+      background: rgba(255, 255, 255, 0.15);
+      color: #fff;
+    }
+    .mobile-prompt-header {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      margin-bottom: 14px;
+    }
+    .mobile-prompt-icon {
+      font-size: 32px;
+      background: #070c14;
+      border: 1px solid #1c2c47;
+      border-radius: 12px;
+      padding: 8px 12px;
+      line-height: 1;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+    }
+    .mobile-prompt-badge {
+      font-size: 10px;
+      font-weight: 800;
+      letter-spacing: 1.5px;
+      color: var(--hi);
+      text-transform: uppercase;
+      display: block;
+      margin-bottom: 2px;
+    }
+    .mobile-prompt-modal h3 {
+      font-family: 'Chakra Petch', sans-serif;
+      font-size: 20px;
+      font-weight: 900;
+      color: #fff;
+      margin: 0;
+    }
+    .mobile-prompt-desc {
+      font-size: 13px;
+      color: var(--text-dim);
+      line-height: 1.5;
+      margin-bottom: 16px;
+    }
+    .mobile-prompt-features {
+      background: #080e1a;
+      border: 1px solid #1a2a44;
+      border-radius: 10px;
+      padding: 12px 14px;
+      margin-bottom: 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    .mobile-prompt-feat-item {
+      font-size: 12px;
+      color: #d1dfed;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .mobile-prompt-feat-item b {
+      color: #fff;
+    }
+    .mobile-prompt-actions {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    .btn-prompt-download {
+      background: var(--hi);
+      color: #0b1424;
+      font-weight: 800;
+      font-size: 14px;
+      padding: 13px 18px;
+      border-radius: 10px;
+      text-decoration: none;
+      text-align: center;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      box-shadow: 0 4px 18px var(--hi-glow);
+      transition: all 0.2s;
+    }
+    .btn-prompt-download:hover {
+      background: #ffdb85;
+      transform: translateY(-1px);
+    }
+    .btn-prompt-continue {
+      background: transparent;
+      border: 1px solid #233754;
+      color: var(--text-dim);
+      font-weight: 600;
+      font-size: 13px;
+      padding: 11px 18px;
+      border-radius: 10px;
+      cursor: pointer;
+      text-align: center;
+      transition: all 0.2s;
+    }
+    .btn-prompt-continue:hover {
+      background: #142236;
+      color: #fff;
+    }
   </style>
 </head>
 <body>
@@ -658,6 +810,7 @@
     <nav class="nav-links">
       <a href="#features">Features</a>
       <a href="#companion">Android App</a>
+      <a href="https://github.com/chartmann1590/retro-tv/releases/download/v1.0.0-companion/app-debug.apk" style="color:var(--hi);font-weight:700;">⬇️ APK</a>
       <a href="#screenshots">Screenshots</a>
       <a href="#sports">Sports Center</a>
       <a href="#quickstart">Quick Start</a>
@@ -679,6 +832,9 @@
     <div class="hero-ctas">
       <a href="https://github.com/chartmann1590/retro-tv" class="btn btn-gold" target="_blank" rel="noopener">
         ⭐ Star on GitHub
+      </a>
+      <a href="https://github.com/chartmann1590/retro-tv/releases/download/v1.0.0-companion/app-debug.apk" class="btn btn-gold" style="background:#2ecc71;border-color:#27ae60;color:#fff;">
+        📱 Download Android App
       </a>
       <a href="https://buymeacoffee.com/charleshartmann" class="btn btn-coffee" target="_blank" rel="noopener">
         ☕ Sponsor Author on Buy Me A Coffee
@@ -1150,7 +1306,61 @@
     </div>
   </footer>
 
+  <!-- Mobile App Detection Modal -->
+  <div id="mobileAppPrompt" class="mobile-prompt-overlay" style="display: none;" role="dialog" aria-modal="true" aria-labelledby="mobilePromptTitle">
+    <div class="mobile-prompt-modal">
+      <button class="mobile-prompt-close" onclick="dismissMobilePrompt()" aria-label="Close">✕</button>
+      <div class="mobile-prompt-header">
+        <div class="mobile-prompt-icon">📺</div>
+        <div class="mobile-prompt-title-wrap">
+          <span class="mobile-prompt-badge">NATIVE ANDROID APP</span>
+          <h3 id="mobilePromptTitle">Retro TV Companion</h3>
+        </div>
+      </div>
+      <p class="mobile-prompt-desc">
+        We detected you are on a mobile device! For the ultimate experience with synchronized live TV streaming, EPG program guide, and tactile universal remote, download our native Android companion app.
+      </p>
+      <div class="mobile-prompt-features">
+        <div class="mobile-prompt-feat-item"><span>⚡</span> <span><b>Zero-Config Discovery</b> — auto-finds TV receiver</span></div>
+        <div class="mobile-prompt-feat-item"><span>📺</span> <span><b>ExoPlayer Streaming</b> — live broadcast sync</span></div>
+        <div class="mobile-prompt-feat-item"><span>🎛️</span> <span><b>Universal Remote</b> — tactile amber LCD handset</span></div>
+      </div>
+      <div class="mobile-prompt-actions">
+        <a id="mobileDownloadBtn" href="https://github.com/chartmann1590/retro-tv/releases/download/v1.0.0-companion/app-debug.apk" class="btn-prompt-download">
+          ⬇️ Download Android App (APK)
+        </a>
+        <button class="btn-prompt-continue" onclick="dismissMobilePrompt()">
+          Continue to Website &rarr;
+        </button>
+      </div>
+    </div>
+  </div>
+
   <script>
+    function checkMobilePrompt() {
+      if (sessionStorage.getItem('retroTvMobilePromptDismissed') === '1') {
+        return;
+      }
+      const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) ||
+                       (window.matchMedia && window.matchMedia('(max-width: 768px)').matches && ('ontouchstart' in window || navigator.maxTouchPoints > 0));
+      if (isMobile) {
+        const prompt = document.getElementById('mobileAppPrompt');
+        if (prompt) {
+          prompt.style.display = 'flex';
+        }
+      }
+    }
+
+    function dismissMobilePrompt() {
+      const prompt = document.getElementById('mobileAppPrompt');
+      if (prompt) {
+        prompt.style.display = 'none';
+      }
+      sessionStorage.setItem('retroTvMobilePromptDismissed', '1');
+    }
+
+    window.addEventListener('DOMContentLoaded', checkMobilePrompt);
+
     function switchTvScreen(src, btn) {
       const img = document.getElementById('tvScreenImg');
       const caption = document.getElementById('tvScreenCaption');
@@ -1191,7 +1401,10 @@
     }
 
     document.addEventListener('keydown', (e) => {
-      if (e.key === 'Escape') closeLightbox();
+      if (e.key === 'Escape') {
+        closeLightbox();
+        dismissMobilePrompt();
+      }
     });
   </script>
 </body>

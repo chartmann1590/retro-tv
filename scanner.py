@@ -5,6 +5,7 @@ import json
 import sqlite3
 import subprocess
 import threading
+import time
 
 _scan_lock = threading.Lock()
 import logging
@@ -12,6 +13,29 @@ import database
 import config
 
 log = logging.getLogger("retro-tv.scanner")
+
+
+def ssd_mounts():
+    return [os.path.join(category, "SSD") for category in
+            (config.TV_DIR, config.MOVIES_DIR, config.COMMERCIALS_DIR)]
+
+
+def wait_for_media_mounts(timeout=90, stop_event=None):
+    """Give the external SSD's bind mounts time to appear after user login."""
+    deadline = time.monotonic() + timeout
+    while True:
+        missing = [path for path in ssd_mounts() if not os.path.ismount(path)]
+        if not missing:
+            return True
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            log.warning("Media mounts still unavailable after %ss: %s", timeout, missing)
+            return False
+        if stop_event:
+            if stop_event.wait(min(1, remaining)):
+                return False
+        else:
+            time.sleep(min(1, remaining))
 
 SE_PATTERNS = [
     re.compile(r"[Ss](\d{1,2})[Ee](\d{1,3})"),           # S05E02
@@ -94,7 +118,8 @@ def _deprioritize():
 def ffprobe(path):
     try:
         out = subprocess.run(
-            ["ffprobe", "-v", "quiet", "-print_format", "json", "-show_format", "-show_streams", path],
+            ["ffprobe", "-v", "quiet", "-print_format", "json", "-show_entries",
+             "format=duration,bit_rate:stream=codec_type,codec_name,width,height,pix_fmt", path],
             capture_output=True, text=True, timeout=30, preexec_fn=_deprioritize)
         if out.returncode != 0:
             return {}
@@ -331,18 +356,24 @@ def _full_scan(light=False):
             con.commit()
         finally:
             con.close()
-    # remove missing files (keep schedule history intact; mark schedules referencing them)
+    # An SSD can be absent or late to mount during startup. Never treat every
+    # file below its bind mount as deleted merely because the mount is missing.
+    missing_ssd_roots = [path for path in ssd_mounts() if not os.path.ismount(path)]
+    if missing_ssd_roots:
+        log.warning("Media mounts unavailable; preserving indexed files under %s", missing_ssd_roots)
+    # remove files that are truly gone from accessible media roots
     con = database.connect()
     try:
         for p, row in existing.items():
-            if p not in found and os.path.exists(p) is False:
-                # only delete if file truly gone
-                if not os.path.exists(p):
-                    mid = row["id"]
-                    con.execute("DELETE FROM episodes WHERE media_id=?", (mid,))
-                    con.execute("DELETE FROM movies WHERE media_id=?", (mid,))
-                    con.execute("DELETE FROM commercials WHERE media_id=?", (mid,))
-                    con.execute("DELETE FROM media_files WHERE id=?", (mid,))
+            if p in found or os.path.exists(p):
+                continue
+            if any(p.startswith(root + os.sep) for root in missing_ssd_roots):
+                continue
+            mid = row["id"]
+            con.execute("DELETE FROM episodes WHERE media_id=?", (mid,))
+            con.execute("DELETE FROM movies WHERE media_id=?", (mid,))
+            con.execute("DELETE FROM commercials WHERE media_id=?", (mid,))
+            con.execute("DELETE FROM media_files WHERE id=?", (mid,))
         con.commit()
     finally:
         con.close()

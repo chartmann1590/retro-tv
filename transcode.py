@@ -3,7 +3,9 @@ corrupts (see scanner.needs_hw_transcode). Produces a Pi-safe 1080p 8-bit
 H.264 copy alongside the original -- the original file is never touched.
 """
 import logging
+import json
 import os
+import signal
 import subprocess
 import threading
 import time
@@ -14,6 +16,16 @@ import database
 log = logging.getLogger("retro-tv.transcode")
 
 TRANSCODE_DIR = config.TRANSCODE_DIR
+THERMAL_PAUSE_C = 80
+THERMAL_RESUME_C = 74
+
+
+def _cpu_temp_c():
+    try:
+        with open("/sys/class/thermal/thermal_zone0/temp") as f:
+            return int(f.read().strip()) / 1000
+    except (OSError, ValueError):
+        return None
 
 
 def _deprioritize():
@@ -111,13 +123,44 @@ def _ffprobe_duration(path):
         return 0
 
 
+def _validated_output(path, source_duration):
+    """Accept only a complete, browser and Pi compatible replacement."""
+    try:
+        result = subprocess.run([
+            "ffprobe", "-v", "error", "-of", "json", "-show_entries",
+            "format=duration,bit_rate:stream=codec_type,codec_name,width,height,pix_fmt", path],
+            capture_output=True, text=True, timeout=30)
+        if result.returncode:
+            return None
+        data = json.loads(result.stdout)
+        streams = data.get("streams", [])
+        video = next((s for s in streams if s.get("codec_type") == "video"), None)
+        audio = next((s for s in streams if s.get("codec_type") == "audio"), None)
+        duration = float(data.get("format", {}).get("duration") or 0)
+        if not video or video.get("codec_name") != "h264" or video.get("pix_fmt") != "yuv420p":
+            return None
+        if duration <= 0 or (source_duration > 0 and
+                             abs(duration - source_duration) >= max(5, source_duration * 0.02)):
+            return None
+        stat = os.stat(path)
+        if stat.st_size <= 0:
+            return None
+        return {"duration": duration, "vcodec": "h264", "acodec": (audio or {}).get("codec_name", ""),
+                "width": int(video.get("width") or 0), "height": int(video.get("height") or 0),
+                "bitrate": int(data.get("format", {}).get("bit_rate") or 0),
+                "size": stat.st_size, "mtime": stat.st_mtime}
+    except (OSError, ValueError, subprocess.TimeoutExpired):
+        return None
+
+
 def _encode(src_path, out_path, source_duration, media_id):
     """Software-decode (avoids the same buggy hevc_v4l2m2m HW decoder), downscale
     to 1080p max, drop to 8-bit, and hardware-encode back to H.264 -- the exact
     codec/depth/resolution class already proven reliable throughout this library.
     Falls back to libx264 if the Pi's h264_v4l2m2m encoder errors on this input."""
     progress_path = _progress_path(media_id)
-    base_cmd = ["ffmpeg", "-y", "-i", src_path, "-map", "0:v:0", "-map", "0:a:0?",
+    base_cmd = ["ffmpeg", "-y", "-loglevel", "error", "-threads", "2", "-filter_threads", "1",
+                "-i", src_path, "-map", "0:v:0", "-map", "0:a:0?",
                 "-vf", "scale='min(1920,iw)':-2", "-pix_fmt", "yuv420p",
                 "-c:a", "copy", "-f", "matroska", "-progress", progress_path, "-nostats"]
     attempts = [
@@ -130,17 +173,33 @@ def _encode(src_path, out_path, source_duration, media_id):
             # No preexec_fn: run_loop's thread is already niced, and ffmpeg inherits
             # that via fork -- stacking another os.nice(10) here would compound to
             # the OS-capped nice 19 floor instead of the intended nice 10.
-            result = subprocess.run(cmd + [out_path], capture_output=True, text=True)
+            proc = subprocess.Popen(cmd + [out_path], stdout=subprocess.DEVNULL,
+                                    stderr=subprocess.PIPE, text=True)
+            paused = False
+            while True:
+                try:
+                    _, stderr = proc.communicate(timeout=5)
+                    break
+                except subprocess.TimeoutExpired:
+                    temp = _cpu_temp_c()
+                    if temp is not None and not paused and temp >= THERMAL_PAUSE_C:
+                        proc.send_signal(signal.SIGSTOP)
+                        paused = True
+                        log.warning("Pausing transcode at %.1f C to protect playback", temp)
+                    elif temp is not None and paused and temp <= THERMAL_RESUME_C:
+                        proc.send_signal(signal.SIGCONT)
+                        paused = False
+                        log.info("Resuming transcode at %.1f C", temp)
         except (OSError, subprocess.SubprocessError) as e:
             last_err = str(e)
             continue
-        if result.returncode == 0 and os.path.isfile(out_path):
+        if proc.returncode == 0 and os.path.isfile(out_path):
             out_duration = _ffprobe_duration(out_path)
             if source_duration <= 0 or abs(out_duration - source_duration) < max(5, source_duration * 0.02):
                 return True, ""
             last_err = f"duration mismatch: source={source_duration:.1f}s output={out_duration:.1f}s"
         else:
-            last_err = (result.stderr or "")[-2000:]
+            last_err = (stderr or "")[-2000:]
         try:
             os.remove(out_path)
         except OSError:
@@ -172,12 +231,35 @@ def run_one(media_id, src_path, source_duration):
             pass
     con = database.connect()
     try:
-        if ok:
-            os.replace(tmp_path, final_path)
-            con.execute(
-                "UPDATE media_files SET transcode_status='done', transcode_path=?, transcode_error='' WHERE id=?",
-                (final_path, media_id))
-            log.info("Transcode finished: media_id=%s in %.0fs -> %s", media_id, time.monotonic() - t0, final_path)
+        details = _validated_output(tmp_path, source_duration) if ok else None
+        if ok and details:
+            import scanner
+            with scanner._scan_lock:
+                original = con.execute("SELECT * FROM media_files WHERE id=?", (media_id,)).fetchone()
+                os.replace(tmp_path, final_path)
+                con.execute("""UPDATE media_files SET path=?, size=?, mtime=?, duration=?,
+                    container='mkv', vcodec='h264', acodec=?, width=?, height=?, bitrate=?,
+                    pix_fmt='yuv420p', bit_depth=8, compat_warning='',
+                    transcode_status='done', transcode_path=?, transcode_error=''
+                    WHERE id=?""", (final_path, details["size"], details["mtime"], details["duration"],
+                    details["acodec"], details["width"], details["height"], details["bitrate"],
+                    final_path, media_id))
+                con.commit()
+                try:
+                    os.unlink(src_path)
+                except OSError:
+                    log.exception("Could not remove converted source %s", src_path)
+                    con.execute("""UPDATE media_files SET path=?, size=?, mtime=?, duration=?,
+                        container=?, vcodec=?, acodec=?, width=?, height=?, bitrate=?,
+                        pix_fmt=?, bit_depth=?, compat_warning=? WHERE id=?""",
+                        (src_path, original["size"], original["mtime"], original["duration"],
+                         original["container"], original["vcodec"], original["acodec"],
+                         original["width"], original["height"], original["bitrate"],
+                         original["pix_fmt"], original["bit_depth"], original["compat_warning"], media_id))
+                    con.commit()
+                else:
+                    log.info("Transcode replaced source: media_id=%s in %.0fs -> %s",
+                             media_id, time.monotonic() - t0, final_path)
         else:
             for p in (tmp_path, final_path):
                 try:
@@ -186,7 +268,7 @@ def run_one(media_id, src_path, source_duration):
                     pass
             con.execute(
                 "UPDATE media_files SET transcode_status='failed', transcode_error=? WHERE id=?",
-                (err[-2000:], media_id))
+                ((err or "output validation failed")[-2000:], media_id))
             log.warning("Transcode failed: media_id=%s: %s", media_id, err[-500:])
         con.commit()
     finally:
@@ -226,6 +308,10 @@ def run_loop(stop_event=None):
             finally:
                 con.close()
             if job and os.path.isfile(job["path"]):
+                temp = _cpu_temp_c()
+                if temp is not None and temp >= THERMAL_PAUSE_C:
+                    stop_event.wait(30)
+                    continue
                 src_size = os.path.getsize(job["path"])
                 if not _has_disk_headroom(src_size):
                     log.warning("Insufficient disk headroom to transcode media_id=%s (%r); waiting for free space", job["id"], job["path"])

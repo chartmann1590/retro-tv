@@ -423,9 +423,28 @@ def ensure_schedules(days_ahead=config.SCHEDULE_DAYS_AHEAD):
     auto_create_movie_channels()
     channels = get_channels()
     today = datetime.now(TZ)
+    days = [(today + timedelta(days=i)).strftime("%Y-%m-%d") for i in range(days_ahead)]
     total = 0
-    for i in range(days_ahead):
-        day = (today + timedelta(days=i)).strftime("%Y-%m-%d")
+    # A scan can remove stale media rows while old schedule entries still refer
+    # to their IDs. Resume each affected day at the first broken entry so an
+    # otherwise full guide does not leave a channel with no playable file.
+    con = database.connect()
+    try:
+        broken = con.execute("""SELECT s.channel_number, s.day, MIN(s.start_ts) AS first_bad
+            FROM schedule_entries s LEFT JOIN media_files m ON m.id=s.media_id
+            WHERE s.media_id IS NOT NULL AND m.id IS NULL AND s.end_ts>?
+              AND s.day IN ({})
+            GROUP BY s.channel_number, s.day""".format(",".join("?" for _ in days)),
+            (today.timestamp(), *days)).fetchall()
+        for row in broken:
+            con.execute("DELETE FROM schedule_entries WHERE channel_number=? AND day=? AND start_ts>=?",
+                        (row["channel_number"], row["day"], row["first_bad"]))
+        if broken:
+            con.commit()
+            log.warning("Rebuilding %s schedule days with missing media", len(broken))
+    finally:
+        con.close()
+    for day in days:
         for ch in channels:
             try:
                 total += generate_day(ch, day)

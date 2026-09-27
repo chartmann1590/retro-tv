@@ -2,7 +2,7 @@
 {% block bodyclass %}watch-page{% endblock %}
 {% block body %}
 <div class="tv watch-screen" id="tvwrap" tabindex="0" aria-label="Television player">
-<video id="v" autoplay playsinline {% if vod %}src="/stream/file/{{vod.media_id}}"{% elif current %}src="/stream/live/{{current}}"{% endif %}></video>
+<video id="v" autoplay playsinline></video>
 <div class="watch-top watch-controls"><a class="watch-logo" href="/">RETRO<span>TV</span></a><span class="watch-live" id="watchLiveBadge">{% if vod %}● ON DEMAND{% else %}● LIVE CABLE{% endif %}</span><a class="btn ghost" href="/vod">VOD</a><a class="btn ghost" href="/guide">TV GUIDE</a><button class="ghost" onclick="goFS()" aria-label="Enter fullscreen">⛶ FULLSCREEN</button></div>
 <div class="osd" id="osd"></div>
 <button id="playPrompt" class="play-prompt" hidden onclick="startWatching()">{% if vod %}▶ PLAY ON DEMAND{% else %}▶ WATCH LIVE TV{% endif %}</button>
@@ -13,5 +13,5 @@
 </div></div>
 </div>
 {% endblock %}
-{% block js %}<script src="/static/js/player.js?v=5"></script>
+{% block js %}<script src="/static/js/player.js?v=6"></script>
 <script>initPlayer({{current|tojson}}, {{offset or 0}}, true, {{vod|tojson if vod else 'null'}});</script>{% endblock %}

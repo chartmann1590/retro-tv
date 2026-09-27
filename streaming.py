@@ -108,9 +108,34 @@ def ffprobe_codecs(path):
         r = con.execute("SELECT vcodec, acodec, container FROM media_files WHERE path=?", (path,)).fetchone()
         if r:
             return r["vcodec"], r["acodec"], r["container"]
+        r = con.execute("SELECT acodec FROM media_files WHERE transcode_path=? AND transcode_status='done'",
+                        (path,)).fetchone()
+        if r:
+            return "h264", r["acodec"], "mkv"
     finally:
         con.close()
     return "", "", ""
+
+
+def browser_stream_command(path, start=0):
+    """Start a seekable source at `start` and emit playable fragmented MP4.
+
+    Fragmented output reaches the browser as soon as the first keyframe is
+    available; a whole-file remux would leave the video black while it runs.
+    """
+    video_codec, audio_codec, _ = ffprobe_codecs(path)
+    cmd = ["ffmpeg", "-hide_banner", "-loglevel", "error", "-nostdin",
+           "-ss", str(max(0, float(start))), "-i", path,
+           "-map", "0:v:0", "-map", "0:a:0?", "-sn", "-dn"]
+    if video_codec in ("h264", "avc"):
+        cmd += ["-c:v", "copy"]
+    else:
+        cmd += ["-vf", "scale='min(1280,iw)':-2", "-pix_fmt", "yuv420p",
+                "-c:v", "h264_v4l2m2m", "-b:v", "3M"]
+    cmd += ["-c:a", "copy" if audio_codec == "aac" else "aac", "-ac", "2",
+            "-b:a", "128k", "-movflags", "+frag_keyframe+empty_moov+default_base_moof",
+            "-f", "mp4", "pipe:1"]
+    return cmd
 
 def remux_to_mp4(path):
     with _hls_lock:

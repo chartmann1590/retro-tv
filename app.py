@@ -8,7 +8,7 @@ import threading
 import time
 from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
-from flask import Flask, jsonify, request, Response, render_template, send_file, send_from_directory, abort, redirect, url_for
+from flask import Flask, jsonify, request, Response, render_template, send_file, send_from_directory, abort, redirect, url_for, stream_with_context
 
 import config
 import database
@@ -56,10 +56,12 @@ def fmt_range(s, e):
 
 # ---------- background jobs ----------
 _bg_stop = threading.Event()
+_initial_scan_done = threading.Event()
 
 def bg_loop():
     # One worker owns startup and maintenance; never scan/generate twice at boot.
     # Launch playback before lowering this thread's priority: mpv inherits it.
+    scanner.wait_for_media_mounts(stop_event=_bg_stop)
     try:
         result = playback.restore_last()
         if not result.get("ok"):
@@ -76,7 +78,10 @@ def bg_loop():
     last_backup = last_schedule
     while not _bg_stop.is_set():
         try:
-            scanner.full_scan(light=True)
+            try:
+                scanner.full_scan(light=True)
+            finally:
+                _initial_scan_done.set()
             from metadata import enrich_shows, enrich_episodes, enrich_movies
             enrich_shows()
             enrich_episodes()
@@ -170,6 +175,14 @@ def remote_page():
     channels = scheduler.get_channels()
     return render_template("remote.html", channels=channels)
 
+@app.route("/showcase")
+def showcase_page():
+    return send_file(os.path.join(config.BASE_DIR, "docs", "index.html"))
+
+@app.route("/screenshots/<path:filename>")
+def screenshots_static(filename):
+    return send_from_directory(os.path.join(config.BASE_DIR, "screenshots"), filename)
+
 # ---------- media streaming ----------
 def range_response(path, mime):
     # Werkzeug handles suffix ranges, invalid ranges, HEAD, and conditional reads.
@@ -182,6 +195,30 @@ MIME = {".mp4": "video/mp4", ".m4v": "video/mp4", ".mov": "video/quicktime",
         ".mkv": "video/x-matroska", ".avi": "video/x-msvideo", ".webm": "video/webm",
         ".ts": "video/mp2t", ".mpg": "video/mpeg", ".mpeg": "video/mpeg"}
 
+
+def browser_fragment_response(path, start):
+    import subprocess
+    command = streaming.browser_stream_command(path, start)
+    proc = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL)
+
+    def chunks():
+        try:
+            while data := proc.stdout.read1(64 * 1024):
+                yield data
+        finally:
+            proc.stdout.close()
+            if proc.poll() is None:
+                proc.terminate()
+            try:
+                proc.wait(timeout=2)
+            except subprocess.TimeoutExpired:
+                proc.kill()
+                proc.wait()
+
+    response = Response(stream_with_context(chunks()), mimetype="video/mp4")
+    response.headers["Cache-Control"] = "no-store"
+    return response
+
 @app.route("/stream/live/<int:ch>")
 def stream_live(ch):
     """Direct file for channel with Range support. Player seeks to offset via API."""
@@ -190,6 +227,12 @@ def stream_live(ch):
     entry, offset, path, dur = streaming.resolve_live(ch)
     if not path:
         return jsonify({"error": "No media currently (off-air or missing file)", "entry": entry}), 404
+    if request.args.get("fragment") == "1":
+        try:
+            start = max(0, float(request.args.get("start", offset)))
+        except (TypeError, ValueError):
+            start = offset
+        return browser_fragment_response(path, start)
     vc, ac, cont = streaming.ffprobe_codecs(path)
     # remux on demand if requested or needed and client wants mp4
     if request.args.get("remux") == "1" or (streaming.needs_remux(path, vc, ac, cont) and request.args.get("direct") != "1"):
@@ -203,11 +246,18 @@ def stream_live(ch):
 def stream_file(media_id):
     con = database.connect()
     try:
-        r = con.execute("SELECT path, vcodec, acodec, container FROM media_files WHERE id=?", (media_id,)).fetchone()
+        r = con.execute("SELECT path, vcodec, acodec, container, transcode_status, transcode_path FROM media_files WHERE id=?", (media_id,)).fetchone()
     finally:
         con.close()
     if not r or not r["path"] or not os.path.exists(r["path"]):
         abort(404)
+    path = transcode.playable_path(dict(r))
+    if request.args.get("fragment") == "1":
+        try:
+            start = max(0, float(request.args.get("start", 0)))
+        except (TypeError, ValueError):
+            start = 0
+        return browser_fragment_response(path, start)
     if request.args.get("remux") == "1" or (streaming.needs_remux(r["path"], r["vcodec"], r["acodec"], r["container"]) and request.args.get("direct") != "1"):
         out = streaming.remux_to_mp4(r["path"])
         if out:
@@ -967,6 +1017,18 @@ def api_pair_revoke():
         return jsonify({"ok": ok})
     return jsonify({"ok": False, "error": "device_id or token required"}), 400
 
+@app.route("/download/companion.apk")
+@app.route("/download/app")
+def download_companion_apk():
+    paths = [
+        os.path.join(config.BASE_DIR, "dist", "app-debug.apk"),
+        os.path.join(config.BASE_DIR, "android", "app", "build", "outputs", "apk", "debug", "app-debug.apk"),
+    ]
+    for p in paths:
+        if os.path.isfile(p):
+            return send_file(p, as_attachment=True, download_name="retro-tv-companion.apk", mimetype="application/vnd.android.package-archive")
+    return redirect("https://github.com/chartmann1590/retro-tv/releases/download/v1.0.0-companion/app-debug.apk", code=302)
+
 @app.route("/api/settings")
 def api_settings():
     con = database.connect()
@@ -1076,7 +1138,10 @@ def init():
     discovery.start()
     playback.start_monitor()
     threading.Thread(target=bg_loop, daemon=True).start()
-    threading.Thread(target=livecontent.run_loop, daemon=True).start()
+    def livecontent_after_scan():
+        _initial_scan_done.wait()
+        livecontent.run_loop()
+    threading.Thread(target=livecontent_after_scan, daemon=True).start()
     threading.Thread(target=reminders.run_loop, daemon=True).start()
     threading.Thread(target=transcode.run_loop, daemon=True).start()
 
@@ -1084,5 +1149,5 @@ def init():
 if __name__ == "__main__":
     init()
     from waitress import serve
-    serve(app, host=config.HOST, port=config.PORT, threads=6,
-          connection_limit=32, channel_timeout=30, send_bytes=65536)
+    serve(app, host=config.HOST, port=config.PORT, threads=12,
+          connection_limit=64, channel_timeout=30, send_bytes=65536)
