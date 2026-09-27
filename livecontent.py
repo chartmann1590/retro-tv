@@ -399,5 +399,10 @@ def run_loop(stop_event=None):
             refresh_news()
         except Exception:
             log.exception("news refresh cycle failed")
+        try:
+            import livesports
+            livesports.refresh_sports_channel()
+        except Exception:
+            log.exception("sports refresh cycle failed")
         log.info("Live content cycle took %.1fs", time.monotonic() - t0)
         stop_event.wait(config.LIVE_CONTENT_REFRESH_SEC)

@@ -226,13 +226,21 @@ def generate_day(channel, day_str, seed_extra=0):
     """Generate schedule rows for one channel+day. Does NOT touch already-aired entries."""
     start_ts, end_ts = day_bounds(day_str)
     now_ts = datetime.now(TZ).timestamp()
+    eps, mvs, ads = channel_pool(channel["number"])
     con = database.connect()
     try:
         # Extend incomplete days without rewriting programs already shown in the guide.
         existing = con.execute("SELECT MAX(end_ts) AS end FROM schedule_entries WHERE channel_number=? AND day=?",
                                (channel["number"], day_str)).fetchone()["end"]
+        slate_only = con.execute("SELECT COUNT(*) c FROM schedule_entries WHERE channel_number=? AND day=? AND kind != 'slate'",
+                                 (channel["number"], day_str)).fetchone()["c"] == 0
         if existing is not None and existing >= end_ts:
-            return 0
+            if slate_only and (eps or mvs):
+                # Channel was previously empty/Off Air, but media is now available; clear slate and regenerate
+                con.execute("DELETE FROM schedule_entries WHERE channel_number=? AND day=?", (channel["number"], day_str))
+                con.commit()
+            else:
+                return 0
         # find resume point
         last = con.execute("SELECT MAX(end_ts) m FROM schedule_entries WHERE channel_number=? AND day=?", (channel["number"], day_str)).fetchone()["m"]
         t = max(last or start_ts, start_ts)
@@ -244,7 +252,6 @@ def generate_day(channel, day_str, seed_extra=0):
     finally:
         con.close()
 
-    eps, mvs, ads = channel_pool(channel["number"])
     if not eps and not mvs:
         # slate: single all-day entry
         con = database.connect()

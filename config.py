@@ -2,6 +2,27 @@
 import os
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+
+def _load_dotenv():
+    """Load key-value pairs from .env or ~/.env into os.environ if not already set."""
+    for p in (os.path.join(BASE_DIR, ".env"), os.path.expanduser("~/.env")):
+        if os.path.isfile(p):
+            try:
+                with open(p, "r", encoding="utf-8") as f:
+                    for line in f:
+                        line = line.strip()
+                        if not line or line.startswith("#") or "=" not in line:
+                            continue
+                        k, v = line.split("=", 1)
+                        k = k.strip()
+                        v = v.strip().strip("'\"")
+                        if k and k not in os.environ:
+                            os.environ[k] = v
+            except Exception:
+                pass
+
+_load_dotenv()
+
 DATA_DIR = os.path.join(BASE_DIR, "data")
 LOGS_DIR = os.path.join(BASE_DIR, "logs")
 HLS_DIR = os.path.join(BASE_DIR, "hls_cache")
@@ -14,6 +35,11 @@ MEDIA_ROOT = "/srv/media"
 TV_DIR = os.path.join(MEDIA_ROOT, "TVShows")
 MOVIES_DIR = os.path.join(MEDIA_ROOT, "Movies")
 COMMERCIALS_DIR = os.path.join(MEDIA_ROOT, "Commercials")
+
+# Pi-safe transcoded copies (transcode.py) are large -- put them on the same
+# external drive as the media library (already bind-mounted into MEDIA_ROOT
+# for TVShows/Movies/Commercials) rather than the small root filesystem.
+TRANSCODE_DIR = "/mnt/media-ssd/transcoded"
 
 TIMEZONE = "America/New_York"
 HOST = "0.0.0.0"
@@ -80,6 +106,15 @@ TTS_VOICE_NEWS = os.environ.get("TTS_VOICE_NEWS", "en-US-GuyNeural")
 NEWS_RSS_URL = os.environ.get("NEWS_RSS_URL", "https://wnyt.com/feed/")
 NEWS_ARTICLE_COUNT = 5
 
+# ArenaPulse Sports API & Dedicated Sports Channel (https://github.com/chartmann1590/sports-dashboard)
+ARENAPULSE_URL = os.environ.get("ARENAPULSE_URL", "http://localhost:3000").rstrip("/")
+SPORTS_SHOW = "Retro Sports"
+SPORTS_CHANNEL_NAME = "Retro Sports"
+SPORTS_CHANNEL_NUMBER = 38
+TTS_VOICE_SPORTS = os.environ.get("TTS_VOICE_SPORTS", "am_michael")
+TTS_VOICE_SPORTS_NEWS = os.environ.get("TTS_VOICE_SPORTS_NEWS", "af_nicole")
+SPORTS_REFRESH_SEC = 15 * 60
+
 # Reminders (reminders.py): user sets one for a specific upcoming airing (from the
 # guide or a search result); a background loop fires it this many seconds before
 # start -- flashed on the TV via mpv's OSD and, if Gotify is configured above,
@@ -88,3 +123,4 @@ NEWS_ARTICLE_COUNT = 5
 REMINDER_LEAD_SEC = 120
 REMINDER_CHECK_INTERVAL_SEC = 15
 REMINDER_OSD_MS = 10000
+

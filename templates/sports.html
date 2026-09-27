@@ -1,0 +1,228 @@
+{% extends "base.html" %}
+{% block title %}Sports Center · RETRO-TV{% endblock %}
+{% block bodyclass %}sports-page{% endblock %}
+
+{% block body %}
+<div class="sports-container" id="sportsContainer" tabindex="0">
+  <!-- Sports Header Bar -->
+  <div class="sports-header">
+    <div class="sports-brand-wrap">
+      <div class="sports-logo">RETRO<span>SPORTS</span></div>
+      <div class="sports-badge">INTERACTIVE GAME CENTER</div>
+    </div>
+    
+    <div class="sports-search-wrap">
+      <span class="sports-search-icon">🔍</span>
+      <input type="search" id="sportsSearch" placeholder="Search games, teams, leagues, players…" oninput="onSportsSearchInput(this.value)" autocomplete="off" aria-label="Search Sports">
+      <button id="sportsClearSearch" class="ghost sports-clear-btn" onclick="clearSportsSearch()" hidden aria-label="Clear search">✕</button>
+    </div>
+
+    <div class="sports-header-actions">
+      <button class="btn ghost sports-nav-btn" onclick="tuneSportsChannel()">📡 Sports Channel</button>
+      <a class="btn ghost sports-nav-btn" href="/remote">📱 TV Remote</a>
+      <a class="btn ghost sports-nav-btn" href="/watch">📺 Watch Live</a>
+    </div>
+  </div>
+
+  <!-- Sport & Filter Chips -->
+  <div class="sports-filter-bar" id="sportsFilterBar" role="tablist">
+    <button class="sports-chip active" onclick="filterSports('all', this)" role="tab" aria-selected="true">All Games</button>
+    <button class="sports-chip live-chip" onclick="filterSports('live', this)" role="tab" aria-selected="false">🔴 Live Now</button>
+    <button class="sports-chip" onclick="filterSports('football', this)" role="tab" aria-selected="false">🏈 Football</button>
+    <button class="sports-chip" onclick="filterSports('baseball', this)" role="tab" aria-selected="false">⚾ Baseball</button>
+    <button class="sports-chip" onclick="filterSports('basketball', this)" role="tab" aria-selected="false">🏀 Basketball</button>
+    <button class="sports-chip" onclick="filterSports('soccer', this)" role="tab" aria-selected="false">⚽ Soccer</button>
+    <button class="sports-chip" onclick="filterSports('hockey', this)" role="tab" aria-selected="false">🏒 Hockey</button>
+    <button class="sports-chip" onclick="filterSports('news', this)" role="tab" aria-selected="false">📰 Sports News</button>
+    <button class="sports-chip" onclick="filterSports('final', this)" role="tab" aria-selected="false">🏆 Final Scores</button>
+  </div>
+
+  <!-- Search Results Section (visible when searching) -->
+  <div id="sportsSearchResultsSection" class="sports-search-section" hidden>
+    <div class="sports-section-heading">
+      <h2>Search Results <span id="sportsSearchCount" class="sports-count-badge">0</span></h2>
+      <span class="hint">Instant matches across live, scheduled, and completed matchups</span>
+    </div>
+    <div id="sportsSearchGrid" class="sports-search-grid"></div>
+  </div>
+
+  <!-- News Section (visible when news chip selected) -->
+  <div id="sportsNewsSection" class="sports-news-section" hidden>
+    <div class="sports-section-heading">
+      <h2>Headlines & Sports News <span id="sportsNewsCount" class="sports-count-badge">0</span></h2>
+      <span class="hint">Top sports stories narrated by Kokoro neural speech</span>
+    </div>
+    <div id="sportsNewsGrid" class="sports-news-grid"></div>
+  </div>
+
+  <!-- Main Sports Catalog / Billboard Section -->
+  <div id="sportsCatalogSection" class="sports-catalog-section">
+    <!-- Featured Game Billboard Banner -->
+    <section id="sportsBillboard" class="sports-billboard" aria-label="Featured Game">
+      <div class="sports-billboard-overlay">
+        <div class="sports-billboard-grid">
+          <!-- Left Info Column -->
+          <div class="sports-billboard-content">
+            <div class="sports-billboard-tag" id="billboardTag">★ FEATURED MATCHUP</div>
+            
+            <div class="sports-billboard-scorebug" id="billboardScorebug">
+              <!-- Away Team -->
+              <div class="sports-billboard-team">
+                <img id="billboardAwayLogo" class="sports-team-logo-lg" src="" alt="Away team logo" onerror="this.style.display='none'">
+                <div>
+                  <div class="sports-team-name-lg" id="billboardAwayName">Away Team</div>
+                  <div class="sports-team-rec" id="billboardAwayRec">0-0</div>
+                </div>
+                <div class="sports-team-score-lg" id="billboardAwayScore">--</div>
+              </div>
+
+              <div class="sports-billboard-vs">VS</div>
+
+              <!-- Home Team -->
+              <div class="sports-billboard-team">
+                <img id="billboardHomeLogo" class="sports-team-logo-lg" src="" alt="Home team logo" onerror="this.style.display='none'">
+                <div>
+                  <div class="sports-team-name-lg" id="billboardHomeName">Home Team</div>
+                  <div class="sports-team-rec" id="billboardHomeRec">0-0</div>
+                </div>
+                <div class="sports-team-score-lg" id="billboardHomeScore">--</div>
+              </div>
+            </div>
+
+            <div class="sports-billboard-meta" id="billboardMeta">
+              <span class="sports-pill" id="billboardLeague">NFL</span>
+              <span class="sports-pill" id="billboardStatus">Today</span>
+              <span class="sports-pill" id="billboardBroadcast">TV</span>
+              <span class="sports-pill-odds" id="billboardOdds"></span>
+            </div>
+
+            <p class="sports-billboard-desc" id="billboardDesc">Loading matchup information and field radar...</p>
+
+            <div class="sports-billboard-buttons">
+              <button class="btn sports-play-btn" id="billboardPlayTV" onclick="openGameOnTV()">▶ PLAY ON TV</button>
+              <button class="btn ghost sports-tts-btn" id="billboardTTS" onclick="speakCurrentMatchup()">🔊 HEAR PLAY-BY-PLAY</button>
+              <button class="btn ghost" id="billboardMoreInfo" onclick="openSelectedGameModal()">ℹ FULL GAME CENTER</button>
+            </div>
+          </div>
+
+          <!-- Right Field Column -->
+          <div class="sports-billboard-field-wrap">
+            <div class="sports-field-header">
+              <span class="sports-field-title">LIVE GAMEPLAY FIELD RADAR</span>
+              <span class="sports-field-status" id="billboardFieldStatus">BALL ON 35 YD LINE</span>
+            </div>
+            <div class="sports-field-frame" id="billboardFieldFrame">
+              <div class="sports-field-placeholder">Loading gameplay field…</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Dynamic Category Rows -->
+    <div id="sportsRowsContainer" class="sports-rows-container">
+      <div class="sports-loading-state">
+        <div class="sports-spinner"></div>
+        <p>Connecting to ArenaPulse live sports radar…</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Deep Game Center Modal -->
+<div id="gameModal" class="sports-modal-backdrop" hidden onclick="closeGameModal(event)">
+  <div class="sports-modal-box" role="dialog" aria-modal="true" aria-labelledby="modalGameTitle">
+    <button class="sports-modal-close" onclick="hideGameModal()" aria-label="Close modal">✕</button>
+    
+    <div class="sports-modal-header">
+      <div class="sports-modal-title-row">
+        <div class="sports-pill" id="modalLeague">LEAGUE</div>
+        <h2 id="modalGameTitle">Away Team @ Home Team</h2>
+        <span class="sports-modal-clock" id="modalGameClock">Clock</span>
+      </div>
+
+      <!-- Matchup Header Row -->
+      <div class="sports-modal-score-wrap">
+        <div class="sports-modal-team">
+          <img id="modalAwayLogo" class="sports-team-logo-md" src="" alt="Away team logo" onerror="this.style.display='none'">
+          <span id="modalAwayName" class="sports-modal-teamname">Away</span>
+          <span id="modalAwayScore" class="sports-modal-score">0</span>
+        </div>
+        <div class="sports-modal-vs">VS</div>
+        <div class="sports-modal-team">
+          <span id="modalHomeScore" class="sports-modal-score">0</span>
+          <span id="modalHomeName" class="sports-modal-teamname">Home</span>
+          <img id="modalHomeLogo" class="sports-team-logo-md" src="" alt="Home team logo" onerror="this.style.display='none'">
+        </div>
+      </div>
+    </div>
+
+    <!-- Modal Field Radar -->
+    <div class="sports-modal-field-section">
+      <div class="sports-modal-field-title">
+        <span>INTERACTIVE FIELD & PLAY RADAR</span>
+        <button class="btn ghost sports-btn-sm" id="modalPlayAnnounceBtn" onclick="speakModalPlay()">🔊 Announce Latest Play</button>
+      </div>
+      <div class="sports-modal-field-box" id="modalFieldContainer">
+        <!-- Injected SVG field -->
+      </div>
+    </div>
+
+    <!-- Modal Tabs: Plays, Box Score, Matchup Details -->
+    <div class="sports-modal-body">
+      <div class="sports-tabs">
+        <button class="sports-tab active" onclick="switchModalTab('plays', this)">Play-by-Play</button>
+        <button class="sports-tab" onclick="switchModalTab('boxscore', this)">Box Score & Leaders</button>
+        <button class="sports-tab" onclick="switchModalTab('info', this)">Game Info & Odds</button>
+      </div>
+
+      <!-- Plays Tab -->
+      <div id="tabPlays" class="sports-tab-content active">
+        <div id="modalPlaysList" class="sports-plays-list">
+          <div class="sports-loading-state">Loading plays...</div>
+        </div>
+      </div>
+
+      <!-- Box Score Tab -->
+      <div id="tabBoxscore" class="sports-tab-content" hidden>
+        <div id="modalLeadersGrid" class="sports-leaders-grid"></div>
+        <div id="modalBoxscoreTable" class="sports-boxscore-table"></div>
+      </div>
+
+      <!-- Game Info Tab -->
+      <div id="tabInfo" class="sports-tab-content" hidden>
+        <div class="sports-info-grid">
+          <div class="sports-info-card">
+            <h3>Venue & Location</h3>
+            <p id="modalVenue">Stadium Name</p>
+          </div>
+          <div class="sports-info-card">
+            <h3>Weather Conditions</h3>
+            <p id="modalWeather">--</p>
+          </div>
+          <div class="sports-info-card">
+            <h3>Betting Lines & Spread</h3>
+            <p id="modalOdds">DraftKings Line</p>
+          </div>
+          <div class="sports-info-card">
+            <h3>Television Broadcast</h3>
+            <p id="modalBroadcast">Network</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="sports-modal-footer">
+      <button class="btn sports-play-btn" onclick="openGameOnTVFromModal()">▶ Watch Highlights on TV</button>
+      <button class="btn ghost" onclick="hideGameModal()">Close</button>
+    </div>
+  </div>
+</div>
+
+<!-- Hidden audio element for browser TTS playback -->
+<audio id="ttsAudioPlayer" style="display:none"></audio>
+{% endblock %}
+
+{% block js %}
+<script src="/static/js/sports.js?v=1"></script>
+{% endblock %}

@@ -7,3 +7,5 @@ hls_cache/
 mpv-local/
 CLAUDE.md
 AGENTS.md
+.env
+

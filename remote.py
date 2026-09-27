@@ -1,18 +1,18 @@
 """Remote handling: keyboard-event based (2.4GHz HID remotes appear as keyboards).
-Provides mapping storage + test hooks. Actual global key capture is done in browser/TV UI
-(keydown listeners) plus optional evdev listener when run with input group (no root needed)."""
+Provides browser keyboard mappings. usbremote.py separately handles the native
+XING WEI receiver through evdev, leaving phone controls and mappings intact."""
 import logging
 import database
 
 log = logging.getLogger("retro-tv.remote")
 
-ACTIONS = ["GUIDE", "VOD", "CHANNEL_UP", "CHANNEL_DOWN", "PREV_CHANNEL", "INFO", "PLAY_PAUSE",
+ACTIONS = ["GUIDE", "VOD", "SPORTS", "CHANNEL_UP", "CHANNEL_DOWN", "PREV_CHANNEL", "INFO", "PLAY_PAUSE",
            "BACK", "UP", "DOWN", "LEFT", "RIGHT", "OK", "VOLUME_UP", "VOLUME_DOWN",
            "MUTE", "POWER_MENU", "HOME", "MENU"]
 
 # sensible keyboard defaults incl. common HID remote keys
 DEFAULTS = {
-    "GUIDE": "g", "VOD": "v", "CHANNEL_UP": "PageUp", "CHANNEL_DOWN": "PageDown",
+    "GUIDE": "g", "VOD": "v", "SPORTS": "s", "CHANNEL_UP": "PageUp", "CHANNEL_DOWN": "PageDown",
     "PREV_CHANNEL": "Backspace", "INFO": "i", "PLAY_PAUSE": " ",
     "BACK": "Escape", "UP": "ArrowUp", "DOWN": "ArrowDown", "LEFT": "ArrowLeft",
     "RIGHT": "ArrowRight", "OK": "Enter", "VOLUME_UP": "+", "VOLUME_DOWN": "-",

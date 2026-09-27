@@ -15,6 +15,10 @@ _start = None
 _last_refresh = 0
 _socket = None
 _reader = None
+_selection = None
+_last_artwork = None
+_cursor = None  # The time position up/down browsing holds fixed -- see navigate()
+GUIDE_ART_OVERLAY_ID = 50  # Distinct from tvvod's bitmap slots (20-24, 30, 31) and the shared ASS slot (42)
 
 
 def _send(command):
@@ -52,7 +56,17 @@ def _color(rgb):
 
 def render(channel=None, entry_id=None, start=None):
     import playback
-    global _visible, _channel, _entry_id, _start, _last_refresh
+    try:
+        import tvvod
+        tvvod.close_vod()
+    except Exception:
+        pass
+    try:
+        import tvsports
+        tvsports.close_sports()
+    except Exception:
+        pass
+    global _visible, _channel, _entry_id, _start, _last_refresh, _selection, _last_artwork
     with _lock:
         if not _visible and channel is None:
             _channel = playback._current["channel"]
@@ -73,6 +87,7 @@ def render(channel=None, entry_id=None, start=None):
             selected = row["entries"][0]
         _channel = row["channel"]["number"]
         _entry_id = selected["id"] if selected else None
+        _selection = selected
         ass = []
 
         def box(x, y, w, h, color):
@@ -90,10 +105,23 @@ def render(channel=None, entry_id=None, start=None):
         box(40, 30, 1200, 65, "244980")
         text(62, 42, "RETRO TV  /  GUIDE", 31, "F8CB63")
         text(1020, 48, clock(time.time()), 25, "F8CB63")
+        art_w = 96
+        has_art = bool(selected and selected.get("artwork"))
+        info_right = 1210 - (art_w + 20) if has_art else 1210
         if selected:
             text(62, 111, f"CH {_channel:02d}   {clock(selected['start_ts'])} – {clock(selected['end_ts'])}", 20, "F8CB63")
-            text(62, 144, selected["title"], 34, clip=(60, 140, 1210, 191))
-            text(62, 194, selected.get("subtitle"), 23, clip=(60, 191, 1210, 233))
+            text(62, 144, selected["title"], 34, clip=(60, 140, info_right, 191))
+            text(62, 194, selected.get("subtitle"), 23, clip=(60, 191, info_right, 233))
+        artwork = selected.get("artwork") if selected else None
+        if artwork != _last_artwork:
+            _last_artwork = artwork
+            _send(["overlay-remove", GUIDE_ART_OVERLAY_ID])
+            if has_art:
+                import metadata
+                raw = metadata.get_raw_bitmap(artwork, art_w, 130)
+                if raw:
+                    _send(["overlay-add", GUIDE_ART_OVERLAY_ID, 1210 - art_w, 100, raw, 0, "bgra",
+                           art_w, 130, art_w * 4, art_w, 130])
         text(62, 246, "CHANNEL", 18, "AAC0DF")
         width = 990
         for i in range(6):
@@ -115,7 +143,11 @@ def render(channel=None, entry_id=None, start=None):
                 clip = (left + 5, y, right - 4, y + 69)
                 text(left + 9, y + 9, e["title"], 21, color, clip)
                 text(left + 9, y + 39, e.get("subtitle"), 16, color, clip)
-        text(62, 663, "SELECT A PROGRAM ON YOUR PHONE  •  TUNE TV TO WATCH  •  CLOSE GUIDE TO RETURN", 18, "F8CB63")
+        now = time.time()
+        if rows and begin <= now < begin + 10800:
+            now_x = 234 + int((now - begin) / 10800 * width)
+            box(now_x, 280, 3, len(rows) * 72, "F8478E")
+        text(62, 663, "D-PAD TO BROWSE  •  OK TO TUNE  •  BACK TO CLOSE  •  PHONE REMOTE ALSO WORKS", 18, "F8CB63")
         result = _send(["osd-overlay", 42, "ass-events", "\n".join(ass), 1280, 720])
         _visible = result.get("error") == "success"
         _last_refresh = time.monotonic()
@@ -124,16 +156,73 @@ def render(channel=None, entry_id=None, start=None):
 
 def close():
     import playback
-    global _visible, _start, _entry_id
+    global _visible, _start, _entry_id, _last_artwork, _cursor
     with _lock:
         _visible = False
         _start = None
         _entry_id = None
+        _last_artwork = None
+        _cursor = None
+        _send(["overlay-remove", GUIDE_ART_OVERLAY_ID])
         return _send(["osd-overlay", 42, "none", ""]).get("error") == "success"
 
 
 def is_visible():
     return _visible
+
+
+def get_status():
+    with _lock:
+        return {"visible": _visible, "channel": _channel, "entry": _selection, "start": _start}
+
+
+def navigate(action):
+    """Shared guide selection for the USB remote and phone D-pad."""
+    import database
+    import playback
+    global _cursor
+    if action == "back":
+        return {"ok": close(), "visible": False}
+    with _lock:
+        channel, selected = _channel, _selection
+        begin = _start or int(time.time() // 1800) * 1800
+        if _cursor is None:
+            _cursor = selected["start_ts"] if selected else begin
+        if action in ("up", "down"):
+            channels = scheduler.get_channels()
+            if not channels:
+                return {"ok": False, "error": "No channels"}
+            numbers = [c["number"] for c in channels]
+            index = numbers.index(channel) if channel in numbers else 0
+            channel = numbers[max(0, min(len(numbers) - 1, index + (-1 if action == "up" else 1)))]
+            # Look up what's airing at the fixed cursor time, not at the entry we
+            # last landed on -- that entry's own start_ts can be arbitrarily far
+            # before the cursor (a 2-hour movie vs. a 2-minute commercial break),
+            # and chaining off it compounds into large drift over a few channel
+            # hops even though up/down never intends to change the time column.
+            selected = scheduler.now_playing(channel, _cursor)
+        elif action in ("left", "right") and selected:
+            con = database.connect()
+            try:
+                comparison, ordering = (">", "ASC") if action == "right" else ("<", "DESC")
+                row = con.execute(f"""SELECT * FROM schedule_entries WHERE channel_number=?
+                    AND start_ts {comparison} ? ORDER BY start_ts {ordering} LIMIT 1""",
+                    (channel, selected["start_ts"])).fetchone()
+                selected = dict(row) if row else selected
+                _cursor = selected["start_ts"]
+            finally:
+                con.close()
+        if action != "ok":
+            if selected and not begin <= selected["start_ts"] < begin + 10800:
+                begin = int(selected["start_ts"] // 1800) * 1800
+            ok = render(channel, selected["id"] if selected else None, begin)
+            return {"ok": ok, **get_status()}
+    # Never hold the overlay lock while acquiring playback's lock.
+    if selected and selected["start_ts"] <= time.time() < selected["end_ts"] and selected["kind"] != "slate":
+        close()
+        return playback.tune(channel, reason="api")
+    playback.osd_message("That program isn't airing now.", 3000)
+    return {"ok": True, "message": "That program isn't airing now.", **get_status()}
 
 
 def refresh_if_visible():

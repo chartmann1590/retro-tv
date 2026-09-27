@@ -1,16 +1,36 @@
 let CUR_CH=null, PREV_CH=null, digits='', digitT, VOL=80, MUTED=false, CC=false, CHANNELS=[], commandQueue=Promise.resolve();
 let guideOpen=false, gT0=0, gData=[], gSel={r:0,c:0}, favOnly=false, SEARCH_RESULTS=[], searchT;
-let vodOpen=false, IS_VOD_PLAYING=false;
+let vodOpen=false, IS_VOD_PLAYING=false, sportsOpen=false;
 function command(action){commandQueue=commandQueue.then(action).catch(e=>notify(e.message));return commandQueue;}
 async function initRemote(){
   document.getElementById('digits').innerHTML=[1,2,3,4,5,6,7,8,9,'CLR',0,'GO'].map(d=>`<button class="${typeof d==='number'?'number-key':'ghost'}" onclick="digit('${d}')" aria-label="${d==='CLR'?'Clear channel number':d==='GO'?'Tune entered channel':'Digit '+d}">${d}</button>`).join('');
   await refreshNow();await refreshChs();
 }
 async function refreshNow(){
-  if(document.hidden||guideOpen||vodOpen)return;
+  if(document.hidden)return;
   try{
     const h=await tvApi('/api/hdmi');
     document.getElementById('connection').textContent='● CONNECTED';
+    vodOpen=!!h.tv_vod?.visible;guideOpen=!!h.tv_guide?.visible;sportsOpen=!!h.tv_sports?.visible;
+    IS_VOD_PLAYING=!!h.is_vod;
+    if(!h.is_vod){CUR_CH=h.channel;PREV_CH=h.prev_channel;}
+    document.body.classList.toggle('vod-mode',vodOpen);
+    document.body.classList.toggle('guide-mode',guideOpen);
+    document.body.classList.toggle('sports-mode',sportsOpen);
+    document.getElementById('vodButton').textContent=vodOpen?'EXIT VOD':'ON DEMAND';
+    const sb=document.getElementById('sportsButton');if(sb)sb.textContent=sportsOpen?'EXIT SPORTS':'SPORTS';
+    setGuideButtonLabel(guideOpen?'EXIT GUIDE':'GUIDE');
+    showVol(h);
+    if(sportsOpen){updateSportsLcd(h.tv_sports);return;}
+    if(vodOpen){updateVodLcd(h.tv_vod);return;}
+    if(guideOpen){
+      const entry=h.tv_guide.entry||{};
+      document.getElementById('ncCh').textContent=String(h.tv_guide.channel??'--').padStart(2,'0');
+      document.getElementById('ncTitle').textContent=entry.title||'TV Guide';
+      document.getElementById('ncSub').textContent=entry.subtitle||'';
+      document.getElementById('ncLive').textContent='GUIDE';
+      return;
+    }
     if(h.is_vod){
       IS_VOD_PLAYING=true;
       document.getElementById('ncCh').textContent='OD';
@@ -50,6 +70,7 @@ function chStep(d){return command(()=>chStepNow(d));}
 function prevCh(){
   return command(async()=>{
     if(vodOpen){await sendTvVodNav('back');return;}
+    if(sportsOpen){await sendTvSportsNav('back');return;}
     if(PREV_CH!=null)return tuneNow(PREV_CH);
     notify('No previous channel yet.');
   });
@@ -68,6 +89,7 @@ function pauseToggle(){return command(async()=>{showVol(await tvApi('/api/volume
 function goLive(){
   return command(async()=>{
     if(vodOpen)await closeVodNow();
+    if(sportsOpen)await closeSportsNow();
     if(guideOpen)await closeGuideNow();
     await tvApi('/api/vod/stop',{});
     await refreshNow();
@@ -90,6 +112,10 @@ async function runSearch(){
   const q=document.getElementById('rsearchInput').value.trim();
   if(vodOpen){
     await sendTvVodNav('search', q);
+    return;
+  }
+  if(sportsOpen){
+    await sendTvSportsNav('search', q);
     return;
   }
   const box=document.getElementById('rsearchResults');
@@ -147,6 +173,9 @@ async function pushGuideOverlay(){
 }
 function openGuide(){
   return command(async()=>{
+    await refreshNow();
+    if(sportsOpen)await closeSportsNow();
+    if(vodOpen)await closeVodNow();
     if(guideOpen){await closeGuideNow();return;}
     gT0=Math.floor(gNow()/1800)*1800;
     await fetchGuideWindow();
@@ -168,49 +197,27 @@ async function closeGuideNow(){
   }catch(e){}
   await refreshNow();
 }
-function dpadUp(){return command(async()=>{if(vodOpen)await sendTvVodNav('up');else if(guideOpen)await moveGuideCh(-1);else await chStepNow(1);});}
-function dpadDown(){return command(async()=>{if(vodOpen)await sendTvVodNav('down');else if(guideOpen)await moveGuideCh(1);else await chStepNow(-1);});}
-function dpadLeft(){return command(async()=>{if(vodOpen)await sendTvVodNav('left');else if(guideOpen)await moveGuideCell(-1);});}
-function dpadRight(){return command(async()=>{if(vodOpen)await sendTvVodNav('right');else if(guideOpen)await moveGuideCell(1);});}
-function dpadOk(){return command(async()=>{if(vodOpen)await sendTvVodNav('select');else if(guideOpen)await selectGuideNow();});}
+function dpadUp(){return command(async()=>{await refreshNow();if(vodOpen)await sendTvVodNav('up');else if(sportsOpen)await sendTvSportsNav('up');else if(guideOpen)await moveGuideCh(-1);else await chStepNow(1);});}
+function dpadDown(){return command(async()=>{await refreshNow();if(vodOpen)await sendTvVodNav('down');else if(sportsOpen)await sendTvSportsNav('down');else if(guideOpen)await moveGuideCh(1);else await chStepNow(-1);});}
+function dpadLeft(){return command(async()=>{await refreshNow();if(vodOpen)await sendTvVodNav('left');else if(sportsOpen)await sendTvSportsNav('left');else if(guideOpen)await moveGuideCell(-1);});}
+function dpadRight(){return command(async()=>{await refreshNow();if(vodOpen)await sendTvVodNav('right');else if(sportsOpen)await sendTvSportsNav('right');else if(guideOpen)await moveGuideCell(1);});}
+function dpadOk(){return command(async()=>{await refreshNow();if(vodOpen)await sendTvVodNav('select');else if(sportsOpen)await sendTvSportsNav('select');else if(guideOpen)await selectGuideNow();});}
 async function chStepNow(d){if(!CHANNELS.length)await refreshChs();const n=CHANNELS.map(c=>c.number);if(!n.length)return;const i=n.indexOf(CUR_CH);await tuneNow(n[i<0?0:(i+d+n.length)%n.length]);}
-async function moveGuideCh(d){
-  const old=gEntry();
-  const r=Math.max(0,Math.min(gData.length-1,gSel.r+d));
-  let c=gData[r].entries.findIndex(e=>e.end_ts>(old?.start_ts||gT0));
-  gSel={r,c:c<0?0:c};
-  await pushGuideOverlay();
-}
-async function moveGuideCell(d){
-  const row=gRow();
-  if(!row)return;
-  let c=gSel.c+d;
-  if(c<0||c>=row.entries.length){
-    const prevId=row.entries[gSel.c]?.id;
-    gT0+=d*3600;
-    await fetchGuideWindow();
-    const nr=gRow();
-    c=nr?nr.entries.findIndex(e=>e.id===prevId):-1;
-    if(c<0)c=d>0?Math.max(0,(nr?.entries.length||1)-1):0;
-  }
-  gSel.c=Math.max(0,c);
-  await pushGuideOverlay();
-}
-async function selectGuideNow(){
-  const row=gRow(),e=gEntry();
-  if(!e||!gIsLive(e)||e.kind==='slate'){notify('That program isn’t airing now.');return;}
-  await tvApi('/api/tune',{channel:row.channel.number});
-  guideOpen=false;
-  document.body.classList.remove('guide-mode');
-  setGuideButtonLabel('GUIDE');
+async function sendGuideNav(action){
+  const result=await tvApi('/api/tv-guide/nav',{action});
   await refreshNow();
-  notify(`Tuned to ${row.channel.number} · ${row.channel.name}`);
+  if(result.message)notify(result.message);
 }
+async function moveGuideCh(d){await sendGuideNav(d<0?'up':'down');}
+async function moveGuideCell(d){await sendGuideNav(d<0?'left':'right');}
+async function selectGuideNow(){await sendGuideNav('ok');}
 
 // ---- On-Demand (VOD) On-TV Control ----
 function toggleVod(){
   return command(async()=>{
+    await refreshNow();
     if(guideOpen)await closeGuideNow();
+    if(sportsOpen)await closeSportsNow();
     if(vodOpen){
       await closeVodNow();
       return;
@@ -293,6 +300,86 @@ async function sendTvVodNav(action,query){
     }
   }catch(err){
     notify('Navigation error: '+err.message);
+  }
+}
+
+// ---- On-TV Sports Center Control ----
+function toggleSports(){
+  return command(async()=>{
+    await refreshNow();
+    if(guideOpen)await closeGuideNow();
+    if(vodOpen)await closeVodNow();
+    if(sportsOpen){
+      await closeSportsNow();
+      return;
+    }
+    await openSportsNow();
+  });
+}
+
+async function openSportsNow(){
+  try{
+    const res=await tvApi('/api/tv-sports',{action:'open'});
+    if(res.visible){
+      sportsOpen=true;
+      document.body.classList.add('sports-mode');
+      const b=document.getElementById('sportsButton');
+      if(b)b.textContent='EXIT SPORTS';
+      updateSportsLcd(res);
+      notify('Sports Center opened on TV');
+    }else{
+      notify('Could not open Sports on TV');
+    }
+  }catch(err){
+    notify('Failed to open Sports: '+err.message);
+  }
+}
+
+async function closeSportsNow(){
+  sportsOpen=false;
+  document.body.classList.remove('sports-mode');
+  const b=document.getElementById('sportsButton');
+  if(b)b.textContent='SPORTS';
+  try{
+    await tvApi('/api/tv-sports',{action:'close'});
+  }catch(e){}
+  await refreshNow();
+  notify('Closed Sports Center');
+}
+
+function updateSportsLcd(st){
+  if(!st)return;
+  document.getElementById('ncCh').textContent='SP';
+  document.getElementById('ncLive').textContent='SPORTS';
+  if(st.mode==='game'){
+    document.getElementById('ncTitle').textContent=st.title||'Game Center';
+    document.getElementById('ncSub').textContent=`${st.subtitle||''} • Press OK for Announcer`;
+  }else{
+    document.getElementById('ncTitle').textContent=st.title||'Sports Center';
+    const cat=st.category?`${st.category} • `:''
+    document.getElementById('ncSub').textContent=cat+'Press OK for Field & Plays';
+  }
+}
+
+async function sendTvSportsNav(action,query){
+  try{
+    const res=await tvApi('/api/tv-sports/nav',{action,query});
+    if(res.closed){
+      sportsOpen=false;
+      document.body.classList.remove('sports-mode');
+      const b=document.getElementById('sportsButton');
+      if(b)b.textContent='SPORTS';
+      await refreshNow();
+      return;
+    }
+    if(res.announced){
+      notify('🎙️ Announcing play over TV audio...');
+    }
+    if(res.visible){
+      updateSportsLcd(res);
+    }
+  }catch(err){
+    notify('Sports navigation error: '+err.message);
   }
 }
 

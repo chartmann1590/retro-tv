@@ -5,7 +5,7 @@
 <meta name="referrer" content="no-referrer">
 <meta name="theme-color" content="#101722">
 <title>{% block title %}RETRO-TV · Cable Television{% endblock %}</title>
-<link rel="stylesheet" href="/static/css/retro.css?v=6">
+<link rel="stylesheet" href="/static/css/retro.css?v=7">
 </head>
 <body class="{% block bodyclass %}{% endblock %}">
 <header class="topbar">
@@ -14,6 +14,7 @@
 <a href="/" class="{{'on' if request.path=='/' else ''}}">Receiver</a>
 <a href="/guide" class="{{'on' if request.path.startswith('/guide') else ''}}">TV Guide</a>
 <a href="/vod" class="{{'on' if request.path.startswith('/vod') else ''}}">On Demand</a>
+<a href="/sports" class="{{'on' if request.path.startswith('/sports') else ''}}">Sports</a>
 <a href="/remote" class="{{'on' if request.path.startswith('/remote') else ''}}">Remote</a>
 <a href="/watch" class="{{'on' if request.path.startswith('/watch') else ''}}">Watch</a>
 <a href="/admin" class="{{'on' if request.path.startswith('/admin') else ''}}">Setup</a>

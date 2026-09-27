@@ -20,6 +20,7 @@ import livecontent
 import reminders
 import remote as remote_mod
 import vod
+import transcode
 
 TZ = ZoneInfo(config.TIMEZONE)
 os.makedirs(config.LOGS_DIR, exist_ok=True)
@@ -140,6 +141,10 @@ def watch(ch=None):
 @app.route("/vod")
 def vod_page():
     return render_template("vod.html")
+
+@app.route("/sports")
+def sports_page():
+    return render_template("sports.html")
 
 @app.route("/guide")
 def guide():
@@ -397,6 +402,14 @@ def api_channel_del(num):
 def api_library():
     return jsonify({"ok": True, **scanner.library_summary()})
 
+@app.route("/api/transcode/status")
+def api_transcode_status():
+    status = transcode.current_status()
+    for item in ([status["running"]] if status["running"] else []) + status["pending"]:
+        info = vod.get_media_item(item["media_id"])
+        item["title"] = (info or {}).get("title") or os.path.basename(item["path"])
+    return jsonify({"ok": True, **status})
+
 @app.route("/api/scan", methods=["POST"])
 def api_scan():
     full = (request.get_json(silent=True) or {}).get("full", False)
@@ -473,6 +486,11 @@ def api_tune():
             tvvod.close_vod()
         except Exception:
             pass
+        try:
+            import tvsports
+            tvsports.close_sports()
+        except Exception:
+            pass
     if res.get("entry"):
         e = res["entry"]
         res["entry_fmt"] = fmt_range(e["start_ts"], e["end_ts"]) if e.get("start_ts") else ""
@@ -528,13 +546,25 @@ def api_vod_play():
             tvvod.close_vod()
         except Exception:
             pass
+        try:
+            import tvsports
+            tvsports.close_sports()
+        except Exception:
+            pass
     return jsonify(res)
 
 @app.route("/api/vod/stop", methods=["POST"])
 def api_vod_stop():
+    import tvguide
+    tvguide.close()
     try:
         import tvvod
         tvvod.close_vod()
+    except Exception:
+        pass
+    try:
+        import tvsports
+        tvsports.close_sports()
     except Exception:
         pass
     res = playback.stop_vod()
@@ -574,9 +604,108 @@ def api_tv_vod_status():
     import tvvod
     return jsonify(tvvod.get_status())
 
+# ---- Sports API Endpoints ----
+
+@app.route("/api/sports/scores")
+def api_sports_scores():
+    import sports
+    return jsonify(sports.get_all_scores())
+
+@app.route("/api/sports/game/<league>/<game_id>")
+def api_sports_game(league, game_id):
+    import sports
+    sport = request.args.get("sport")
+    return jsonify(sports.get_game_detail(league, game_id, sport=sport))
+
+@app.route("/api/sports/field/<sport>/<league>/<game_id>")
+def api_sports_field(sport, league, game_id):
+    import sports
+    detail = sports.get_game_detail(league, game_id, sport=sport)
+    all_data = sports.get_all_scores()
+    game = next((g for g in all_data.get("games", []) if str(g.get("id")) == str(game_id)), None)
+    if not game:
+        comp = detail.get("header", {}).get("competitions", [{}])[0]
+        teams = comp.get("competitors", [{}, {}])
+        home_team = next((t.get("team", {}) for t in teams if t.get("homeAway") == "home"), {})
+        away_team = next((t.get("team", {}) for t in teams if t.get("homeAway") == "away"), {})
+        situation = comp.get("situation", {})
+        status = comp.get("status", {})
+    else:
+        home_team = game.get("homeTeam", {})
+        away_team = game.get("awayTeam", {})
+        situation = game.get("situation", {})
+        status = game.get("status", {})
+
+    last_play = detail.get("visualPlays", [])[-1] if detail.get("visualPlays") else None
+    svg = sports.generate_field_svg(sport, home_team, away_team, situation=situation, play=last_play, status=status)
+    down_dist = situation.get("downDistanceText") or (last_play.get("end", {}).get("downDistanceText") if last_play else "")
+    return jsonify({"ok": True, "svg": svg, "downDistance": down_dist})
+
+@app.route("/api/sports/news")
+def api_sports_news():
+    import sports
+    league = request.args.get("league")
+    if league:
+        articles = sports.get_news(league=league)
+    else:
+        articles = sports.get_all_news()
+    return jsonify({"ok": True, "articles": articles})
+
+@app.route("/api/sports/tts", methods=["POST"])
+def api_sports_tts():
+    import sports
+    d = request.get_json(silent=True) or {}
+    text = d.get("text", "")
+    voice = d.get("voice")
+    speed = d.get("speed", 1.05)
+    try:
+        audio_bytes, ctype = sports.synthesize_speech(text, voice=voice, speed=speed)
+        return Response(audio_bytes, mimetype=ctype)
+    except Exception as e:
+        log.warning("TTS synthesis failed: %s", e)
+        return jsonify({"ok": False, "error": str(e)}), 502
+
+@app.route("/api/tv-sports", methods=["POST"])
+def api_tv_sports():
+    import tvsports
+    d = request.get_json(silent=True) or {}
+    act = d.get("action", "toggle")
+    if act == "close":
+        ok = tvsports.close_sports()
+        return jsonify({"ok": ok, "visible": False})
+    elif act == "open":
+        st = tvsports.open_sports(game_id=d.get("game_id"), league=d.get("league"), sport=d.get("sport"))
+        return jsonify(st)
+    elif act == "toggle":
+        if tvsports.is_visible():
+            ok = tvsports.close_sports()
+            return jsonify({"ok": ok, "visible": False})
+        else:
+            st = tvsports.open_sports(game_id=d.get("game_id"), league=d.get("league"), sport=d.get("sport"))
+            return jsonify(st)
+    return jsonify({"ok": False, "error": "Invalid action"}), 400
+
+@app.route("/api/tv-sports/nav", methods=["POST"])
+def api_tv_sports_nav():
+    import tvsports
+    d = request.get_json(silent=True) or {}
+    action = d.get("action", "select")
+    query = d.get("query")
+    res = tvsports.nav(action, query=query)
+    return jsonify(res)
+
+@app.route("/api/tv-sports/status")
+def api_tv_sports_status():
+    import tvsports
+    return jsonify(tvsports.get_status())
+
 @app.route("/api/hdmi")
 def api_hdmi():
     st = playback.status()
+    import tvguide
+    import tvvod
+    import tvsports
+    st.update(tv_guide=tvguide.get_status(), tv_vod=tvvod.get_status(), tv_sports=tvsports.get_status())
     is_vod = st.get("is_vod", False)
     vod_info = st.get("vod_info")
     if is_vod:
@@ -648,6 +777,11 @@ def api_tv_guide():
         tvvod.close_vod()
     except Exception:
         pass
+    try:
+        import tvsports
+        tvsports.close_sports()
+    except Exception:
+        pass
     d = request.get_json(silent=True) or {}
     if d.get("action") == "close":
         return jsonify({"ok": tvguide.close()})
@@ -667,6 +801,24 @@ def api_tv_guide():
 @app.route("/api/info", methods=["POST"])
 def api_info():
     return jsonify({"ok": playback.show_info()})
+
+@app.route("/api/tv-guide/nav", methods=["POST"])
+def api_tv_guide_nav():
+    import tvguide
+    action = (request.get_json(silent=True) or {}).get("action")
+    if action not in ("up", "down", "left", "right", "ok", "back"):
+        return jsonify({"ok": False, "error": "Invalid navigation action"}), 400
+    return jsonify(tvguide.navigate(action))
+
+@app.route("/api/remote/usb", methods=["GET", "POST"])
+def api_usb_remote():
+    import usbremote
+    if request.method == "POST":
+        try:
+            usbremote.learn((request.get_json(silent=True) or {}).get("action"))
+        except ValueError as error:
+            return jsonify({"ok": False, "error": str(error)}), 400
+    return jsonify({"ok": True, **usbremote.status()})
 
 @app.route("/api/remote")
 def api_remote():
@@ -781,10 +933,13 @@ def api_restart_playback():
 
 def init():
     database.init_db()
+    import usbremote
+    usbremote.start()
     playback.start_monitor()
     threading.Thread(target=bg_loop, daemon=True).start()
     threading.Thread(target=livecontent.run_loop, daemon=True).start()
     threading.Thread(target=reminders.run_loop, daemon=True).start()
+    threading.Thread(target=transcode.run_loop, daemon=True).start()
 
 
 if __name__ == "__main__":

@@ -3,3 +3,4 @@ requests>=2.31
 Waitress>=3.0,<4
 edge-tts>=6.1
 Pillow>=10.0
+evdev>=1.7,<2; sys_platform == 'linux'

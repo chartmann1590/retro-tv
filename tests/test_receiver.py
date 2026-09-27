@@ -89,7 +89,8 @@ class ReceiverTests(unittest.TestCase):
         with patch.object(playback, '_proc', proc), patch.object(playback, '_ipc', return_value={"error": "success"}) as ipc, patch.object(playback.subprocess, 'Popen') as popen, patch.dict(playback._current):
             self.assertTrue(playback.play_file(path, 123.5, 2, 'Test'))
             popen.assert_not_called()
-            ipc.assert_any_call(['loadfile', path, 'replace', -1, {'start': '123.5'}])
+            ipc.assert_any_call(['loadfile', path, 'replace', -1,
+                                  {'start': '123.5', 'hwdec': playback._HWDEC_DEFAULT}])
             ipc.assert_any_call(['set_property', 'pause', False])
 
     def test_background_work_preserves_vod_and_starts_player_at_normal_priority(self):

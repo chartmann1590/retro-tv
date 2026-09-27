@@ -124,14 +124,18 @@ def get_status():
 def open_vod():
     import playback
     import tvguide
+    try:
+        tvguide.close()
+    except Exception:
+        pass
+    try:
+        import tvsports
+        tvsports.close_sports()
+    except Exception:
+        pass
 
     global _visible, _mode, _categories, _cat_idx, _item_idx, _show_data, _season_idx, _ep_idx, _search_query
     with _lock:
-        try:
-            tvguide.close()
-        except Exception:
-            pass
-
         if not playback.mpv_alive():
             playback.restore_last()
 

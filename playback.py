@@ -20,16 +20,61 @@ _monitor_stop = threading.Event()
 _current = {"channel": None, "media": None, "entry_id": None, "started_ts": 0, "is_vod": False, "vod_info": None}
 
 
+_HWDEC_DEFAULT = "drm,v4l2m2m-copy,auto-safe"
+
+
+def _hwdec_for(path):
+    """The zero-copy 'drm' hwdec path corrupts the picture (blue/blank frame, zero
+    frames ever actually composited per mpv's vo-passes) for HEVC on this hardware,
+    even though mpv reports it decoding fine. Originally confirmed on 10-bit HEVC
+    only; after the 6.18.50 kernel/firmware update the same corruption reproduced
+    on plain 8-bit HEVC too (rpi4_8, not just rpi4_10) -- so this now blanket-covers
+    any HEVC content rather than trust a bit-depth-based allowlist against a hardware
+    path that's proven unreliable more than once. A row here always means `path` is
+    the untouched original (a ready transcoded copy lives under a different path and
+    matches no media_files.path), so force software decode until that copy exists
+    rather than risk showing a corrupted frame."""
+    try:
+        con = database.connect()
+        try:
+            row = con.execute("SELECT vcodec FROM media_files WHERE path=?", (path,)).fetchone()
+        finally:
+            con.close()
+        if row and (row["vcodec"] or "").lower() in ("hevc", "h265"):
+            return "no"
+    except Exception:
+        log.exception("hwdec safety check failed for %s", path)
+    return _HWDEC_DEFAULT
+
+
 def _find_mpv():
     return next((p for p in config.MPV_CANDIDATES if os.path.isfile(p) and os.access(p, os.X_OK)), shutil.which("mpv"))
 
 
-def _mpv_env():
+def _wait_for_wayland(runtime, timeout=15):
+    """At boot, this service and the labwc/Wayland compositor start independently
+    (no systemd ordering between them) -- spawning mpv before the compositor's
+    socket exists leaves WAYLAND_DISPLAY unset, and mpv silently falls all the way
+    back to the 'sdl' video output (a blank/white screen with working audio,
+    easy to mistake for a hung player). Block briefly for the socket rather than
+    fail the first launch of the whole session."""
+    deadline = time.time() + timeout
+    while time.time() < deadline:
+        for display in ("wayland-0", "wayland-1"):
+            if os.path.exists(os.path.join(runtime, display)):
+                return
+        time.sleep(0.5)
+    log.warning("No Wayland socket appeared after %ss; mpv may fall back to a non-GPU video output", timeout)
+
+
+def _mpv_env(wait=False):
     env = dict(os.environ)
     if os.path.isdir(config.LD_LIB_DIR):
         env["LD_LIBRARY_PATH"] = config.LD_LIB_DIR + (":" + env["LD_LIBRARY_PATH"] if env.get("LD_LIBRARY_PATH") else "")
     runtime = f"/run/user/{os.getuid()}"
     env.setdefault("XDG_RUNTIME_DIR", runtime)
+    if wait:
+        _wait_for_wayland(runtime)
     for display in ("wayland-0", "wayland-1"):
         if os.path.exists(os.path.join(runtime, display)):
             env.setdefault("WAYLAND_DISPLAY", display)
@@ -156,7 +201,11 @@ def play_file(path, offset=0, channel=None, title=None):
     with _lock:
         if mpv_alive():
             # mpv 0.40 loadfile: filename, mode, playlist index, per-file options.
-            result = _ipc(["loadfile", path, "replace", -1, {"start": str(max(0, offset))}])
+            # hwdec is set per-file (not just at spawn) since a channel change can
+            # go from safe 8-bit content to a still-untranscoded 10-bit HEVC file
+            # (or back) within the same reused mpv process.
+            result = _ipc(["loadfile", path, "replace", -1,
+                            {"start": str(max(0, offset)), "hwdec": _hwdec_for(path)}])
             if result.get("error") == "success":
                 _ipc(["set_property", "pause", False])
                 _ipc(["set_property", "force-window", True])
@@ -170,13 +219,15 @@ def play_file(path, offset=0, channel=None, title=None):
         mpv = _find_mpv()
         if not mpv:
             return False
-        # Pi HEVC needs direct DRM frames: copying 4K 10-bit frames back to RAM
-        # overwhelms memory bandwidth and falls behind audio. Keep V4L2 copy
-        # decoding for H.264, with portable fallbacks for other receivers.
+        # Pi HEVC prefers direct DRM frames: copying 4K 10-bit frames back to RAM
+        # overwhelms memory bandwidth and falls behind audio. But zero-copy 'drm'
+        # corrupts the picture for any 10-bit HEVC file (confirmed on this hardware
+        # -- see scanner.needs_hw_transcode), so _hwdec_for() forces software decode
+        # for those specifically until a transcoded copy exists.
         cmd = [mpv, "--no-config", "--fullscreen", "--no-terminal", "--idle=yes",
                "--force-window=yes", "--keep-open=no", "--osc=no", "--osd-level=0",
                "--no-input-default-bindings", "--input-ipc-server=" + config.MPV_SOCKET,
-               "--profile=fast", "--hwdec=drm,v4l2m2m-copy,auto-safe", "--vd-lavc-threads=4",
+               "--profile=fast", "--hwdec=" + _hwdec_for(path), "--vd-lavc-threads=4",
                "--demuxer-max-bytes=32MiB", "--demuxer-max-back-bytes=8MiB",
                "--audio-device=" + audio_device(), "--audio-channels=stereo", "--audio-samplerate=48000",
                "--volume=" + database.get_state("volume", "80"),
@@ -187,7 +238,7 @@ def play_file(path, offset=0, channel=None, title=None):
             os.makedirs(config.LOGS_DIR, exist_ok=True)
             with open(os.path.join(config.LOGS_DIR, "mpv.log"), "a") as output:
                 log.info("Starting HDMI player: %s", cmd)
-                _proc = subprocess.Popen(cmd, env=_mpv_env(), stdout=output, stderr=output, start_new_session=True)
+                _proc = subprocess.Popen(cmd, env=_mpv_env(wait=True), stdout=output, stderr=output, start_new_session=True)
             # The Pi desktop permits negative nice values. Give video decoding
             # priority over Chromium card rendering; other hosts may forbid it.
             try:
@@ -258,6 +309,16 @@ def set_mute(muted):
 
 def pause_toggle():
     return _ipc(["cycle", "pause"]).get("error") == "success"
+
+
+def set_paused(paused):
+    return _ipc(["set_property", "pause", bool(paused)]).get("error") == "success"
+
+
+def seek_relative(seconds):
+    """Seek the current program; the schedule monitor still owns live boundaries."""
+    with _lock:
+        return _ipc(["seek", float(seconds), "relative"]).get("error") == "success"
 
 
 def set_cc(enabled):
