@@ -4,12 +4,18 @@ Run with: venv/bin/python tests/test_playwright.py
 """
 import sys
 import time
-from playwright.sync_api import sync_playwright
+try:
+    from playwright.sync_api import sync_playwright
+except ImportError:
+    sync_playwright = None
 
 BASE_URL = "http://127.0.0.1:5000"
 
 
 def run_e2e_tests():
+    if sync_playwright is None:
+        print("playwright not installed; skipping test.")
+        return
     print("=== Starting Playwright End-to-End Tests ===")
     errors_found = []
     
