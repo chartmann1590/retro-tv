@@ -165,13 +165,32 @@ class RetroTvApi(private val authManager: AuthManager) {
         null
     }
 
+    suspend fun getChannelNow(channelNumber: Int): NowPlayingResponse? = withContext(Dispatchers.IO) {
+        try {
+            val url = "${authManager.baseUrl}/api/now/$channelNumber"
+            val request = authRequest(url).build()
+            client.newCall(request).execute().use { resp ->
+                if (resp.isSuccessful) {
+                    return@withContext gson.fromJson(resp.body?.string(), NowPlayingResponse::class.java)
+                }
+            }
+        } catch (_: Exception) {}
+        null
+    }
+
     suspend fun getVodShow(showId: Int): VodShow? = withContext(Dispatchers.IO) {
         try {
             val url = "${authManager.baseUrl}/api/vod/show/$showId"
             val request = authRequest(url).build()
             client.newCall(request).execute().use { resp ->
                 if (resp.isSuccessful) {
-                    return@withContext gson.fromJson(resp.body?.string(), VodShow::class.java)
+                    val body = resp.body?.string() ?: return@use null
+                    val response = try {
+                        gson.fromJson(body, VodShowResponse::class.java)
+                    } catch (_: Exception) {
+                        null
+                    }
+                    return@withContext response?.show ?: gson.fromJson(body, VodShow::class.java)
                 }
             }
         } catch (_: Exception) {}
@@ -266,6 +285,15 @@ class RetroTvApi(private val authManager: AuthManager) {
 
     fun getArtUrl(mediaId: Int): String {
         return "${authManager.baseUrl}/api/vod/art?media_id=$mediaId"
+    }
+
+    fun resolveArtUrl(artPath: String?): String? {
+        if (artPath.isNullOrBlank()) return null
+        return when {
+            artPath.startsWith("http://") || artPath.startsWith("https://") -> artPath
+            artPath.startsWith("/") -> "${authManager.baseUrl}$artPath"
+            else -> "${authManager.baseUrl}/$artPath"
+        }
     }
 
     private fun authRequest(url: String): Request.Builder {

@@ -511,6 +511,26 @@ def api_tune():
 @app.route("/api/vod/art")
 def api_art():
     url = request.args.get("url")
+    media_id = request.args.get("media_id")
+    show_name = request.args.get("show")
+    if not url and media_id:
+        con = database.connect()
+        try:
+            row = con.execute("SELECT artwork FROM movies WHERE media_id=?", (media_id,)).fetchone()
+            if not row or not row["artwork"]:
+                row = con.execute("SELECT artwork FROM episodes WHERE media_id=?", (media_id,)).fetchone()
+            if row and row["artwork"]:
+                url = row["artwork"]
+        finally:
+            con.close()
+    if not url and show_name:
+        con = database.connect()
+        try:
+            row = con.execute("SELECT poster FROM shows WHERE name=?", (show_name,)).fetchone()
+            if row and row["poster"]:
+                url = row["poster"]
+        finally:
+            con.close()
     if not url:
         return "Missing url", 400
     import metadata

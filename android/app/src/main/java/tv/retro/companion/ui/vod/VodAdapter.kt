@@ -50,7 +50,7 @@ class VodAdapter(
                     }
                     binding.tvVodBadge.text = "MOVIE"
 
-                    val artUrl = app.api.getArtUrl(m.mediaId)
+                    val artUrl = app.api.resolveArtUrl(m.artwork) ?: app.api.getArtUrl(m.mediaId)
                     binding.ivPoster.load(artUrl) {
                         crossfade(true)
                     }
@@ -61,7 +61,8 @@ class VodAdapter(
                     binding.tvVodSub.text = "TV Series"
                     binding.tvVodBadge.text = "SERIES"
 
-                    val artUrl = "${app.authManager.baseUrl}/api/art?show=${s.name}"
+                    val artUrl = app.api.resolveArtUrl(if (!s.artwork.isNullOrBlank()) s.artwork else s.poster)
+                        ?: "${app.authManager.baseUrl}/api/art?show=${android.net.Uri.encode(s.name)}"
                     binding.ivPoster.load(artUrl) {
                         crossfade(true)
                     }

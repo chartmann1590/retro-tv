@@ -205,6 +205,8 @@ def get_catalog():
             "featured": featured,
             "total_movies": len(all_movies),
             "total_shows": len(all_shows),
+            "movies": all_movies,
+            "shows": all_shows,
             "categories": categories,
         }
         _catalog_cache["data"] = catalog

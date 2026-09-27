@@ -165,15 +165,45 @@ data class VodSeason(
 data class VodShow(
     val id: Int,
     val name: String,
+    val title: String? = "",
     val poster: String? = "",
+    val artwork: String? = "",
     val description: String? = "",
-    val episode_count: Int? = 0,
-    val season_count: Int? = 0,
+    @SerializedName("episode_count") val episode_count: Int? = 0,
+    @SerializedName("season_count") val season_count: Int? = 0,
     val seasons: List<VodSeason>? = null
 )
 
+data class VodCategory(
+    val id: String = "",
+    val title: String = "",
+    val badge: String? = "",
+    val type: String? = ""
+)
+
 data class VodCatalogResponse(
+    val ok: Boolean? = true,
+    @SerializedName("total_movies") val totalMovies: Int? = 0,
+    @SerializedName("total_shows") val totalShows: Int? = 0,
     val movies: List<VodMovie> = emptyList(),
     val shows: List<VodShow> = emptyList(),
-    val categories: List<String> = emptyList()
+    val categories: List<VodCategory> = emptyList()
+)
+
+data class VodShowResponse(
+    val ok: Boolean = true,
+    val show: VodShow? = null,
+    val error: String? = null
+)
+
+data class NowPlayingResponse(
+    val ok: Boolean = false,
+    val entry: GuideEntry? = null,
+    val offset: Double = 0.0,
+    val duration: Double = 0.0,
+    val range: String? = "",
+    @SerializedName("has_media") val hasMedia: Boolean = false,
+    @SerializedName("server_time") val serverTime: Double = 0.0,
+    @SerializedName("media_key") val mediaKey: String? = null,
+    val error: String? = null
 )

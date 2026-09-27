@@ -33,6 +33,8 @@ class LiveTvFragment : Fragment() {
     private var currentChannel: Channel? = null
     private lateinit var channelAdapter: ChannelAdapter
     private var pollJob: Job? = null
+    private var currentMediaKey: String? = null
+    private var isUpdatingPlayback: Boolean = false
 
     override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?): View {
         _binding = FragmentLiveTvBinding.inflate(inflater, container, false)
@@ -55,6 +57,9 @@ class LiveTvFragment : Fragment() {
                 override fun onPlaybackStateChanged(playbackState: Int) {
                     binding.playerLoading.visibility =
                         if (playbackState == Player.STATE_BUFFERING) View.VISIBLE else View.GONE
+                    if (playbackState == Player.STATE_ENDED) {
+                        syncLivePlayback(force = true)
+                    }
                 }
 
                 override fun onPlayerError(error: PlaybackException) {
@@ -89,6 +94,7 @@ class LiveTvFragment : Fragment() {
         binding.btnFullscreen.setOnClickListener {
             val ch = currentChannel ?: return@setOnClickListener
             val intent = Intent(requireContext(), PlayerActivity::class.java).apply {
+                putExtra(PlayerActivity.EXTRA_CHANNEL_NUMBER, ch.number)
                 putExtra(PlayerActivity.EXTRA_STREAM_URL, app.api.getLiveStreamUrl(ch.number))
                 putExtra(PlayerActivity.EXTRA_TITLE, "CH ${String.format("%02d", ch.number)} · ${ch.name}")
                 putExtra(PlayerActivity.EXTRA_SUBTITLE, binding.tvProgramTitle.text.toString())
@@ -112,27 +118,63 @@ class LiveTvFragment : Fragment() {
         val channel = channels.firstOrNull { it.number == channelNumber }
             ?: Channel(number = channelNumber, name = "CH $channelNumber")
         currentChannel = channel
+        currentMediaKey = null
         channelAdapter.setSelected(channelNumber)
 
         binding.tvChannelBadge.text = "CH " + String.format("%02d", channel.number)
         binding.tvChannelName.text = channel.name
 
-        // Play stream via ExoPlayer
-        val streamUrl = app.api.getLiveStreamUrl(channel.number)
-        val mediaItem = MediaItem.fromUri(streamUrl)
-        player?.setMediaItem(mediaItem)
-        player?.prepare()
-
-        updateNowPlaying()
+        syncLivePlayback(force = true)
         startMetadataPolling()
     }
 
-    private fun updateNowPlaying() {
+    private fun syncLivePlayback(force: Boolean = false) {
+        val ch = currentChannel ?: return
+        if (isUpdatingPlayback) return
+        isUpdatingPlayback = true
         lifecycleScope.launch {
-            val hdmi = app.api.getHdmiStatus()
-            if (hdmi != null && hdmi.channel == currentChannel?.number && hdmi.entry != null) {
-                binding.tvProgramTitle.text = hdmi.entry.title
-                binding.tvProgramSubtitle.text = hdmi.entry.subtitle ?: ""
+            try {
+                val nowResp = app.api.getChannelNow(ch.number)
+                if (nowResp != null && nowResp.ok) {
+                    val changed = currentMediaKey != null && currentMediaKey != nowResp.mediaKey
+                    val ended = player?.playbackState == Player.STATE_ENDED
+                    val targetOffsetMs = (nowResp.offset * 1000).toLong()
+
+                    if (currentMediaKey == null || changed || (force && ended)) {
+                        currentMediaKey = nowResp.mediaKey
+                        if (nowResp.hasMedia) {
+                            val streamUrl = "${app.api.getLiveStreamUrl(ch.number)}?program=${nowResp.mediaKey ?: ""}"
+                            val mediaItem = MediaItem.fromUri(streamUrl)
+                            player?.setMediaItem(mediaItem, targetOffsetMs)
+                            player?.prepare()
+                            player?.play()
+                        } else {
+                            player?.clearMediaItems()
+                        }
+                    } else if (!changed && player?.isPlaying == true) {
+                        val curPos = player?.currentPosition ?: 0L
+                        if (Math.abs(curPos - targetOffsetMs) > 12000L) {
+                            player?.seekTo(targetOffsetMs)
+                        }
+                    }
+
+                    if (nowResp.entry != null) {
+                        binding.tvProgramTitle.text = nowResp.entry.title
+                        val sub = buildString {
+                            nowResp.entry.subtitle?.let { append(it) }
+                            if (!nowResp.range.isNullOrBlank()) {
+                                if (isNotEmpty()) append(" · ")
+                                append(nowResp.range)
+                            }
+                        }
+                        binding.tvProgramSubtitle.text = sub
+                    } else {
+                        binding.tvProgramTitle.text = ch.name
+                        binding.tvProgramSubtitle.text = "No program scheduled"
+                    }
+                }
+            } finally {
+                isUpdatingPlayback = false
             }
         }
     }
@@ -141,8 +183,8 @@ class LiveTvFragment : Fragment() {
         pollJob?.cancel()
         pollJob = lifecycleScope.launch {
             while (isActive) {
-                updateNowPlaying()
-                delay(10000)
+                delay(5000)
+                syncLivePlayback()
             }
         }
     }
@@ -150,6 +192,7 @@ class LiveTvFragment : Fragment() {
     override fun onStart() {
         super.onStart()
         player?.playWhenReady = true
+        startMetadataPolling()
     }
 
     override fun onStop() {

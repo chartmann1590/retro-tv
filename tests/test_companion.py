@@ -3,6 +3,7 @@
 import json
 import os
 import tempfile
+import time
 import unittest
 from unittest.mock import patch
 
@@ -142,6 +143,67 @@ class CompanionTests(unittest.TestCase):
         self.assertTrue(len(entry["start_fmt"]) > 0)
         self.assertTrue(len(entry["end_fmt"]) > 0)
 
+    def test_api_vod_catalog_model_and_envelopes(self):
+        con = database.connect()
+        try:
+            con.execute("INSERT OR REPLACE INTO media_files(id, path, kind, duration) VALUES(201, '/tmp/test_movie.mp4', 'movie', 7200)")
+            con.execute("""INSERT OR REPLACE INTO movies(id, media_id, title, year, artwork, description)
+                           VALUES(1, 201, 'Test Movie', 2024, 'http://example.com/poster.jpg', 'A test movie')""")
+            con.execute("INSERT OR REPLACE INTO shows(id, name, poster, description) VALUES(1, 'Test Show', 'http://example.com/show.jpg', 'A test series')")
+            con.execute("INSERT OR REPLACE INTO media_files(id, path, kind, duration) VALUES(202, '/tmp/test_ep.mp4', 'episode', 1800)")
+            con.execute("""INSERT OR REPLACE INTO episodes(id, media_id, show_id, show_name, season, episode, title, description, artwork)
+                           VALUES(1, 202, 1, 'Test Show', 1, 1, 'Pilot', 'First ep', 'http://example.com/ep.jpg')""")
+            con.commit()
+        finally:
+            con.close()
+
+        # 1. Test /api/vod/catalog contains top-level movies, shows, and categories
+        res = self.client.get("/api/vod/catalog")
+        self.assertEqual(res.status_code, 200)
+        cat = res.get_json()
+        self.assertTrue(cat.get("ok"))
+        self.assertIn("movies", cat)
+        self.assertIn("shows", cat)
+        self.assertIn("categories", cat)
+        self.assertTrue(len(cat["movies"]) > 0)
+        self.assertTrue(len(cat["shows"]) > 0)
+
+        # 2. Test /api/vod/show/<id> unwraps {"ok": true, "show": {...}} with seasons array
+        show_res = self.client.get("/api/vod/show/1")
+        self.assertEqual(show_res.status_code, 200)
+        show_data = show_res.get_json()
+        self.assertTrue(show_data.get("ok"))
+        self.assertIn("show", show_data)
+        show = show_data["show"]
+        self.assertEqual(show["name"], "Test Show")
+        self.assertIn("seasons", show)
+        self.assertTrue(isinstance(show["seasons"], list))
+        self.assertEqual(len(show["seasons"]), 1)
+        self.assertEqual(show["seasons"][0]["season"], 1)
+        self.assertEqual(len(show["seasons"][0]["episodes"]), 1)
+
+    def test_api_now_live_sync_offset_and_key(self):
+        con = database.connect()
+        try:
+            con.execute("INSERT OR REPLACE INTO channels(number, name, enabled) VALUES(1, 'Retro 1', 1)")
+            now = time.time()
+            con.execute("INSERT OR REPLACE INTO media_files(id, path, kind, duration) VALUES(301, '/tmp/prog.mp4', 'movie', 1800)")
+            con.execute("""INSERT INTO schedule_entries(channel_number, start_ts, end_ts, kind, media_id, title, day)
+                           VALUES(1, ?, ?, 'movie', 301, 'Live Movie', 'today')""", (now - 300, now + 1500))
+            con.commit()
+        finally:
+            con.close()
+
+        res = self.client.get("/api/now/1")
+        self.assertEqual(res.status_code, 200)
+        data = res.get_json()
+        self.assertTrue(data.get("ok"))
+        self.assertIn("offset", data)
+        self.assertIn("media_key", data)
+        self.assertIn("duration", data)
+        self.assertTrue(data["offset"] >= 290)
+
 
 if __name__ == "__main__":
     unittest.main()
+
