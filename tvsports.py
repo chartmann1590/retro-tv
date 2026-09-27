@@ -394,10 +394,10 @@ def render():
         def box(x, y, w, h, color):
             ass.append(f"{{\\an7\\pos({x},{y})\\bord0\\shad0\\1c&H{_color(color)}&\\p1}}m 0 0 l {w} 0 {w} {h} 0 {h}{{\\p0}}")
 
-        def text(x, y, value, size=24, color="EFF2E9", clip=None, bold=False):
+        def text(x, y, value, size=24, color="EFF2E9", clip=None, bold=False, align=7):
             clipping = f"\\clip({clip[0]},{clip[1]},{clip[2]},{clip[3]})" if clip else ""
             bld = "\\b1" if bold else "\\b0"
-            ass.append(f"{{\\an7\\pos({x},{y})\\fnDejaVu Sans\\fs{size}{bld}\\bord0\\shad0\\1c&H{_color(color)}&{clipping}}}{_text(value)}")
+            ass.append(f"{{\\an{align}\\pos({x},{y})\\fnDejaVu Sans\\fs{size}{bld}\\bord0\\shad0\\1c&H{_color(color)}&{clipping}}}{_text(value)}")
 
         def clock_str():
             return datetime.now(scheduler.TZ).strftime("%-I:%M %p")
@@ -553,11 +553,15 @@ def _render_browse(ass, box, text):
         else:
             text(cx + 14, cy + 98, c_status.get("shortDetail") or "Scheduled", 13, "8E9EAF")
 
-        # Mini Sport Field / Graphic Box
+        # Mini Sport Graphic Box
         box(cx + 14, cy + 130, card_w - 28, 110, "09121D")
-        s_icon = "🏈" if card.get("sport") == "football" else ("⚾" if card.get("sport") == "baseball" else ("🏀" if card.get("sport") == "basketball" else ("🏒" if card.get("sport") == "hockey" else "⚽")))
-        text(cx + 90, cy + 165, s_icon, 34, "F8CB63")
-        text(cx + 20, cy + 215, (card.get("shortName") or card.get("name", ""))[:20], 12, "8E9EAF", clip=(cx+14, cy+210, cx+card_w-14, cy+235))
+        s_tag = (card.get("league") or card.get("sport") or "SPORT").upper()[:8]
+        box(cx + 45, cy + 152, card_w - 90, 26, "1A3352")
+        text(cx + 55, cy + 158, s_tag, 13, "F8CB63", bold=True)
+        # Matchup abbreviation line
+        m_tag = f"{c_away.get('abbreviation') or 'AWY'} vs {c_home.get('abbreviation') or 'HME'}"
+        text(cx + 35, cy + 188, m_tag, 14, "FFFFFF", bold=True)
+        text(cx + 20, cy + 218, (card.get("shortName") or card.get("name", ""))[:22], 11, "8E9EAF", clip=(cx+14, cy+212, cx+card_w-14, cy+235))
 
         # Bottom info
         sub_text = c_status.get("detail") or ""
@@ -589,21 +593,25 @@ def _render_game(ass, box, text):
     box(40, 128, 1200, 120, "0F1B2C")
     box(40, 128, 6, 120, "E50914")
 
+    name_away = (away.get("shortDisplayName") or away.get("displayName") or "Away").upper()
+    name_home = (home.get("shortDisplayName") or home.get("displayName") or "Home").upper()
+
     # Away team
-    text(62, 142, (away.get("displayName") or "Away").upper(), 26, "FFFFFF", bold=True)
+    text(62, 142, name_away, 26, "FFFFFF", bold=True)
     text(62, 178, f"Record: {away.get('recordSummary', '--')}", 15, "8E9EAF")
-    text(420, 150, str(away.get("score", 0) if (is_live or is_final) else "--"), 48, "F8CB63", bold=True)
+    text(380, 150, str(away.get("score", 0) if (is_live or is_final) else "--"), 44, "F8CB63", bold=True)
 
     # Status / Clock Center
-    box(520, 140, 240, 96, "152840")
-    text(640, 152, "● LIVE" if is_live else ("FINAL" if is_final else "SCHEDULED"), 14, "E50914" if is_live else "F8CB63", bold=True)
-    text(640, 178, status.get("detail") or "Today", 15, "FFFFFF", bold=True)
+    box(480, 140, 320, 96, "152840")
+    text(640, 152, "● LIVE" if is_live else ("FINAL" if is_final else "SCHEDULED"), 14, "E50914" if is_live else "F8CB63", bold=True, align=8)
+    time_label = status.get("shortDetail") or status.get("detail") or "Today"
+    text(640, 178, time_label, 15, "FFFFFF", bold=True, align=8)
     if is_live and status.get("displayClock"):
-        text(640, 204, status["displayClock"], 14, "8E9EAF")
+        text(640, 204, status["displayClock"], 14, "8E9EAF", align=8)
 
     # Home team
-    text(800, 150, str(home.get("score", 0) if (is_live or is_final) else "--"), 48, "F8CB63", bold=True)
-    text(890, 142, (home.get("displayName") or "Home").upper(), 26, "FFFFFF", bold=True)
+    text(820, 150, str(home.get("score", 0) if (is_live or is_final) else "--"), 44, "F8CB63", bold=True)
+    text(890, 142, name_home, 26, "FFFFFF", bold=True)
     text(890, 178, f"Record: {home.get('recordSummary', '--')}", 15, "8E9EAF")
 
     # 3. Field Radar / Vector Gameplay Field
@@ -636,11 +644,11 @@ def _render_game(ass, box, text):
         box(bx - 2, fy, 4, fh, "2196F3")  # Blue line of scrimmage
         # Football
         box(bx - 8, fy + int(fh / 2) - 6, 16, 12, "F8CB63")
-        text(bx - 4, fy + int(fh / 2) - 5, "🏈", 10, "000000")
+        text(bx - 3, fy + int(fh / 2) - 5, "●", 10, "000000")
 
         # Down & distance banner
         down_dist = situation.get("downDistanceText") or "1st & 10"
-        text(560, 440, f"🏈 {down_dist.upper()}", 15, "F8CB63", bold=True)
+        text(560, 440, f"▶ {down_dist.upper()}", 15, "F8CB63", bold=True)
 
     elif sport == "baseball":
         # Diamond representation

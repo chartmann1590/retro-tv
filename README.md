@@ -23,6 +23,13 @@ media on the local network.
 
 <table>
 <tr>
+<td width="50%"><img src="screenshots/tv-vod.png" width="100%" alt="On-TV VOD Menu"><br><em><b>On-TV VOD Menu</b> — native high-performance mpv ASS overlay for browsing movies &amp; shows with remote D-pad directly on HDMI TV</em></td>
+<td width="50%"><img src="screenshots/tv-sports.png" width="100%" alt="On-TV Sports Center"><br><em><b>On-TV Sports Center</b> — native TV overlay displaying live scoreboards, league categories, and game matchups</em></td>
+</tr>
+<tr>
+<td colspan="2" width="100%"><img src="screenshots/tv-sports-game.png" width="100%" alt="On-TV Sports Game Center with Field Radar"><br><em><b>On-TV Game Center &amp; Field Radar</b> — vector football gridiron radar, line of scrimmage marker, box score, and one-click neural TTS play-by-play announcer on TV</em></td>
+</tr>
+<tr>
 <td width="50%"><img src="screenshots/vod.png" width="100%" alt="Retroflix Video On Demand"><br><em><b>On Demand (VOD)</b> — spotlight hero billboard, category carousels, instant search, and one-click play on TV (`/vod`)</em></td>
 <td width="50%"><img src="screenshots/sports.png" width="100%" alt="Retro Sports Center and Live Gameplay Field Radar"><br><em><b>Sports Center</b> — live scores, vector SVG gameplay field radars (football, baseball, basketball, hockey, soccer) (`/sports`)</em></td>
 </tr>

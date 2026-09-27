@@ -632,8 +632,11 @@
     <!-- Interactive Showcase TV Bezel -->
     <div class="showcase-tabs">
       <button class="tab-btn active" onclick="switchTvScreen('screenshots/hdmi-tv.png', this)">📺 Live HDMI TV</button>
-      <button class="tab-btn" onclick="switchTvScreen('screenshots/vod.png', this)">🎬 On Demand (VOD)</button>
-      <button class="tab-btn" onclick="switchTvScreen('screenshots/sports.png', this)">🏈 Live Sports &amp; Radar</button>
+      <button class="tab-btn" onclick="switchTvScreen('screenshots/tv-vod.png', this)">📺 On-TV VOD</button>
+      <button class="tab-btn" onclick="switchTvScreen('screenshots/tv-sports.png', this)">📺 On-TV Sports</button>
+      <button class="tab-btn" onclick="switchTvScreen('screenshots/tv-sports-game.png', this)">📺 On-TV Field Radar</button>
+      <button class="tab-btn" onclick="switchTvScreen('screenshots/vod.png', this)">🎬 Web VOD</button>
+      <button class="tab-btn" onclick="switchTvScreen('screenshots/sports.png', this)">🏈 Web Sports</button>
       <button class="tab-btn" onclick="switchTvScreen('screenshots/sports-game.png', this)">🏟️ Game Center Modal</button>
       <button class="tab-btn" onclick="switchTvScreen('screenshots/weather.png', this)">⛅ Local Weather Scan</button>
       <button class="tab-btn" onclick="switchTvScreen('screenshots/guide.png', this)">📅 TV Guide Grid</button>
@@ -746,7 +749,43 @@
         </div>
       </div>
 
-      <!-- 2. VOD -->
+      <!-- 2. On-TV VOD Overlay -->
+      <div class="gallery-item" onclick="openLightbox('screenshots/tv-vod.png', 'On-TV VOD Menu — Native mpv ASS overlay with category carousels and remote D-pad browsing')">
+        <div class="gallery-thumb-wrap">
+          <img src="screenshots/tv-vod.png" alt="On-TV VOD Overlay" loading="lazy">
+        </div>
+        <div class="gallery-info">
+          <span class="gallery-tag">On-TV Interface</span>
+          <h4>On-TV VOD Menu</h4>
+          <p>Native high-performance mpv ASS overlay for browsing movies and episodes directly on your television screen.</p>
+        </div>
+      </div>
+
+      <!-- 3. On-TV Sports Center -->
+      <div class="gallery-item" onclick="openLightbox('screenshots/tv-sports.png', 'On-TV Sports Center — Live scoreboards, league carousels, and upcoming game schedules')">
+        <div class="gallery-thumb-wrap">
+          <img src="screenshots/tv-sports.png" alt="On-TV Sports Center" loading="lazy">
+        </div>
+        <div class="gallery-info">
+          <span class="gallery-tag">On-TV Interface</span>
+          <h4>On-TV Sports Center</h4>
+          <p>Hardware-accelerated TV overlay displaying live scoreboards, league categories, and game matchups over HDMI.</p>
+        </div>
+      </div>
+
+      <!-- 4. On-TV Field Radar Game Center -->
+      <div class="gallery-item" onclick="openLightbox('screenshots/tv-sports-game.png', 'On-TV Game Center — Football gridiron radar, line of scrimmage, box scores, and neural announcer')">
+        <div class="gallery-thumb-wrap">
+          <img src="screenshots/tv-sports-game.png" alt="On-TV Game Center & Field Radar" loading="lazy">
+        </div>
+        <div class="gallery-info">
+          <span class="gallery-tag">On-TV Interface</span>
+          <h4>On-TV Field Radar &amp; Audio</h4>
+          <p>Interactive vector football field radar, line of scrimmage, box score, and one-click neural TTS play-by-play announcer on TV.</p>
+        </div>
+      </div>
+
+      <!-- 5. Web VOD -->
       <div class="gallery-item" onclick="openLightbox('screenshots/vod.png', 'Retroflix On Demand — Spotlight hero billboard, category carousels, and instant search')">
         <div class="gallery-thumb-wrap">
           <img src="screenshots/vod.png" alt="On Demand VOD" loading="lazy">
@@ -957,7 +996,10 @@
 
       const captions = {
         'screenshots/hdmi-tv.png': 'Classic Cable Box Channel Change Banner · Always-Live Schedule',
-        'screenshots/vod.png': 'Retroflix On Demand · Spotlight Billboard &amp; Category Carousels',
+        'screenshots/tv-vod.png': 'On-TV VOD Menu · Native mpv ASS Overlay with Remote Navigation',
+        'screenshots/tv-sports.png': 'On-TV Sports Center · Live Scoreboard Overlay with Category Carousel',
+        'screenshots/tv-sports-game.png': 'On-TV Game Center · Vector Football Field Radar, Line of Scrimmage &amp; Announcer',
+        'screenshots/vod.png': 'Retroflix Web VOD Catalog · Spotlight Billboard &amp; Category Carousels',
         'screenshots/sports.png': 'Retro Sports Center · Vector Gameplay Field Radar &amp; Live Scores',
         'screenshots/sports-game.png': 'Game Center Modal · Real-Time Box Score &amp; Neural Announcer',
         'screenshots/weather.png': 'Local Weather Scan · Current Observations, Radar &amp; 7-Day Outlook',
