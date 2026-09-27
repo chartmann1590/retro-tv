@@ -39,8 +39,11 @@ async function loadTranscodeStatus(){
   const phoneState=!p.connected?'Disconnected':!p.installed?'Connected · transcoder missing':
     p.ready?'Connected · ready':'Connected · cooling before next job';
   const phoneTemp=p.temperature_c==null?'':` · ${Number(p.temperature_c).toFixed(1)}°C`;
-  parts.push(`<div class="panel" style="margin-bottom:14px"><b>📱 Phone transcoder:</b> ${esc(p.model||'Android phone')} · ${phoneState}${phoneTemp}<br>
-    <span class="hint">${s.phone_completed||0} shows converted on phone · Pi and phone conversion jobs run one at a time</span></div>`);
+  const batteryPause=p.battery_throttle_enabled?'ON':'OFF';
+  parts.push(`<div class="panel" style="margin-bottom:14px"><div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap">
+    <div><b>Phone transcoder:</b> ${esc(p.model||'Android phone')} · ${phoneState}${phoneTemp}</div>
+    <button class="ghost" style="margin:0 0 0 auto;white-space:nowrap" onclick="togglePhoneBatteryThrottle()" aria-label="Toggle phone battery temperature pause">Battery pause: ${batteryPause}</button>
+  </div></div>`);
   if(s.running){
     const r=s.running;
     const phase=r.worker==='phone'&&r.percent==null?'Sending source to phone · ':'';
@@ -206,8 +209,9 @@ async function restartPb(){const r=await jpost('/api/restart-playback',{});alert
 async function toggleCC(){const s=await jget('/api/captions');await jpost('/api/captions',{enabled:s.cc!=='1'});loadHdmi();}
 async function loadSys(){const s=await jget('/api/system');document.getElementById('sys').innerHTML=`<pre>${JSON.stringify({system_health:s.system_health,playback_health:s.playback_health,disk:s.disk,mpv:s.mpv,sessions:s.sessions},null,2)}</pre>`;
   document.getElementById('streams').innerHTML=(s.sessions||[]).map(x=>`<div>${esc(x.id)} ch${x.channel}</div>`).join('')||'no browser sessions';}
-async function loadSets(){const r=await jget('/api/settings');document.getElementById('sets').innerHTML=Object.entries(r.settings).map(([k,v])=>`<div class="kv"><label>${k}</label><input id="set-${k}" value="${esc(v)}"></div>`).join('');}
-async function saveSets(){const o={};document.querySelectorAll('#sets input').forEach(i=>o[i.id.slice(4)]=i.value);await jpost('/api/settings',o);alert('Saved');}
+async function loadSets(){const r=await jget('/api/settings');document.getElementById('phoneBatteryThrottle').value=r.settings.phone_battery_throttle_enabled||'0';document.getElementById('sets').innerHTML=Object.entries(r.settings).filter(([k])=>k!=='phone_battery_throttle_enabled').map(([k,v])=>`<div class="kv"><label>${k}</label><input id="set-${k}" value="${esc(v)}"></div>`).join('');}
+async function saveSets(){const o={phone_battery_throttle_enabled:document.getElementById('phoneBatteryThrottle').value};document.querySelectorAll('#sets input').forEach(i=>o[i.id.slice(4)]=i.value);const r=await jpost('/api/settings',o);if(r.ok){loadTranscodeStatus();alert('Saved');}else alert(r.error||'Save failed');}
+async function togglePhoneBatteryThrottle(){const s=await jget('/api/transcode/status');const enabled=!s.phone.battery_throttle_enabled;const r=await jpost('/api/settings',{phone_battery_throttle_enabled:enabled?'1':'0'});if(r.ok){loadTranscodeStatus();loadSets();}else alert(r.error||'Save failed');}
 async function loadLogs(){const r=await jget('/api/logs');document.getElementById('logs').textContent=(r.lines||[]).join('');}
 
 // ---------- reminders ----------

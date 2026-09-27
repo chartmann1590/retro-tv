@@ -74,6 +74,7 @@ DEFAULT_SETTINGS = {
     "gotify_enabled": "0",
     "gotify_url": "",
     "gotify_token": "",
+    "phone_battery_throttle_enabled": "0",
 }
 
 # Optional mpv audio-device override; otherwise discover the HDMI sink.
@@ -123,4 +124,3 @@ SPORTS_REFRESH_SEC = 15 * 60
 REMINDER_LEAD_SEC = 120
 REMINDER_CHECK_INTERVAL_SEC = 15
 REMINDER_OSD_MS = 10000
-

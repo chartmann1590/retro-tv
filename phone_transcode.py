@@ -11,13 +11,14 @@ import threading
 import time
 
 import config
+import database
 
 log = logging.getLogger("retro-tv.phone-transcode")
 
 PHONE_FFMPEG = "/data/local/tmp/retro-tv-ffmpeg"
 PHONE_DIR = "/data/local/tmp/retro-tv-transcode"
-PHONE_PAUSE_C = 46.5
-CHUNK_SECONDS = 20
+BATTERY_PAUSE_C = 46.5
+CHUNK_SECONDS = 60
 SEEK_PREROLL_SECONDS = 10
 _status_lock = threading.Lock()
 _status_cache = (0.0, None)
@@ -50,21 +51,29 @@ def thermal_status():
         return None
 
 
+def battery_throttle_enabled():
+    return database.get_setting("phone_battery_throttle_enabled", "0") == "1"
+
+
 def _too_hot():
     temp = battery_temp_c()
     severity = thermal_status()
-    return temp is None or temp >= PHONE_PAUSE_C or (severity is not None and severity >= 2), temp
+    battery_pause = battery_throttle_enabled() and (temp is None or temp >= BATTERY_PAUSE_C)
+    return battery_pause or severity is None or severity >= 2, temp
 
 
 def status():
     """Return a short-lived snapshot for both scheduling and the admin page."""
     global _status_cache, _screen_opened
+    battery_enabled = battery_throttle_enabled()
     with _status_lock:
-        if time.monotonic() - _status_cache[0] < 5 and _status_cache[1] is not None:
+        if (time.monotonic() - _status_cache[0] < 5 and _status_cache[1] is not None
+                and _status_cache[1]["battery_throttle_enabled"] == battery_enabled):
             return dict(_status_cache[1])
     result = {"connected": False, "installed": False, "ready": False,
               "model": "", "temperature_c": None, "thermal_status": None,
-              "pause_at_c": PHONE_PAUSE_C}
+              "battery_throttle_enabled": battery_enabled,
+              "pause_at_c": BATTERY_PAUSE_C if battery_enabled else None}
     try:
         state = _adb("get-state", timeout=5, capture_output=True, text=True)
         if state.returncode == 0 and state.stdout.strip() == "device":
@@ -77,9 +86,10 @@ def status():
             result["model"] = model.stdout.strip() if model.returncode == 0 else "Android phone"
             result["temperature_c"] = battery_temp_c()
             result["thermal_status"] = thermal_status()
-            result["ready"] = (result["installed"] and result["temperature_c"] is not None
-                               and result["temperature_c"] < PHONE_PAUSE_C
-                               and (result["thermal_status"] is None or result["thermal_status"] < 2))
+            result["ready"] = (result["installed"] and result["thermal_status"] is not None
+                               and result["thermal_status"] < 2
+                               and (not battery_enabled or (result["temperature_c"] is not None
+                                    and result["temperature_c"] < BATTERY_PAUSE_C)))
     except (OSError, subprocess.TimeoutExpired):
         pass
     with _status_lock:
@@ -218,15 +228,14 @@ def reset(media_id):
 
 
 def encode(src_path, out_path, media_id, source_duration):
-    """Resume 30-second phone sections, then join them without re-encoding on Pi."""
+    """Resume saved phone sections, then join them without re-encoding on Pi."""
     remote_src = f"{PHONE_DIR}/{media_id}.source"
     remote_out = f"{PHONE_DIR}/{media_id}.part.mkv"
     remote_progress = f"{PHONE_DIR}/{media_id}.progress"
     parts_dir = _parts_dir(media_id)
     source_stat = os.stat(src_path)
-    fingerprint = {"path": src_path, "size": source_stat.st_size,
-                   "mtime_ns": source_stat.st_mtime_ns, "duration": source_duration,
-                   "chunk_seconds": CHUNK_SECONDS}
+    source_fingerprint = {"path": src_path, "size": source_stat.st_size,
+                          "mtime_ns": source_stat.st_mtime_ns, "duration": source_duration}
     try:
         manifest_path = os.path.join(parts_dir, "manifest.json")
         try:
@@ -234,6 +243,18 @@ def encode(src_path, out_path, media_id, source_duration):
                 existing = json.load(manifest_file)
         except (OSError, ValueError):
             existing = None
+        # Keep the section length of an existing job so a tuning change never
+        # discards already validated sections on the SSD.
+        chunk_seconds = CHUNK_SECONDS
+        if isinstance(existing, dict) and all(
+                existing.get(key) == value for key, value in source_fingerprint.items()):
+            try:
+                saved_chunk_seconds = int(existing.get("chunk_seconds"))
+                if 5 <= saved_chunk_seconds <= 300:
+                    chunk_seconds = saved_chunk_seconds
+            except (TypeError, ValueError):
+                pass
+        fingerprint = {**source_fingerprint, "chunk_seconds": chunk_seconds}
         if existing != fingerprint:
             shutil.rmtree(parts_dir, ignore_errors=True)
             os.makedirs(parts_dir, exist_ok=True)
@@ -242,14 +263,14 @@ def encode(src_path, out_path, media_id, source_duration):
         duration = float(source_duration)
         if duration <= 0:
             return False, "source duration unavailable"
-        total_chunks = math.ceil(duration / CHUNK_SECONDS)
-        if total_chunks > 1 and duration - (total_chunks - 1) * CHUNK_SECONDS < 1:
+        total_chunks = math.ceil(duration / chunk_seconds)
+        if total_chunks > 1 and duration - (total_chunks - 1) * chunk_seconds < 1:
             total_chunks -= 1
         completed = 0
         while completed < total_chunks:
             part = os.path.join(parts_dir, f"part_{completed:05d}.mkv")
-            expected = (duration - completed * CHUNK_SECONDS if completed == total_chunks - 1
-                        else CHUNK_SECONDS)
+            expected = (duration - completed * chunk_seconds if completed == total_chunks - 1
+                        else chunk_seconds)
             if not os.path.isfile(part) or not _valid_chunk(part, expected):
                 break
             completed += 1
@@ -265,18 +286,18 @@ def encode(src_path, out_path, media_id, source_duration):
             _adb("push", src_path, remote_src, timeout=3600, check=True,
                  stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)
         if _too_hot()[0]:
-            return False, "phone too hot after transfer"
+            return False, "phone thermal pause after transfer"
         while completed < total_chunks:
-            start = completed * CHUNK_SECONDS
-            length = duration - start if completed == total_chunks - 1 else CHUNK_SECONDS
+            start = completed * chunk_seconds
+            length = duration - start if completed == total_chunks - 1 else chunk_seconds
             seek_start = max(0, start - SEEK_PREROLL_SECONDS)
             decode_skip = start - seek_start
             if _too_hot()[0]:
-                return False, f"phone cooling after {completed}/{total_chunks} sections"
+                return False, f"phone thermal pause after {completed}/{total_chunks} sections"
             with open(os.path.join(parts_dir, "active.json"), "w") as state_file:
                 json.dump({"start": start, "total": duration}, state_file)
             command = ["shell", PHONE_FFMPEG, "-y", "-hide_banner", "-loglevel", "error",
-                       "-threads", "2", "-filter_threads", "1", "-ss", str(seek_start),
+                       "-threads", "6", "-filter_threads", "1", "-ss", str(seek_start),
                        "-i", remote_src, "-ss", str(decode_skip), "-t", str(length), "-map", "0:v:0",
                        "-map", "0:a:0?", "-pix_fmt", "nv12"]
             if width > 1280:
@@ -301,7 +322,7 @@ def encode(src_path, out_path, media_id, source_duration):
                         except subprocess.TimeoutExpired:
                             process.kill()
                             process.communicate()
-                        return False, f"phone paused at {temp} C after {completed}/{total_chunks} sections"
+                        return False, f"phone thermal pause with battery at {temp} C after {completed}/{total_chunks} sections"
             if process.returncode:
                 return False, (stderr or "phone encoder failed")[-2000:]
             local_tmp = os.path.join(parts_dir, f"part_{completed:05d}.tmp")

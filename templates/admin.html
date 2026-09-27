@@ -42,8 +42,12 @@
 <div class="tab" id="t-stream"><h2>BROWSER STREAMING</h2><div id="streams"></div></div>
 <div class="tab" id="t-sys"><h2>SYSTEM</h2><div id="sys"></div>
 <button class="ghost" onclick="alert('Run scripts/install.sh with sudo to reboot host; user service cannot reboot.')">REBOOT PI</button></div>
-<div class="tab" id="t-set"><h2>SETTINGS</h2><div id="sets"></div><button onclick="saveSets()">SAVE</button></div>
+<div class="tab" id="t-set"><h2>SETTINGS</h2>
+<div class="kv"><label for="phoneBatteryThrottle">Phone battery temperature pause</label>
+<select id="phoneBatteryThrottle"><option value="0">Off — let the phone run</option><option value="1">On — pause at 46.5°C</option></select></div>
+<p class="hint">Android's own moderate thermal-status pause stays active in both modes.</p>
+<div id="sets"></div><button onclick="saveSets()">SAVE</button></div>
 <div class="tab" id="t-logs"><h2>LOGS</h2><button class="ghost" onclick="loadLogs()">REFRESH</button><pre class="logs" id="logs"></pre></div>
 </div>
 {% endblock %}
-{% block js %}<script src="/static/js/admin.js?v=7"></script>{% endblock %}
+{% block js %}<script src="/static/js/admin.js?v=9"></script>{% endblock %}

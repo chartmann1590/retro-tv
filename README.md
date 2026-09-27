@@ -302,9 +302,10 @@ adequately cooled for sustained playback.
 An ADB-connected Android arm64 phone can handle the background queue at 720p
 instead of loading the Pi. Install the pinned phone binary with
 `bash scripts/install_phone_transcoder.sh`, then leave USB debugging connected.
-The phone and Pi never convert shows at the same time. Phone work pauses when
-the battery reaches 46.5°C or Android reports moderate thermal stress, and
-resumes from completed sections after cooling. `/admin` shows the worker,
+The phone and Pi never convert shows at the same time. The battery temperature
+is shown for monitoring. The Admin Settings page can enable a 46.5°C battery
+pause; it is off by default. Phone work always pauses when Android reports
+moderate thermal stress and resumes from completed sections afterward. `/admin` shows the worker,
 temperature, and progress; the phone displays the same status at
 `http://127.0.0.1:5000/phone-transcode` through ADB USB forwarding.
 

@@ -47,7 +47,8 @@ def playable_path(row):
 def next_pending(con):
     return con.execute(
         """SELECT id, path, duration FROM media_files WHERE transcode_status='pending'
-           ORDER BY CASE WHEN transcode_error LIKE 'phone: phone paused%'
+           ORDER BY CASE WHEN transcode_error LIKE 'phone: phone thermal pause%'
+                              OR transcode_error LIKE 'phone: phone paused%'
                               OR transcode_error LIKE 'phone: phone cooling%'
                               OR transcode_error LIKE 'phone: phone too hot%' THEN 0
                          WHEN transcode_error LIKE 'phone:%' THEN 2 ELSE 1 END,
@@ -356,7 +357,15 @@ def run_loop(stop_event=None):
             finally:
                 con.close()
             if job and os.path.isfile(job["path"]):
-                use_phone = phone_transcode.available()
+                phone_state = phone_transcode.status()
+                # Keep a saved phone job on the phone while Android cools. A
+                # temporary thermal pause must not restart it on the Pi.
+                if ((phone_state["connected"] and phone_state["installed"] and not phone_state["ready"])
+                        or (not phone_state["ready"] and
+                            phone_transcode.partial_status(job["id"], job["duration"]))):
+                    stop_event.wait(30)
+                    continue
+                use_phone = phone_state["ready"]
                 temp = _cpu_temp_c()
                 if not use_phone and temp is not None and temp >= THERMAL_PAUSE_C:
                     stop_event.wait(30)

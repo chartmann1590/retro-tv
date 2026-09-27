@@ -7,10 +7,40 @@ from unittest.mock import patch
 
 import config
 import database
+import phone_transcode
 import transcode
 
 
 class TranscodeReplacementTests(unittest.TestCase):
+    def test_phone_battery_pause_defaults_off_and_can_be_saved(self):
+        with tempfile.TemporaryDirectory() as root, \
+             patch.object(config, "DATA_DIR", root), \
+             patch.object(config, "DB_PATH", os.path.join(root, "test.db")):
+            database.init_db()
+            self.assertEqual(database.get_setting("phone_battery_throttle_enabled"), "0")
+            database.set_setting("phone_battery_throttle_enabled", "1")
+            self.assertTrue(phone_transcode.battery_throttle_enabled())
+            database.set_setting("phone_battery_throttle_enabled", "0")
+            self.assertFalse(phone_transcode.battery_throttle_enabled())
+
+    def test_phone_uses_android_thermal_status_for_pause(self):
+        with patch.object(phone_transcode, "battery_temp_c", return_value=50.0), \
+             patch.object(phone_transcode, "thermal_status", return_value=0), \
+             patch.object(phone_transcode, "battery_throttle_enabled", return_value=False):
+            self.assertEqual(phone_transcode._too_hot(), (False, 50.0))
+        with patch.object(phone_transcode, "battery_temp_c", return_value=50.0), \
+             patch.object(phone_transcode, "thermal_status", return_value=0), \
+             patch.object(phone_transcode, "battery_throttle_enabled", return_value=True):
+            self.assertEqual(phone_transcode._too_hot(), (True, 50.0))
+        with patch.object(phone_transcode, "battery_temp_c", return_value=40.0), \
+             patch.object(phone_transcode, "thermal_status", return_value=2), \
+             patch.object(phone_transcode, "battery_throttle_enabled", return_value=False):
+            self.assertEqual(phone_transcode._too_hot(), (True, 40.0))
+        with patch.object(phone_transcode, "battery_temp_c", return_value=40.0), \
+             patch.object(phone_transcode, "thermal_status", return_value=None), \
+             patch.object(phone_transcode, "battery_throttle_enabled", return_value=False):
+            self.assertEqual(phone_transcode._too_hot(), (True, 40.0))
+
     def test_verified_copy_replaces_source_and_keeps_media_id(self):
         with tempfile.TemporaryDirectory() as root:
             source = os.path.join(root, "original.mkv")

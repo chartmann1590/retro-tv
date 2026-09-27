@@ -24,7 +24,9 @@ async function update(){
     connection.textContent=phone.connected?(phone.ready?'Connected · ready':'Connected · cooling'):'Phone disconnected';
     connection.className='status '+(phone.ready?'good':phone.connected?'warm':'bad');
     document.getElementById('temperature').textContent=(phone.model||'Android phone')+
-      (phone.temperature_c==null?'':' · battery '+Number(phone.temperature_c).toFixed(1)+'°C · pauses at '+phone.pause_at_c+'°C');
+      (phone.temperature_c==null?'':' · battery '+Number(phone.temperature_c).toFixed(1)+'°C')+
+      (phone.thermal_status==null?'':' · Android thermal status '+phone.thermal_status)+
+      (phone.battery_throttle_enabled?' · battery pause at '+phone.pause_at_c+'°C':' · battery pause off');
     document.getElementById('completed').textContent=data.phone_completed||0;
     document.getElementById('queued').textContent=(data.pending||[]).length;
     const job=document.getElementById('job');
