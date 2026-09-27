@@ -1,6 +1,9 @@
 package tv.retro.companion.data.model
 
 import com.google.gson.annotations.SerializedName
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 
 data class ServerIdentity(
     val app: String = "",
@@ -99,7 +102,27 @@ data class GuideEntry(
     val duration: Double? = 0.0,
     @SerializedName("start_fmt") val startFmt: String? = "",
     @SerializedName("end_fmt") val endFmt: String? = ""
-)
+) {
+    fun getFormattedStartTime(): String {
+        if (!startFmt.isNullOrBlank()) return startFmt
+        if (startTs <= 0.0) return ""
+        val sdf = SimpleDateFormat("h:mm a", Locale.getDefault())
+        return sdf.format(Date((startTs * 1000).toLong()))
+    }
+
+    fun getFormattedAiringTime(): String {
+        val start = getFormattedStartTime()
+        val end = if (!endFmt.isNullOrBlank()) {
+            endFmt
+        } else if (endTs > startTs) {
+            val sdf = SimpleDateFormat("h:mm a", Locale.getDefault())
+            sdf.format(Date((endTs * 1000).toLong()))
+        } else {
+            ""
+        }
+        return if (end.isNotBlank()) "$start - $end" else start
+    }
+}
 
 data class GuideChannelRow(
     val channel: Channel,

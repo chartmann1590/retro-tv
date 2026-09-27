@@ -247,7 +247,14 @@ def api_guide():
         hours, start = 4, 0
     if not start:
         start = datetime.now(TZ).timestamp()
-    return jsonify({"ok": True, "start": start, "hours": hours, "server_time": time.time(), "current_channel": playback._current["channel"], "guide": scheduler.guide_data(start, hours)})
+    guide_list = scheduler.guide_data(start, hours)
+    for ch in guide_list:
+        for entry in ch.get("entries", []):
+            if not entry.get("start_fmt"):
+                entry["start_fmt"] = fmt_time(entry["start_ts"])
+            if not entry.get("end_fmt"):
+                entry["end_fmt"] = fmt_time(entry["end_ts"])
+    return jsonify({"ok": True, "start": start, "hours": hours, "server_time": time.time(), "current_channel": playback._current["channel"], "guide": guide_list})
 
 @app.route("/api/reminders", methods=["GET", "POST"])
 def api_reminders():
@@ -892,19 +899,51 @@ def api_pair_status():
     is_paired = database.is_device_paired(token)
     return jsonify({"ok": is_paired, "paired": is_paired})
 
+def _is_request_authorized():
+    auth = request.headers.get("Authorization", "")
+    token = auth.removeprefix("Bearer ").strip() if auth.startswith("Bearer ") else request.headers.get("X-Device-Token", "").strip()
+    if token and database.is_device_paired(token):
+        return True, token
+    # Same-origin web UI on receiver host
+    sec_site = request.headers.get("Sec-Fetch-Site", "")
+    if sec_site in ("same-origin", "same-site"):
+        return True, None
+    ref = request.referrer or ""
+    host = request.headers.get("Host", "")
+    if host and (f"://{host}/" in ref or ref.endswith(f"://{host}")):
+        return True, None
+    if request.remote_addr in ("127.0.0.1", "::1"):
+        return True, None
+    return False, None
+
 @app.route("/api/pair/devices")
 def api_pair_devices():
+    authed, _ = _is_request_authorized()
+    if not authed:
+        return jsonify({"ok": False, "error": "Unauthorized"}), 401
     devices = database.list_paired_devices()
     return jsonify({"ok": True, "devices": devices})
 
 @app.route("/api/pair/revoke", methods=["POST"])
 def api_pair_revoke():
+    authed, caller_token = _is_request_authorized()
+    if not authed:
+        return jsonify({"ok": False, "error": "Unauthorized"}), 401
     d = request.get_json(silent=True) or {}
-    token = d.get("token", "")
-    if not token:
-        return jsonify({"ok": False, "error": "Token required"}), 400
-    database.revoke_paired_device(token)
-    return jsonify({"ok": True})
+    device_id = d.get("device_id")
+    target_token = d.get("token")
+    if device_id is not None:
+        ok = database.revoke_paired_device(device_id)
+        return jsonify({"ok": ok})
+    if target_token:
+        if caller_token and caller_token != target_token:
+            return jsonify({"ok": False, "error": "Forbidden"}), 403
+        ok = database.revoke_paired_device(target_token)
+        return jsonify({"ok": ok})
+    if caller_token:
+        ok = database.revoke_paired_device(caller_token)
+        return jsonify({"ok": ok})
+    return jsonify({"ok": False, "error": "device_id or token required"}), 400
 
 @app.route("/api/settings")
 def api_settings():

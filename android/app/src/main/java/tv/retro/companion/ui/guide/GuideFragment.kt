@@ -117,11 +117,7 @@ class GuideFragment : Fragment() {
                 append("\n\n")
             }
             append("Airing: ")
-            append(entry.startFmt)
-            if (!entry.endFmt.isNullOrBlank()) {
-                append(" - ")
-                append(entry.endFmt)
-            }
+            append(entry.getFormattedAiringTime())
         }
 
         MaterialAlertDialogBuilder(requireContext())

@@ -439,15 +439,15 @@ async function refreshPairedDevices(){
     listEl.innerHTML = '<b style="font-size:11px">Paired Devices:</b>' + devs.map(d => `
       <div style="display:flex;justify-content:space-between;align-items:center;padding:4px 0;border-bottom:1px solid #233040;font-size:11px">
         <span><b>${esc(d.device_name)}</b></span>
-        <button class="ghost" style="padding:2px 8px;font-size:9px" onclick="revokePairedDevice('${esc(d.token)}')">REVOKE</button>
+        <button class="ghost" style="padding:2px 8px;font-size:9px" onclick="revokePairedDevice('${esc(d.device_id)}')">REVOKE</button>
       </div>
     `).join('');
   }catch(e){}
 }
 
-async function revokePairedDevice(token){
+async function revokePairedDevice(deviceId){
   try{
-    await tvApi('/api/pair/revoke', {token});
+    await tvApi('/api/pair/revoke', {device_id: deviceId});
     notify('Device revoked');
     refreshPairedDevices();
   }catch(e){

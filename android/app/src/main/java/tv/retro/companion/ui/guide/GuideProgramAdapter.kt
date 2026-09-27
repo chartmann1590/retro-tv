@@ -34,7 +34,7 @@ class GuideProgramAdapter(
         fun bind(entry: GuideEntry) {
             binding.tvProgTitle.text = entry.title
             binding.tvProgSub.text = entry.subtitle ?: ""
-            binding.tvProgramTime.text = entry.startFmt ?: ""
+            binding.tvProgramTime.text = entry.getFormattedStartTime()
 
             val now = System.currentTimeMillis() / 1000.0
             val isLive = now >= entry.startTs && now < entry.endTs

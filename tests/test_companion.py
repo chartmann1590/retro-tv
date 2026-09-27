@@ -8,6 +8,7 @@ from unittest.mock import patch
 
 import config
 import database
+import scheduler
 from app import app
 
 
@@ -42,14 +43,16 @@ class CompanionTests(unittest.TestCase):
         # 5. Verify device is paired
         self.assertTrue(database.is_device_paired(token))
 
-        # 6. List paired devices
+        # 6. List paired devices (token should be omitted, device_id included)
         devices = database.list_paired_devices()
         self.assertEqual(len(devices), 1)
-        self.assertEqual(devices[0]["token"], token)
+        self.assertIn("device_id", devices[0])
+        self.assertNotIn("token", devices[0])
         self.assertEqual(devices[0]["device_name"], "UMIDIGI A7 Pro")
 
-        # 7. Revoke device
-        revoked = database.revoke_paired_device(token)
+        # 7. Revoke device by device_id
+        dev_id = devices[0]["device_id"]
+        revoked = database.revoke_paired_device(dev_id)
         self.assertTrue(revoked)
         self.assertFalse(database.is_device_paired(token))
 
@@ -62,15 +65,19 @@ class CompanionTests(unittest.TestCase):
         self.assertEqual(data["version"], "1.0.0")
         self.assertIn("features", data)
 
-    def test_api_pairing_endpoints(self):
-        # 1. Generate code via Web UI endpoint
-        gen_res = self.client.post("/api/pair/generate")
+    def test_api_pairing_and_authorization_endpoints(self):
+        # 1. Unauthenticated external request to /api/pair/devices should be rejected with 401
+        unauth_res = self.client.get("/api/pair/devices", environ_base={"REMOTE_ADDR": "192.168.1.150"})
+        self.assertEqual(unauth_res.status_code, 401)
+
+        # 2. Generate code via Web UI endpoint (same-origin simulated)
+        gen_res = self.client.post("/api/pair/generate", headers={"Sec-Fetch-Site": "same-origin"})
         self.assertEqual(gen_res.status_code, 200)
         gen_data = gen_res.get_json()
         code = gen_data["code"]
         self.assertEqual(len(code), 6)
 
-        # 2. Verify code from companion app endpoint
+        # 3. Verify code from companion app endpoint
         verify_res = self.client.post("/api/pair/verify", json={
             "code": code,
             "device_name": "UMIDIGI A7 Pro"
@@ -80,20 +87,29 @@ class CompanionTests(unittest.TestCase):
         self.assertTrue(verify_data["ok"])
         token = verify_data["token"]
 
-        # 3. Check status
+        # 4. Check status with X-Device-Token
         status_res = self.client.get("/api/pair/status", headers={"X-Device-Token": token})
         self.assertEqual(status_res.status_code, 200)
         self.assertTrue(status_res.get_json()["paired"])
 
-        # 4. List devices
-        dev_res = self.client.get("/api/pair/devices")
+        # 5. List devices with X-Device-Token authorization
+        dev_res = self.client.get("/api/pair/devices", headers={"X-Device-Token": token},
+                                  environ_base={"REMOTE_ADDR": "192.168.1.150"})
         self.assertEqual(dev_res.status_code, 200)
         devices = dev_res.get_json().get("devices", [])
         self.assertEqual(len(devices), 1)
         self.assertEqual(devices[0]["device_name"], "UMIDIGI A7 Pro")
+        self.assertNotIn("token", devices[0], "Raw token must not be exposed in devices list")
+        device_id = devices[0]["device_id"]
 
-        # 5. Revoke
-        revoke_res = self.client.post("/api/pair/revoke", json={"token": token})
+        # 6. Unauthenticated revoke rejected
+        unauth_revoke = self.client.post("/api/pair/revoke", json={"device_id": device_id},
+                                         environ_base={"REMOTE_ADDR": "192.168.1.150"})
+        self.assertEqual(unauth_revoke.status_code, 401)
+
+        # 7. Authorized revoke using device_id from web UI
+        revoke_res = self.client.post("/api/pair/revoke", json={"device_id": device_id},
+                                      headers={"Sec-Fetch-Site": "same-origin"})
         self.assertEqual(revoke_res.status_code, 200)
         self.assertTrue(revoke_res.get_json()["ok"])
 
@@ -101,6 +117,30 @@ class CompanionTests(unittest.TestCase):
         status_res2 = self.client.get("/api/pair/status", headers={"X-Device-Token": token})
         self.assertEqual(status_res2.status_code, 200)
         self.assertFalse(status_res2.get_json()["paired"])
+
+    def test_api_guide_timestamps_formatting(self):
+        # Insert a dummy channel and schedule entry
+        con = database.connect()
+        try:
+            con.execute("INSERT OR REPLACE INTO channels(number, name, enabled) VALUES(1, 'Test Channel', 1)")
+            now = 1700000000.0
+            con.execute("""INSERT INTO schedule_entries(channel_number, start_ts, end_ts, kind, media_id, title, day)
+                           VALUES(1, ?, ?, 'episode', 101, 'Test Show S01E01', '2023-11-14')""", (now, now + 1800.0))
+            con.commit()
+        finally:
+            con.close()
+
+        res = self.client.get("/api/guide?start=1700000000&hours=2")
+        self.assertEqual(res.status_code, 200)
+        guide = res.get_json().get("guide", [])
+        self.assertTrue(len(guide) > 0)
+        entries = guide[0].get("entries", [])
+        self.assertTrue(len(entries) > 0)
+        entry = entries[0]
+        self.assertIn("start_fmt", entry)
+        self.assertIn("end_fmt", entry)
+        self.assertTrue(len(entry["start_fmt"]) > 0)
+        self.assertTrue(len(entry["end_fmt"]) > 0)
 
 
 if __name__ == "__main__":

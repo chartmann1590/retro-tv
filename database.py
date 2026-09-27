@@ -316,18 +316,23 @@ def is_device_paired(token):
 def list_paired_devices():
     con = connect()
     try:
-        rows = con.execute("SELECT token, device_name, paired_ts, last_seen_ts FROM paired_devices ORDER BY paired_ts DESC").fetchall()
+        rows = con.execute("SELECT rowid AS device_id, device_name, paired_ts, last_seen_ts FROM paired_devices ORDER BY paired_ts DESC").fetchall()
         return [dict(r) for r in rows]
     finally:
         con.close()
 
 
-def revoke_paired_device(token):
+def revoke_paired_device(identifier):
+    if not identifier:
+        return False
     con = connect()
     try:
-        con.execute("DELETE FROM paired_devices WHERE token=?", (token,))
+        if isinstance(identifier, int) or (isinstance(identifier, str) and identifier.isdigit()):
+            cur = con.execute("DELETE FROM paired_devices WHERE rowid=?", (int(identifier),))
+        else:
+            cur = con.execute("DELETE FROM paired_devices WHERE token=?", (str(identifier),))
         con.commit()
-        return True
+        return cur.rowcount > 0
     finally:
         con.close()
 
