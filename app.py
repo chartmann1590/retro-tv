@@ -846,6 +846,66 @@ def api_remote_save():
     remote_mod.set_mapping(d["action"], d["code"])
     return jsonify({"ok": True})
 
+@app.route("/api/server/identity")
+def api_server_identity():
+    return jsonify({
+        "app": "retro-tv",
+        "name": "Retro TV",
+        "version": "1.0.0",
+        "port": config.PORT,
+        "paired_required": True,
+        "server_time": time.time(),
+        "timezone": config.TIMEZONE,
+        "features": ["epg", "vod", "remote", "stream"]
+    })
+
+@app.route("/api/pair/generate", methods=["POST"])
+def api_pair_generate():
+    import random
+    code = f"{random.randint(100000, 999999)}"
+    database.create_pair_code(code, expires_sec=600)
+    return jsonify({"ok": True, "code": code, "expires_in": 600})
+
+@app.route("/api/pair/verify", methods=["POST"])
+def api_pair_verify():
+    d = request.get_json(silent=True) or {}
+    code = str(d.get("code", "")).strip()
+    device_name = d.get("device_name", "Android Companion")
+    if not code:
+        return jsonify({"ok": False, "error": "Pairing code required"}), 400
+    token = database.verify_and_consume_pair_code(code, device_name=device_name)
+    if not token:
+        return jsonify({"ok": False, "error": "Invalid or expired pairing code"}), 400
+    return jsonify({
+        "ok": True,
+        "token": token,
+        "server_name": "Retro TV",
+        "message": "Device paired successfully"
+    })
+
+@app.route("/api/pair/status")
+def api_pair_status():
+    auth = request.headers.get("Authorization", "")
+    token = auth.removeprefix("Bearer ").strip() if auth.startswith("Bearer ") else request.headers.get("X-Device-Token", "").strip()
+    if not token:
+        token = request.args.get("token", "")
+    is_paired = database.is_device_paired(token)
+    return jsonify({"ok": is_paired, "paired": is_paired})
+
+@app.route("/api/pair/devices")
+def api_pair_devices():
+    devices = database.list_paired_devices()
+    return jsonify({"ok": True, "devices": devices})
+
+@app.route("/api/pair/revoke", methods=["POST"])
+def api_pair_revoke():
+    d = request.get_json(silent=True) or {}
+    token = d.get("token", "")
+    if not token:
+        return jsonify({"ok": False, "error": "Token required"}), 400
+    database.revoke_paired_device(token)
+    return jsonify({"ok": True})
+
 @app.route("/api/settings")
 def api_settings():
     con = database.connect()
@@ -951,6 +1011,8 @@ def init():
     database.init_db()
     import usbremote
     usbremote.start()
+    import discovery
+    discovery.start()
     playback.start_monitor()
     threading.Thread(target=bg_loop, daemon=True).start()
     threading.Thread(target=livecontent.run_loop, daemon=True).start()

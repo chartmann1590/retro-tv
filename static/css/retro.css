@@ -409,4 +409,11 @@ h1,h2,p{margin-top:0}h1{font-size:34px;line-height:1.15;margin-bottom:12px;lette
   .weather-metrics-grid{grid-template-columns:repeat(2,1fr)}
 }
 
+/* ---- Companion App Pairing Panel ---- */
+.pair-panel{background:#0e1724;border:2px solid #365074;border-radius:8px;padding:16px;box-shadow:0 8px 24px rgba(0,0,0,0.6)}
+.pair-panel h3{margin:0 0 8px;font-size:14px;color:#f8cb63;letter-spacing:1px}
+.pair-code-display{font-family:monospace;font-size:36px;font-weight:900;letter-spacing:10px;color:#f8cb63;text-align:center;margin:12px 0;background:#060b12;padding:14px 8px;border-radius:6px;border:1px dashed #48658d;text-shadow:0 0 10px rgba(248,203,99,0.4)}
+.pair-countdown{text-align:center;font-size:11px;color:#9eb0c6;margin-bottom:8px}
+
+
 

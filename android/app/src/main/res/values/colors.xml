@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="retro_bg">#0A111C</color>
+    <color name="retro_surface">#111C2C</color>
+    <color name="retro_surface_light">#18283E</color>
+    <color name="retro_card">#142236</color>
+    <color name="retro_border">#253A56</color>
+
+    <color name="retro_amber">#F8CB63</color>
+    <color name="retro_amber_glow">#FFE082</color>
+    <color name="retro_green">#2ECC71</color>
+    <color name="retro_red">#E50914</color>
+    <color name="retro_blue">#3498DB</color>
+
+    <color name="text_primary">#F0F4FC</color>
+    <color name="text_secondary">#8FA0B8</color>
+    <color name="text_muted">#5E7088</color>
+
+    <!-- LCD display styling -->
+    <color name="lcd_bg">#141910</color>
+    <color name="lcd_border">#2F3628</color>
+    <color name="lcd_text">#E6CF86</color>
+    <color name="lcd_dim">#7D784C</color>
+
+    <!-- Remote Handset -->
+    <color name="handset_bg">#232A32</color>
+    <color name="handset_btn">#3A4450</color>
+    <color name="handset_btn_press">#4F5C6C</color>
+    <color name="handset_btn_border">#546274</color>
+    <color name="handset_ok_btn">#4E7045</color>
+    <color name="handset_vod_btn">#8B2525</color>
+    <color name="handset_sports_btn">#1C6B32</color>
+    <color name="handset_guide_btn">#3F5D7E</color>
+
+    <color name="black">#000000</color>
+    <color name="white">#FFFFFF</color>
+</resources>

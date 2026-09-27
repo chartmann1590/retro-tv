@@ -86,6 +86,22 @@ media on the local network.
   block per cycle, then a commercial break, just like a real local channel.
 - **Auto-created channels** — any show with enough episodes and no channel of
   its own yet gets one automatically as your library grows.
+- **Native Android Companion App** — 100% native Kotlin Android application
+  with UDP auto-discovery, 6-digit Web UI pairing, ExoPlayer Media3 live TV
+  streaming, interactive EPG guide, Retroflix VOD catalog, and tactile remote.
+
+## Android Companion App
+
+Retro TV includes a complete native Android companion application (`android/`) with zero WebViews:
+
+- **Zero-Config Auto-Discovery**: Finds your Retro TV server on the local network automatically using UDP broadcast (`RETRO_TV_DISCOVER` on port 5002) with manual IP fallback and server identity handshake (`/api/server/identity`).
+- **Secure 6-Digit PIN Pairing**: Generate a 6-digit pairing code on the TV Web UI (`/remote`), enter it in the app, and persist authorization with secure token exchange.
+- **Live TV Streaming**: High-performance ExoPlayer Media3 player supporting inline channel switching and fullscreen playback.
+- **Interactive TV Guide (EPG)**: Browse channel schedules, view upcoming program details, and tune the TV receiver or stream on phone with a single tap.
+- **Retroflix On Demand (VOD)**: Full mobile catalog for movies and TV series with episode browsing, poster art caching, "Watch on Phone", and "Play on TV".
+- **Authentic Remote Handset**: Universal tactile remote with live LCD receiver telemetry, D-pad, channel/volume rockers, and direct 0–9 keypad.
+- **Automated Cloud CI/CD**: Built and packaged automatically in GitHub Actions (`.github/workflows/android.yml`).
+
 
 ## Requirements
 

@@ -599,6 +599,7 @@
     </a>
     <nav class="nav-links">
       <a href="#features">Features</a>
+      <a href="#companion">Android App</a>
       <a href="#screenshots">Screenshots</a>
       <a href="#sports">Sports Center</a>
       <a href="#quickstart">Quick Start</a>
@@ -725,6 +726,59 @@
         <span class="feature-icon">🌐</span>
         <h3>Watch In Any Browser</h3>
         <p>Stream your live cable channels anywhere on your local network at `/watch`, complete with on-the-fly audio transcoding and HLS remuxing for mobile and desktop browsers.</p>
+      </div>
+
+      <div class="feature-card" id="android-app">
+        <span class="feature-icon">🤖</span>
+        <h3>Native Android Companion App</h3>
+        <p>100% native Kotlin companion app with UDP broadcast auto-discovery, 6-digit Web UI pairing, ExoPlayer Media3 live TV streaming, interactive EPG guide, Retroflix VOD, and tactile remote.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- Android Companion App Section -->
+  <section class="companion-section" id="companion" style="max-width: 1200px; margin: 0 auto 90px; padding: 0 24px;">
+    <div class="section-header">
+      <div class="section-eyebrow">Pure Kotlin · Zero WebViews</div>
+      <h2>Native Android Companion App</h2>
+      <p style="color: var(--text-dim); max-width: 650px; margin: 12px auto 0; font-size: 15px;">Experience Retro TV on your phone with zero-config auto-discovery, persistent 6-digit PIN pairing, low-latency ExoPlayer streaming, and a classic tactile handset remote.</p>
+    </div>
+
+    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 24px; margin-top: 40px;">
+      <div class="feature-card" style="border-color: rgba(248, 203, 99, 0.35);">
+        <span class="feature-icon">📡</span>
+        <h3 style="color: var(--hi);">Zero-Config Auto Discovery</h3>
+        <p>Finds your Retro TV server instantly via UDP broadcast responder on port 5002, with automatic fallback to manual IP entry and server handshake verification.</p>
+      </div>
+
+      <div class="feature-card" style="border-color: rgba(46, 204, 113, 0.35);">
+        <span class="feature-icon">🔐</span>
+        <h3 style="color: var(--accent);">Secure 6-Digit PIN Pairing</h3>
+        <p>Generate a one-time 6-digit sync code on the Web UI (<code>/remote</code>), punch it into your phone, and establish a permanent cryptographically signed session token.</p>
+      </div>
+
+      <div class="feature-card" style="border-color: rgba(29, 114, 184, 0.45);">
+        <span class="feature-icon">⚡</span>
+        <h3 style="color: #64b5f6;">ExoPlayer Media3 Live Streaming</h3>
+        <p>Hardware-accelerated native video playback with low-latency HLS remuxing, seamless channel switching, picture-in-picture, and fullscreen player modes.</p>
+      </div>
+
+      <div class="feature-card">
+        <span class="feature-icon">📅</span>
+        <h3>Interactive EPG Program Guide</h3>
+        <p>Explore synchronous multi-channel program timelines, view episode descriptions, tune the TV receiver with one tap, or watch directly on your mobile device.</p>
+      </div>
+
+      <div class="feature-card">
+        <span class="feature-icon">🍿</span>
+        <h3>Retroflix VOD Mobile Hub</h3>
+        <p>Browse your library's movies and TV shows with cached poster artwork, season/episode drawers, and quick "Watch on Phone" or "Play on TV" controls.</p>
+      </div>
+
+      <div class="feature-card">
+        <span class="feature-icon">🎛️</span>
+        <h3>Tactile Universal Remote</h3>
+        <p>Authentic handheld handset with real-time amber LCD receiver telemetry, directional D-pad, channel and volume rockers, and 0–9 keypad.</p>
       </div>
     </div>
   </section>

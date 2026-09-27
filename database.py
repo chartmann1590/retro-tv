@@ -148,6 +148,17 @@ CREATE TABLE IF NOT EXISTS reminders (
   notified INTEGER DEFAULT 0
 );
 CREATE INDEX IF NOT EXISTS idx_reminders_start ON reminders(start_ts);
+CREATE TABLE IF NOT EXISTS pair_codes (
+  code TEXT PRIMARY KEY,
+  created_ts REAL NOT NULL,
+  expires_ts REAL NOT NULL
+);
+CREATE TABLE IF NOT EXISTS paired_devices (
+  token TEXT PRIMARY KEY,
+  device_name TEXT NOT NULL,
+  paired_ts REAL NOT NULL,
+  last_seen_ts REAL NOT NULL
+);
 """
 
 def connect():
@@ -254,3 +265,69 @@ def backup_db():
             con.close()
     except Exception:
         pass
+
+
+def create_pair_code(code, expires_sec=600):
+    con = connect()
+    try:
+        now = time.time()
+        con.execute("DELETE FROM pair_codes WHERE expires_ts < ?", (now,))
+        con.execute("INSERT OR REPLACE INTO pair_codes(code, created_ts, expires_ts) VALUES(?,?,?)",
+                    (str(code), now, now + expires_sec))
+        con.commit()
+    finally:
+        con.close()
+
+
+def verify_and_consume_pair_code(code, device_name="Android Companion"):
+    import uuid
+    con = connect()
+    try:
+        now = time.time()
+        r = con.execute("SELECT code FROM pair_codes WHERE code=? AND expires_ts >= ?", (str(code).strip(), now)).fetchone()
+        if not r:
+            return None
+        con.execute("DELETE FROM pair_codes WHERE code=?", (str(code).strip(),))
+        token = uuid.uuid4().hex
+        con.execute("INSERT OR REPLACE INTO paired_devices(token, device_name, paired_ts, last_seen_ts) VALUES(?,?,?,?)",
+                    (token, device_name, now, now))
+        con.commit()
+        return token
+    finally:
+        con.close()
+
+
+def is_device_paired(token):
+    if not token:
+        return False
+    con = connect()
+    try:
+        now = time.time()
+        r = con.execute("SELECT token FROM paired_devices WHERE token=?", (token,)).fetchone()
+        if r:
+            con.execute("UPDATE paired_devices SET last_seen_ts=? WHERE token=?", (now, token))
+            con.commit()
+            return True
+        return False
+    finally:
+        con.close()
+
+
+def list_paired_devices():
+    con = connect()
+    try:
+        rows = con.execute("SELECT token, device_name, paired_ts, last_seen_ts FROM paired_devices ORDER BY paired_ts DESC").fetchall()
+        return [dict(r) for r in rows]
+    finally:
+        con.close()
+
+
+def revoke_paired_device(token):
+    con = connect()
+    try:
+        con.execute("DELETE FROM paired_devices WHERE token=?", (token,))
+        con.commit()
+        return True
+    finally:
+        con.close()
+
