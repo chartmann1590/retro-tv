@@ -321,6 +321,10 @@ def _build_game_cards(games, out_dir):
 
         home_rank = f"#{home['rank']} " if home.get("rank") else ""
         away_rank = f"#{away['rank']} " if away.get("rank") else ""
+        odds_details = ((g.get("odds") or {}).get("details")) or ""
+        venue_name = ((g.get("venue") or {}).get("name")) or "Stadium"
+        broadcast_str = ", ".join(g.get("broadcasts") or []) or "TV"
+        weather_temp = ((g.get("weather") or {}).get("temperature")) or "72"
 
         body = f"""
         <div class="top-bar">
@@ -346,7 +350,7 @@ def _build_game_cards(games, out_dir):
 
           <div style="text-align:center;padding:0 24px">
             <span style="font-size:18px;font-weight:900;color:#4f6b8f">VS</span>
-            <div style="font-size:11px;color:{COLORS['hi']};margin-top:2px;font-weight:bold">{html.escape(g.get('odds', {}).get('details') or '')}</div>
+            <div style="font-size:11px;color:{COLORS['hi']};margin-top:2px;font-weight:bold">{html.escape(odds_details)}</div>
           </div>
 
           <!-- Home Team -->
@@ -369,9 +373,9 @@ def _build_game_cards(games, out_dir):
 
         <div class="ticker-bar">
           <span class="ticker-lead">GAME CENTER</span>
-          <span>VENUE: {html.escape(g.get('venue', {}).get('name') or 'Stadium')}</span>
-          <span>BROADCAST: {html.escape(', '.join(g.get('broadcasts', [])) or 'TV')}</span>
-          <span>WEATHER: {html.escape(str(g.get('weather', {}).get('temperature') or '72'))}&deg;F</span>
+          <span>VENUE: {html.escape(venue_name)}</span>
+          <span>BROADCAST: {html.escape(broadcast_str)}</span>
+          <span>WEATHER: {html.escape(str(weather_temp))}&deg;F</span>
         </div>
         """
         cards.append({

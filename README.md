@@ -102,6 +102,21 @@ Retro TV includes a complete native Android companion application (`android/`) w
 - **Authentic Remote Handset**: Universal tactile remote with live LCD receiver telemetry, D-pad, channel/volume rockers, and direct 0–9 keypad.
 - **Automated Cloud CI/CD**: Built and packaged automatically in GitHub Actions (`.github/workflows/android.yml`).
 
+### Companion App Screenshots
+
+<table>
+<tr>
+<td width="33%"><img src="screenshots/companion-connect.png" width="100%" alt="Companion App Auto-Discovery & Pairing"><br><em><b>Auto-Discovery &amp; Pairing</b> — zero-config UDP broadcast detection, server handshake verification, and 6-digit sync PIN</em></td>
+<td width="33%"><img src="screenshots/companion-live.png" width="100%" alt="Companion App Live TV Streaming"><br><em><b>Live TV Streaming</b> — native ExoPlayer Media3 player synchronized to broadcast offset with schedule progress bar and lineup</em></td>
+<td width="33%"><img src="screenshots/companion-guide.png" width="100%" alt="Companion App TV Guide EPG"><br><em><b>Mobile TV Guide (EPG)</b> — synchronous multi-channel program timeline grid with live markers and one-tap receiver tuning</em></td>
+</tr>
+<tr>
+<td width="33%"><img src="screenshots/companion-vod.png" width="100%" alt="Companion App Retroflix VOD"><br><em><b>Retroflix VOD Hub</b> — high-definition poster artwork, movie/series categories, and episode drawers with mobile streaming</em></td>
+<td width="33%"><img src="screenshots/companion-remote.png" width="100%" alt="Companion App Universal Remote Handset"><br><em><b>Universal Cable Remote</b> — tactile handset with amber LCD receiver readout, D-pad, channel/volume rockers, and 0–9 keypad</em></td>
+<td width="33%"><img src="screenshots/companion-settings.png" width="100%" alt="Companion App Hardware Health Settings"><br><em><b>Receiver Settings</b> — live Raspberry Pi hardware health telemetry (CPU temp, load avg, disk headroom) and auth control</em></td>
+</tr>
+</table>
+
 
 ## Requirements
 

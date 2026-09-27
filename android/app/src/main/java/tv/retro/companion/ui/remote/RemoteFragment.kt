@@ -154,16 +154,16 @@ class RemoteFragment : Fragment() {
         val curVol = currentHdmiStatus?.getVolumeInt() ?: 80
         val newVol = (curVol + delta).coerceIn(0, 100)
         lifecycleScope.launch {
-            val status = app.api.setVolume(volume = newVol, muted = false)
-            if (status != null) updateLcd(status)
+            app.api.setVolume(volume = newVol, muted = false)
+            refreshStatus()
         }
     }
 
     private fun toggleMute() {
         val isMuted = currentHdmiStatus?.isMuted() ?: false
         lifecycleScope.launch {
-            val status = app.api.setVolume(muted = !isMuted)
-            if (status != null) updateLcd(status)
+            app.api.setVolume(muted = !isMuted)
+            refreshStatus()
         }
     }
 

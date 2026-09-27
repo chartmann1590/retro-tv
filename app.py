@@ -61,8 +61,10 @@ def bg_loop():
     # One worker owns startup and maintenance; never scan/generate twice at boot.
     # Launch playback before lowering this thread's priority: mpv inherits it.
     try:
-        scheduler.ensure_schedules()
-        playback.restore_last()
+        result = playback.restore_last()
+        if not result.get("ok"):
+            scheduler.ensure_schedules()
+            playback.restore_last()
     except Exception:
         log.exception("Startup playback failed")
     try:
@@ -70,7 +72,7 @@ def bg_loop():
             os.nice(10)
     except Exception:
         pass
-    last_schedule = time.monotonic()
+    last_schedule = 0
     last_backup = last_schedule
     while not _bg_stop.is_set():
         try:

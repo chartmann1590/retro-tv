@@ -188,7 +188,10 @@ def stop():
                     _proc.wait(timeout=2)
                 except subprocess.TimeoutExpired:
                     _proc.kill()
-                    _proc.wait(timeout=2)
+                    try:
+                        _proc.wait(timeout=2)
+                    except subprocess.TimeoutExpired:
+                        log.warning("HDMI player did not exit after SIGKILL; continuing recovery")
         _proc = None
         _current.update(media=None, entry_id=None)
 

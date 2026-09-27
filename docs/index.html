@@ -375,6 +375,64 @@
       line-height: 1.6;
     }
 
+    /* Native Mobile Showcase */
+    .companion-showcase-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+      gap: 20px;
+      margin-top: 36px;
+    }
+    .phone-mockup-card {
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      border-radius: 14px;
+      padding: 12px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      transition: all 0.25s ease;
+      cursor: pointer;
+    }
+    .phone-mockup-card:hover {
+      transform: translateY(-4px);
+      border-color: var(--hi);
+      box-shadow: 0 12px 28px rgba(0, 0, 0, 0.5);
+    }
+    .phone-screen-wrap {
+      width: 100%;
+      aspect-ratio: 9 / 19.5;
+      border-radius: 10px;
+      overflow: hidden;
+      border: 2px solid #203556;
+      background: #000;
+      box-shadow: 0 6px 16px rgba(0,0,0,0.5);
+    }
+    .phone-screen-wrap img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      display: block;
+      transition: transform 0.3s ease;
+    }
+    .phone-mockup-card:hover .phone-screen-wrap img {
+      transform: scale(1.03);
+    }
+    .phone-card-title {
+      font-family: 'Chakra Petch', sans-serif;
+      font-size: 13px;
+      color: #fff;
+      margin-top: 10px;
+      text-align: center;
+      font-weight: 700;
+    }
+    .phone-card-desc {
+      font-size: 11px;
+      color: var(--text-dim);
+      text-align: center;
+      margin-top: 3px;
+      line-height: 1.4;
+    }
+
     /* Screenshot Gallery Grid */
     .gallery-section {
       max-width: 1240px;
@@ -781,6 +839,63 @@
         <p>Authentic handheld handset with real-time amber LCD receiver telemetry, directional D-pad, channel and volume rockers, and 0–9 keypad.</p>
       </div>
     </div>
+
+    <!-- On-Device Verification Showcase -->
+    <div style="margin-top: 48px; text-align: center;">
+      <div class="section-eyebrow" style="margin-bottom: 6px;">Physical Hardware Verification · UMIDIGI A7 Pro</div>
+      <h3 style="font-family: 'Chakra Petch', sans-serif; font-size: 22px; color: #fff;">Native Android Companion Experience</h3>
+      <p style="color: var(--text-dim); max-width: 600px; margin: 6px auto 0; font-size: 13px;">Tested, paired, and verified on physical hardware over USB ADB. Zero WebViews — pure AndroidX, Media3 ExoPlayer, and Kotlin Coroutines.</p>
+    </div>
+
+    <div class="companion-showcase-grid">
+      <div class="phone-mockup-card" onclick="openLightbox('screenshots/companion-connect.png', 'Companion App — Zero-Config UDP Discovery and 6-Digit PIN Pairing')">
+        <div class="phone-screen-wrap">
+          <img src="screenshots/companion-connect.png" alt="UDP Discovery & Pairing" loading="lazy">
+        </div>
+        <div class="phone-card-title">Discovery &amp; Pairing</div>
+        <div class="phone-card-desc">Zero-config UDP search, server validation, and 6-digit sync PIN</div>
+      </div>
+
+      <div class="phone-mockup-card" onclick="openLightbox('screenshots/companion-live.png', 'Companion App — ExoPlayer Media3 Live TV Synchronized Streaming')">
+        <div class="phone-screen-wrap">
+          <img src="screenshots/companion-live.png" alt="Live TV Streaming" loading="lazy">
+        </div>
+        <div class="phone-card-title">Live TV Streaming</div>
+        <div class="phone-card-desc">ExoPlayer Media3 player synchronized to broadcast schedule</div>
+      </div>
+
+      <div class="phone-mockup-card" onclick="openLightbox('screenshots/companion-guide.png', 'Companion App — Interactive Mobile EPG TV Guide Grid')">
+        <div class="phone-screen-wrap">
+          <img src="screenshots/companion-guide.png" alt="Mobile TV Guide" loading="lazy">
+        </div>
+        <div class="phone-card-title">Interactive TV Guide</div>
+        <div class="phone-card-desc">Multi-channel program grid with one-tap receiver tuning</div>
+      </div>
+
+      <div class="phone-mockup-card" onclick="openLightbox('screenshots/companion-vod.png', 'Companion App — Retroflix Video On Demand Catalog')">
+        <div class="phone-screen-wrap">
+          <img src="screenshots/companion-vod.png" alt="Retroflix VOD" loading="lazy">
+        </div>
+        <div class="phone-card-title">Retroflix VOD</div>
+        <div class="phone-card-desc">High-definition posters, category chips, and episode browser</div>
+      </div>
+
+      <div class="phone-mockup-card" onclick="openLightbox('screenshots/companion-remote.png', 'Companion App — Universal Tactile Handset Remote with Amber LCD')">
+        <div class="phone-screen-wrap">
+          <img src="screenshots/companion-remote.png" alt="Universal Remote" loading="lazy">
+        </div>
+        <div class="phone-card-title">Universal Remote</div>
+        <div class="phone-card-desc">Tactile handset with live amber LCD receiver readout &amp; D-pad</div>
+      </div>
+
+      <div class="phone-mockup-card" onclick="openLightbox('screenshots/companion-settings.png', 'Companion App — Receiver Settings & Hardware Health Telemetry')">
+        <div class="phone-screen-wrap">
+          <img src="screenshots/companion-settings.png" alt="Receiver Settings" loading="lazy">
+        </div>
+        <div class="phone-card-title">Receiver Settings</div>
+        <div class="phone-card-desc">Raspberry Pi CPU temp, load avg, and disk headroom stats</div>
+      </div>
+    </div>
   </section>
 
   <!-- Complete Screenshot Gallery -->
@@ -1058,7 +1173,9 @@
         'screenshots/sports-game.png': 'Game Center Modal · Real-Time Box Score &amp; Neural Announcer',
         'screenshots/weather.png': 'Local Weather Scan · Current Observations, Radar &amp; 7-Day Outlook',
         'screenshots/guide.png': 'TV Guide Grid · True Multi-Channel Program Schedule',
-        'screenshots/remote.png': 'Mobile Remote · Tactile Keypad, D-pad &amp; Sports Button'
+        'screenshots/remote.png': 'Mobile Remote · Tactile Keypad, D-pad &amp; Sports Button',
+        'screenshots/companion-remote.png': 'Android Handset Remote · Tactile D-pad, Rockers &amp; Amber LCD Readout',
+        'screenshots/companion-live.png': 'Android Live TV · Native ExoPlayer Media3 Streaming &amp; Synchronized Schedule'
       };
       caption.innerHTML = captions[src] || 'Retro TV Broadcast Output';
     }
