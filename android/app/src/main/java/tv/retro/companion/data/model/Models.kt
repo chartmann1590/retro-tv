@@ -134,13 +134,19 @@ data class VodEpisode(
     val artwork: String? = ""
 )
 
+data class VodSeason(
+    val season: Int = 1,
+    val episodes: List<VodEpisode> = emptyList()
+)
+
 data class VodShow(
     val id: Int,
     val name: String,
     val poster: String? = "",
     val description: String? = "",
     val episode_count: Int? = 0,
-    val seasons: Map<String, List<VodEpisode>>? = null
+    val season_count: Int? = 0,
+    val seasons: List<VodSeason>? = null
 )
 
 data class VodCatalogResponse(

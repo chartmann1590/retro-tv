@@ -162,9 +162,8 @@ class VodFragment : Fragment() {
         lifecycleScope.launch {
             val fullShow = app.api.getVodShow(show.id) ?: show
             val episodes = mutableListOf<VodEpisode>()
-            fullShow.seasons?.values?.forEach { episodes.addAll(it) }
-            if (episodes.isEmpty() && fullShow.episodes != null) {
-                episodes.addAll(fullShow.episodes)
+            fullShow.seasons?.forEach { season ->
+                episodes.addAll(season.episodes)
             }
 
             if (episodes.isEmpty()) {
