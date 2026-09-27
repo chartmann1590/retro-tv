@@ -30,15 +30,17 @@ async function update(){
     document.getElementById('completed').textContent=data.phone_completed||0;
     document.getElementById('queued').textContent=(data.pending||[]).length;
     const job=document.getElementById('job');
-    job.textContent=running?(running.worker==='phone'?'Transcoding on this phone':'Pi is transcoding'):
+    job.textContent=data.ssd_ready===false?'Media SSD unavailable · conversion paused':
+      running?(running.worker==='phone'?'Transcoding on this phone':'Pi is transcoding'):
       phone.ready?'Waiting for next job':'Paused for cooling';
-    job.className='status '+(running&&running.worker==='phone'?'good':'warm');
+    job.className='status '+(data.ssd_ready===false?'bad':running&&running.worker==='phone'?'good':'warm');
     document.getElementById('title').textContent=running?.title||resume?.title||'';
     const percent=running?.percent||resume?.percent||0;
     document.getElementById('fill').style.width=percent+'%';
     document.getElementById('progress').textContent=running?(running.percent==null?'Sending show to phone…':
       percent.toFixed(1)+'% converted · Pi show converter idle while phone works'):
-      resume?percent.toFixed(1)+'% saved across '+resume.completed_sections+' sections · resumes after cooling':'';
+      resume?percent.toFixed(1)+'% saved across '+resume.completed_sections+' sections · resumes after cooling':
+      data.ssd_ready===false?'Waiting for SSD recovery':'';
   }catch(error){
     document.getElementById('connection').textContent='Connection to Retro TV lost';
     document.getElementById('connection').className='status bad';

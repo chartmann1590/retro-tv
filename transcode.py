@@ -2,6 +2,7 @@
 import logging
 import json
 import fcntl
+import math
 import os
 import signal
 import subprocess
@@ -47,7 +48,8 @@ def playable_path(row):
 def next_pending(con):
     return con.execute(
         """SELECT id, path, duration FROM media_files WHERE transcode_status='pending'
-           ORDER BY CASE WHEN transcode_error LIKE 'phone: phone thermal pause%'
+           ORDER BY CASE WHEN transcode_worker='phone' THEN 0
+                         WHEN transcode_error LIKE 'phone: phone thermal pause%'
                               OR transcode_error LIKE 'phone: phone paused%'
                               OR transcode_error LIKE 'phone: phone cooling%'
                               OR transcode_error LIKE 'phone: phone too hot%' THEN 0
@@ -112,7 +114,9 @@ def current_status():
             "SELECT COUNT(*) FROM media_files WHERE transcode_status='done' AND transcode_worker='phone'").fetchone()[0]
     finally:
         con.close()
+    import scanner
     result = {"running": None, "pending": [], "phone": phone_transcode.status(),
+              "ssd_ready": scanner.ssd_storage_healthy(),
               "phone_completed": done_phone, "resume": None}
     if running:
         worker = running["transcode_worker"] or "pi"
@@ -139,7 +143,8 @@ def _ffprobe_duration(path):
         out = subprocess.run(
             ["ffprobe", "-v", "quiet", "-show_entries", "format=duration", "-of", "csv=p=0", path],
             capture_output=True, text=True, timeout=30)
-        return float((out.stdout or "0").strip() or 0)
+        duration = float((out.stdout or "0").strip() or 0)
+        return duration if out.returncode == 0 and math.isfinite(duration) and duration > 0 else 0
     except Exception:
         return 0
 
@@ -248,10 +253,24 @@ def _run_one_unlocked(media_id, src_path, source_duration, use_phone=False):
     os.makedirs(TRANSCODE_DIR, exist_ok=True)
     final_path = os.path.join(TRANSCODE_DIR, f"{media_id}.mkv")
     tmp_path = final_path + ".tmp"
+    # Scanner durations can be placeholders when probing originally failed.
+    # Only a fresh source probe may set the chunk boundary and deletion check.
+    measured_duration = _ffprobe_duration(src_path)
+    if not measured_duration:
+        con = database.connect()
+        try:
+            con.execute("""UPDATE media_files SET transcode_status='failed',
+                transcode_error='source duration unavailable' WHERE id=?""", (media_id,))
+            con.commit()
+        finally:
+            con.close()
+        log.warning("Source duration unavailable; preserving media_id=%s", media_id)
+        return
+    source_duration = measured_duration
     con = database.connect()
     try:
-        con.execute("UPDATE media_files SET transcode_status='running', transcode_worker=? WHERE id=?",
-                    ("phone" if use_phone else "pi", media_id))
+        con.execute("""UPDATE media_files SET duration=?, transcode_status='running',
+            transcode_worker=? WHERE id=?""", (source_duration, "phone" if use_phone else "pi", media_id))
         con.commit()
     finally:
         con.close()
@@ -348,9 +367,28 @@ def run_loop(stop_event=None):
             con.close()
     except Exception:
         log.exception("Failed to reclaim orphaned running transcode jobs")
+    missing_rechecked = False
     while not stop_event.is_set():
         try:
             phone_transcode.ensure_status_screen()
+            import scanner
+            if not scanner.ssd_storage_healthy():
+                missing_rechecked = False
+                log.warning("Media SSD unavailable; pausing show conversion without changing queue state")
+                stop_event.wait(120)
+                continue
+            if not missing_rechecked:
+                con = database.connect()
+                try:
+                    for row in con.execute("""SELECT id, path FROM media_files
+                            WHERE transcode_status='failed' AND transcode_error='source file missing'"""):
+                        if os.path.isfile(row["path"]):
+                            con.execute("""UPDATE media_files SET transcode_status='pending',
+                                transcode_error='' WHERE id=?""", (row["id"],))
+                    con.commit()
+                finally:
+                    con.close()
+                missing_rechecked = True
             con = database.connect()
             try:
                 job = next_pending(con)
@@ -360,7 +398,8 @@ def run_loop(stop_event=None):
                 phone_state = phone_transcode.status()
                 # Keep a saved phone job on the phone while Android cools. A
                 # temporary thermal pause must not restart it on the Pi.
-                if ((phone_state["connected"] and phone_state["installed"] and not phone_state["ready"])
+                if ((os.environ.get("RETRO_TV_ADB_SERIAL") and not phone_state["ready"])
+                        or (phone_state["connected"] and phone_state["installed"] and not phone_state["ready"])
                         or (not phone_state["ready"] and
                             phone_transcode.partial_status(job["id"], job["duration"]))):
                     stop_event.wait(30)
@@ -381,6 +420,10 @@ def run_loop(stop_event=None):
                     stop_event.wait(30)
                 continue
             elif job:
+                if not scanner.ssd_storage_healthy():
+                    missing_rechecked = False
+                    stop_event.wait(120)
+                    continue
                 # source vanished since being queued
                 con = database.connect()
                 try:

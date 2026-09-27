@@ -307,7 +307,17 @@ is shown for monitoring. The Admin Settings page can enable a 46.5°C battery
 pause; it is off by default. Phone work always pauses when Android reports
 moderate thermal stress and resumes from completed sections afterward. `/admin` shows the worker,
 temperature, and progress; the phone displays the same status at
-`http://127.0.0.1:5000/phone-transcode` through ADB USB forwarding.
+`http://127.0.0.1:5000/phone-transcode` through ADB forwarding over USB or Wi-Fi.
+
+If the media SSD disconnects, Retro TV pauses conversion and keeps the SSD
+library indexed rather than treating I/O errors as deleted shows. After the
+USB connection is stable, `sudo bash scripts/install_ssd_recovery.sh` installs
+a two-minute systemd recovery timer. It waits for two minutes without USB
+disconnects, unmounts the stale bind mounts, runs `e2fsck -p`, and remounts
+the SSD. Any check needing manual repair leaves the drive unmounted. The
+worker then requeues files incorrectly marked missing during the outage and
+resumes saved phone sections. A powered USB hub or separate SSD supply is
+still needed if the Pi reports USB over-current.
 
 ## Important: exactly one instance
 

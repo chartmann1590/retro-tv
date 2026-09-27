@@ -1,6 +1,8 @@
 """Safe source replacement: venv/bin/python -m unittest tests.test_transcode -v."""
 import os
 import fcntl
+import json
+import subprocess
 import tempfile
 import unittest
 from unittest.mock import patch
@@ -12,6 +14,74 @@ import transcode
 
 
 class TranscodeReplacementTests(unittest.TestCase):
+    def test_reprobe_replaces_scanner_duration_before_deleting_source(self):
+        with tempfile.TemporaryDirectory() as root:
+            source = os.path.join(root, "original.mkv")
+            with open(source, "wb") as output:
+                output.write(b"original hevc")
+            with patch.object(config, "DB_PATH", os.path.join(root, "test.db")), \
+                 patch.object(config, "DATA_DIR", root), \
+                 patch.object(transcode, "TRANSCODE_DIR", os.path.join(root, "converted")):
+                database.init_db()
+                con = database.connect()
+                try:
+                    media_id = con.execute("""INSERT INTO media_files(path,kind,duration,vcodec,transcode_status)
+                        VALUES(?,?,?,?,?)""", (source, "episode", 1320, "hevc", "pending")).lastrowid
+                    con.commit()
+                finally:
+                    con.close()
+
+                def encode(_, destination, __, duration):
+                    self.assertEqual(duration, 20)
+                    with open(destination, "wb") as output:
+                        output.write(b"verified h264")
+                    return True, ""
+
+                details = {"duration": 20, "vcodec": "h264", "acodec": "aac", "width": 1280,
+                           "height": 720, "bitrate": 1000, "size": 13, "mtime": 1}
+                with patch.object(transcode, "_ffprobe_duration", return_value=20), \
+                     patch.object(phone_transcode, "encode", side_effect=encode), \
+                     patch.object(phone_transcode, "finish"), \
+                     patch.object(transcode, "_validated_output", return_value=details) as validate:
+                    transcode.run_one(media_id, source, 1320, use_phone=True)
+                    self.assertEqual(validate.call_args.args[1], 20)
+                con = database.connect()
+                try:
+                    row = con.execute("SELECT path,duration,transcode_status FROM media_files WHERE id=?",
+                                      (media_id,)).fetchone()
+                finally:
+                    con.close()
+                self.assertEqual((row["duration"], row["transcode_status"]), (20, "done"))
+                self.assertFalse(os.path.exists(source))
+
+    def test_changed_same_size_source_is_pushed_again(self):
+        with tempfile.TemporaryDirectory() as root:
+            source = os.path.join(root, "source.mkv")
+            with open(source, "wb") as output:
+                output.write(b"new source")
+            stat = os.stat(source)
+            parts = os.path.join(root, ".phone_1")
+            os.makedirs(parts)
+            with open(os.path.join(parts, "manifest.json"), "w") as output:
+                json.dump({"path": source, "size": stat.st_size, "mtime_ns": stat.st_mtime_ns - 1,
+                           "duration": 10, "chunk_seconds": phone_transcode.CHUNK_SECONDS}, output)
+            calls = []
+
+            def adb(*args, **_):
+                calls.append(args)
+                if args[0] == "push":
+                    raise subprocess.CalledProcessError(1, args)
+                return subprocess.CompletedProcess(args, 0)
+
+            with patch.object(config, "TRANSCODE_DIR", root), \
+                 patch.object(phone_transcode, "_adb", side_effect=adb), \
+                 patch.object(phone_transcode, "_source_width", return_value=1280), \
+                 patch.object(phone_transcode, "_remote_size", return_value=stat.st_size), \
+                 patch.object(phone_transcode, "_too_hot", return_value=(True, 46.0)):
+                ok, _ = phone_transcode.encode(source, os.path.join(root, "out.mkv"), 1, 10)
+            self.assertFalse(ok)
+            self.assertTrue(any(args[0] == "push" for args in calls))
+
     def test_phone_battery_pause_defaults_off_and_can_be_saved(self):
         with tempfile.TemporaryDirectory() as root, \
              patch.object(config, "DATA_DIR", root), \
@@ -65,7 +135,8 @@ class TranscodeReplacementTests(unittest.TestCase):
 
                 details = {"duration": 10, "vcodec": "h264", "acodec": "aac", "width": 1280,
                            "height": 720, "bitrate": 1000, "size": 13, "mtime": 1}
-                with patch.object(transcode, "_encode", side_effect=encode), \
+                with patch.object(transcode, "_ffprobe_duration", return_value=10), \
+                     patch.object(transcode, "_encode", side_effect=encode), \
                      patch.object(transcode, "_validated_output", return_value=details):
                     transcode.run_one(media_id, source, 10)
 
@@ -94,7 +165,8 @@ class TranscodeReplacementTests(unittest.TestCase):
                     con.commit()
                 finally:
                     con.close()
-                with patch.object(transcode.phone_transcode, "encode", return_value=(False, "phone hot")):
+                with patch.object(transcode, "_ffprobe_duration", return_value=10), \
+                     patch.object(transcode.phone_transcode, "encode", return_value=(False, "phone hot")):
                     self.assertTrue(transcode.run_one(media_id, source, 10, use_phone=True))
                 con = database.connect()
                 try:

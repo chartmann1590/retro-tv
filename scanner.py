@@ -20,6 +20,25 @@ def ssd_mounts():
             (config.TV_DIR, config.MOVIES_DIR, config.COMMERCIALS_DIR)]
 
 
+def ssd_storage_healthy():
+    """A stale ext4 mount can still look mounted after its USB disk disconnects."""
+    drive_mount = os.path.dirname(config.TRANSCODE_DIR)
+    try:
+        with open("/proc/mounts") as mounts_file:
+            options = {parts[1]: set(parts[3].split(","))
+                       for line in mounts_file if (parts := line.split()) and len(parts) >= 4}
+        if not os.path.ismount(drive_mount) or "shutdown" in options.get(drive_mount, set()):
+            return False
+        if any(not os.path.ismount(path) or "shutdown" in options.get(path, set())
+               for path in ssd_mounts()):
+            return False
+        with os.scandir(config.TRANSCODE_DIR) as entries:
+            next(entries, None)
+        return True
+    except OSError:
+        return False
+
+
 def wait_for_media_mounts(timeout=90, stop_event=None):
     """Give the external SSD's bind mounts time to appear after user login."""
     deadline = time.monotonic() + timeout
@@ -357,7 +376,7 @@ def _full_scan(light=False):
             con.close()
     # An SSD can be absent or late to mount during startup. Never treat every
     # file below its bind mount as deleted merely because the mount is missing.
-    missing_ssd_roots = [path for path in ssd_mounts() if not os.path.ismount(path)]
+    missing_ssd_roots = ([] if ssd_storage_healthy() else ssd_mounts())
     if missing_ssd_roots:
         log.warning("Media mounts unavailable; preserving indexed files under %s", missing_ssd_roots)
     # remove files that are truly gone from accessible media roots

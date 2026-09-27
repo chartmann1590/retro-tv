@@ -76,6 +76,11 @@ def status():
               "pause_at_c": BATTERY_PAUSE_C if battery_enabled else None}
     try:
         state = _adb("get-state", timeout=5, capture_output=True, text=True)
+        serial = os.environ.get("RETRO_TV_ADB_SERIAL", "")
+        if (state.returncode != 0 or state.stdout.strip() != "device") and ":" in serial:
+            subprocess.run(["adb", "connect", serial], timeout=8,
+                           stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            state = _adb("get-state", timeout=5, capture_output=True, text=True)
         if state.returncode == 0 and state.stdout.strip() == "device":
             result["connected"] = True
             binary = _adb("shell", "test", "-x", PHONE_FFMPEG,
@@ -255,7 +260,8 @@ def encode(src_path, out_path, media_id, source_duration):
             except (TypeError, ValueError):
                 pass
         fingerprint = {**source_fingerprint, "chunk_seconds": chunk_seconds}
-        if existing != fingerprint:
+        source_changed = existing != fingerprint
+        if source_changed:
             shutil.rmtree(parts_dir, ignore_errors=True)
             os.makedirs(parts_dir, exist_ok=True)
             with open(manifest_path, "w") as manifest_file:
@@ -282,7 +288,7 @@ def encode(src_path, out_path, media_id, source_duration):
         width = _source_width(src_path)
         _adb("shell", "mkdir", "-p", PHONE_DIR, timeout=10, check=True,
              stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)
-        if completed < total_chunks and _remote_size(remote_src) != source_stat.st_size:
+        if completed < total_chunks and (source_changed or _remote_size(remote_src) != source_stat.st_size):
             _adb("push", src_path, remote_src, timeout=3600, check=True,
                  stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)
         if _too_hot()[0]:
@@ -298,7 +304,10 @@ def encode(src_path, out_path, media_id, source_duration):
                 json.dump({"start": start, "total": duration}, state_file)
             command = ["shell", PHONE_FFMPEG, "-y", "-hide_banner", "-loglevel", "error",
                        "-threads", "6", "-filter_threads", "1", "-ss", str(seek_start),
-                       "-i", remote_src, "-ss", str(decode_skip), "-t", str(length), "-map", "0:v:0",
+                       "-i", remote_src, "-ss", str(decode_skip)]
+            if completed != total_chunks - 1:
+                command += ["-t", str(length)]
+            command += ["-map", "0:v:0",
                        "-map", "0:a:0?", "-pix_fmt", "nv12"]
             if width > 1280:
                 command += ["-vf", "scale=1280:-2"]

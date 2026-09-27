@@ -35,6 +35,7 @@ async function loadTranscodeStatus(){
   try{s=await jget('/api/transcode/status');}catch(e){return;}
   if(!s.ok){el.innerHTML='';return;}
   const parts=[];
+  if(s.ssd_ready===false)parts.push('<div class="warn" style="margin-bottom:14px">Media SSD unavailable; show conversion is paused. Check the USB power and SSD mount.</div>');
   const p=s.phone||{};
   const phoneState=!p.connected?'Disconnected':!p.installed?'Connected · transcoder missing':
     p.ready?'Connected · ready':'Connected · cooling before next job';
