@@ -314,13 +314,16 @@ def _full_scan(light=False):
                 # iterating, and writing back the stale snapshot value would clobber that.
                 live_status = con.execute("SELECT transcode_status FROM media_files WHERE id=?", (prev["id"],)).fetchone()
                 prev_status = live_status["transcode_status"] if live_status else ""
-                should_queue = hw_risk and (not unchanged or prev_status == "") and _transcode_headroom_ok(st.st_size, reserved=reserved_transcode_bytes)
+                should_queue = (hw_risk and prev_status != "running"
+                                and (prev_status != "done" or not unchanged)
+                                and (not unchanged or prev_status == "")
+                                and _transcode_headroom_ok(st.st_size, reserved=reserved_transcode_bytes))
                 if should_queue:
                     new_status = "pending"
                     if prev_status != "pending":
                         reserved_transcode_bytes += st.st_size * 2
                 elif not hw_risk:
-                    new_status = ""
+                    new_status = "done" if prev_status == "done" else ""
                 else:
                     new_status = prev_status
                 con.execute("""UPDATE media_files SET kind=?,size=?,mtime=?,duration=?,container=?,
@@ -388,6 +391,11 @@ def _full_scan(light=False):
             if any(p.startswith(root + os.sep) for root in missing_ssd_roots):
                 continue
             mid = row["id"]
+            # The converter may have moved this row to its validated replacement
+            # since the snapshot above. Do not delete that live record.
+            live = con.execute("SELECT path FROM media_files WHERE id=?", (mid,)).fetchone()
+            if not live or live["path"] != p:
+                continue
             con.execute("DELETE FROM episodes WHERE media_id=?", (mid,))
             con.execute("DELETE FROM movies WHERE media_id=?", (mid,))
             con.execute("DELETE FROM commercials WHERE media_id=?", (mid,))

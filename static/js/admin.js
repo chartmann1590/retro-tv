@@ -60,14 +60,18 @@ async function loadTranscodeStatus(){
       <div class="progress"><div style="width:${r.percent||0}%"></div></div>
       <div class="hint" style="margin-top:4px">${r.percent||0}% · ${fmtEta(r.out_time_sec)} of ${fmtEta(r.source_duration)} encoded</div>
     </div>`);
-  }else if(s.resume){
-    parts.push(`<div class="panel" style="margin-bottom:14px"><b>Phone job saved:</b> ${esc(s.resume.title)} · ${s.resume.percent}% complete
-      <div class="hint">${s.resume.completed_sections} sections are stored on the SSD; conversion resumes after cooling.</div></div>`);
+  }
+  if(s.resume){
+    parts.push(`<div class="panel" style="margin-bottom:14px"><b>Partly converted, waiting to resume:</b> ${esc(s.resume.title)} · ${s.resume.percent}% of this show encoded
+      <div class="hint">${s.resume.completed_sections} sections are saved on the SSD. The show leaves the queue only after the full replacement is verified.</div></div>`);
   }
   if(s.pending&&s.pending.length){
-    const next=s.pending.slice(0,10).map((item,i)=>`<span class="chip">${i+1}. ${esc(item.title)}</span>`).join('');
-    const more=s.pending.length>10?`<span class="chip">+${s.pending.length-10} more</span>`:'';
-    parts.push(`<div class="panel"><b>Queued next (${s.pending.length}):</b><br>${next}${more}</div>`);
+    const waiting=s.pending.filter(item=>!s.resume||item.media_id!==s.resume.media_id);
+    if(waiting.length){
+      const next=waiting.slice(0,10).map((item,i)=>`<span class="chip">${i+1}. ${esc(item.title)}</span>`).join('');
+      const more=waiting.length>10?`<span class="chip">+${waiting.length-10} more</span>`:'';
+      parts.push(`<div class="panel"><b>Other shows queued (${waiting.length}):</b><br>${next}${more}</div>`);
+    }
   }
   el.innerHTML=parts.join('');
 }

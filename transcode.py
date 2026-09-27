@@ -4,6 +4,7 @@ import json
 import fcntl
 import math
 import os
+import shutil
 import signal
 import subprocess
 import threading
@@ -109,7 +110,7 @@ def current_status():
         running = con.execute(
             "SELECT id, path, duration, transcode_worker FROM media_files WHERE transcode_status='running' LIMIT 1").fetchone()
         pending = con.execute(
-            "SELECT id, path, duration FROM media_files WHERE transcode_status='pending' ORDER BY id").fetchall()
+            "SELECT id, path, duration, transcode_worker, transcode_error FROM media_files WHERE transcode_status='pending' ORDER BY id").fetchall()
         done_phone = con.execute(
             "SELECT COUNT(*) FROM media_files WHERE transcode_status='done' AND transcode_worker='phone'").fetchone()[0]
     finally:
@@ -125,9 +126,9 @@ def current_status():
                               "duration": running["duration"], "worker": worker,
                               **(progress or {})}
     result["pending"] = [{"media_id": r["id"], "path": r["path"], "duration": r["duration"]} for r in pending]
-    if not running:
-        for item in result["pending"]:
-            partial = phone_transcode.partial_status(item["media_id"], item["duration"])
+    for item in pending:
+        if item["transcode_worker"] == "phone" or (item["transcode_error"] or "").startswith("phone:"):
+            partial = phone_transcode.partial_status(item["id"], item["duration"])
             if partial:
                 result["resume"] = partial
                 break
@@ -251,8 +252,11 @@ def run_one(media_id, src_path, source_duration, use_phone=False):
 
 def _run_one_unlocked(media_id, src_path, source_duration, use_phone=False):
     os.makedirs(TRANSCODE_DIR, exist_ok=True)
-    final_path = os.path.join(TRANSCODE_DIR, f"{media_id}.mkv")
-    tmp_path = final_path + ".tmp"
+    tmp_path = os.path.join(TRANSCODE_DIR, f"{media_id}.mkv.tmp")
+    # Keep completed media in the scanned library. An MKV can be atomically
+    # replaced in place; other containers need an MKV sibling before deletion.
+    final_path = (src_path if src_path.lower().endswith(".mkv") else
+                  os.path.splitext(src_path)[0] + ".h264.mkv")
     # Scanner durations can be placeholders when probing originally failed.
     # Only a fresh source probe may set the chunk boundary and deletion check.
     measured_duration = _ffprobe_duration(src_path)
@@ -297,31 +301,53 @@ def _run_one_unlocked(media_id, src_path, source_duration, use_phone=False):
             import scanner
             with scanner._scan_lock:
                 original = con.execute("SELECT * FROM media_files WHERE id=?", (media_id,)).fetchone()
-                os.replace(tmp_path, final_path)
+                if os.stat(tmp_path).st_dev == os.stat(os.path.dirname(final_path)).st_dev:
+                    os.replace(tmp_path, final_path)
+                else:
+                    # A non-SSD source may live on a different filesystem.
+                    # Copy beside it and validate before the atomic rename.
+                    staged_path = final_path + ".tmp"
+                    try:
+                        shutil.copyfile(tmp_path, staged_path)
+                        if not _validated_output(staged_path, source_duration):
+                            raise OSError("copied conversion failed validation")
+                        os.replace(staged_path, final_path)
+                        os.remove(tmp_path)
+                    finally:
+                        if os.path.exists(staged_path):
+                            os.remove(staged_path)
+                final_stat = os.stat(final_path)
                 con.execute("""UPDATE media_files SET path=?, size=?, mtime=?, duration=?,
                     container='mkv', vcodec='h264', acodec=?, width=?, height=?, bitrate=?,
                     pix_fmt='yuv420p', bit_depth=8, compat_warning='',
                     transcode_status='done', transcode_path=?, transcode_error=''
-                    WHERE id=?""", (final_path, details["size"], details["mtime"], details["duration"],
+                    WHERE id=?""", (final_path, final_stat.st_size, final_stat.st_mtime, details["duration"],
                     details["acodec"], details["width"], details["height"], details["bitrate"],
                     final_path, media_id))
                 con.commit()
-                try:
-                    os.unlink(src_path)
-                except OSError:
-                    log.exception("Could not remove converted source %s", src_path)
-                    con.execute("""UPDATE media_files SET path=?, size=?, mtime=?, duration=?,
-                        container=?, vcodec=?, acodec=?, width=?, height=?, bitrate=?,
-                        pix_fmt=?, bit_depth=?, compat_warning=? WHERE id=?""",
-                        (src_path, original["size"], original["mtime"], original["duration"],
-                         original["container"], original["vcodec"], original["acodec"],
-                         original["width"], original["height"], original["bitrate"],
-                         original["pix_fmt"], original["bit_depth"], original["compat_warning"], media_id))
-                    con.commit()
+                converted = True
+                if final_path != src_path:
+                    try:
+                        os.unlink(src_path)
+                    except OSError:
+                        log.exception("Could not remove converted source %s", src_path)
+                        con.execute("""UPDATE media_files SET path=?, size=?, mtime=?, duration=?,
+                            container=?, vcodec=?, acodec=?, width=?, height=?, bitrate=?,
+                            pix_fmt=?, bit_depth=?, compat_warning=?, transcode_status='pending',
+                            transcode_path='' WHERE id=?""",
+                            (src_path, original["size"], original["mtime"], original["duration"],
+                             original["container"], original["vcodec"], original["acodec"],
+                             original["width"], original["height"], original["bitrate"],
+                             original["pix_fmt"], original["bit_depth"], original["compat_warning"], media_id))
+                        os.remove(final_path)
+                        converted = False
+                    else:
+                        log.info("Transcode replaced source: media_id=%s in %.0fs -> %s",
+                                 media_id, time.monotonic() - t0, final_path)
                 else:
                     log.info("Transcode replaced source: media_id=%s in %.0fs -> %s",
                              media_id, time.monotonic() - t0, final_path)
-                if use_phone:
+                if use_phone and converted:
                     phone_transcode.finish(media_id)
         else:
             for p in (tmp_path,):
@@ -360,7 +386,7 @@ def run_loop(stop_event=None):
     try:
         con = database.connect()
         try:
-            con.execute("""UPDATE media_files SET transcode_status='pending', transcode_worker=''
+            con.execute("""UPDATE media_files SET transcode_status='pending'
                 WHERE transcode_status='running'""")
             con.commit()
         finally:

@@ -10,6 +10,7 @@ from unittest.mock import patch
 import config
 import database
 import phone_transcode
+import scanner
 import transcode
 
 
@@ -52,7 +53,9 @@ class TranscodeReplacementTests(unittest.TestCase):
                 finally:
                     con.close()
                 self.assertEqual((row["duration"], row["transcode_status"]), (20, "done"))
-                self.assertFalse(os.path.exists(source))
+                self.assertEqual(row["path"], source)
+                with open(source, "rb") as replacement:
+                    self.assertEqual(replacement.read(), b"verified h264")
 
     def test_changed_same_size_source_is_pushed_again(self):
         with tempfile.TemporaryDirectory() as root:
@@ -145,7 +148,8 @@ class TranscodeReplacementTests(unittest.TestCase):
                     row = con.execute("SELECT * FROM media_files WHERE id=?", (media_id,)).fetchone()
                 finally:
                     con.close()
-                self.assertFalse(os.path.exists(source))
+                with open(source, "rb") as replacement:
+                    self.assertEqual(replacement.read(), b"verified h264")
                 self.assertTrue(os.path.isfile(row["path"]))
                 self.assertEqual((row["vcodec"], row["transcode_status"]), ("h264", "done"))
 
@@ -176,6 +180,105 @@ class TranscodeReplacementTests(unittest.TestCase):
                 self.assertTrue(os.path.isfile(source))
                 self.assertEqual((row["transcode_status"], row["transcode_worker"]),
                                  ("pending", "phone"))
+
+    def test_finished_episode_stays_in_library_after_rescan(self):
+        with tempfile.TemporaryDirectory() as root:
+            tv_dir = os.path.join(root, "TVShows")
+            os.makedirs(tv_dir)
+            source = os.path.join(tv_dir, "Example S01E01.mkv")
+            with open(source, "wb") as output:
+                output.write(b"original hevc")
+            with patch.object(config, "MEDIA_ROOT", root), \
+                 patch.object(config, "TV_DIR", tv_dir), \
+                 patch.object(config, "DB_PATH", os.path.join(root, "test.db")), \
+                 patch.object(config, "DATA_DIR", root), \
+                 patch.object(transcode, "TRANSCODE_DIR", os.path.join(root, "converted")), \
+                 patch.object(scanner, "ssd_storage_healthy", return_value=True):
+                database.init_db()
+                con = database.connect()
+                try:
+                    media_id = con.execute("""INSERT INTO media_files(path,kind,duration,vcodec,transcode_status)
+                        VALUES(?,?,?,?,?)""", (source, "episode", 10, "hevc", "pending")).lastrowid
+                    con.commit()
+                finally:
+                    con.close()
+
+                def encode(_, destination, __, ___):
+                    with open(destination, "wb") as output:
+                        output.write(b"verified h264")
+                    return True, ""
+
+                details = {"duration": 10, "acodec": "aac", "width": 1280,
+                           "height": 720, "bitrate": 1000, "size": 13, "mtime": 1}
+                with patch.object(transcode, "_ffprobe_duration", return_value=10), \
+                     patch.object(transcode, "_encode", side_effect=encode), \
+                     patch.object(transcode, "_validated_output", return_value=details):
+                    transcode.run_one(media_id, source, 10)
+                scanner.full_scan(light=True)
+                con = database.connect()
+                try:
+                    row = con.execute("SELECT path,vcodec,transcode_status FROM media_files WHERE id=?",
+                                      (media_id,)).fetchone()
+                    self.assertIsNone(transcode.next_pending(con))
+                finally:
+                    con.close()
+                self.assertEqual((row["path"], row["vcodec"], row["transcode_status"]),
+                                 (source, "h264", "done"))
+
+    def test_non_mkv_source_gets_scannable_mkv_sibling(self):
+        with tempfile.TemporaryDirectory() as root:
+            source = os.path.join(root, "Example S01E01.mp4")
+            with open(source, "wb") as output:
+                output.write(b"original hevc")
+            with patch.object(config, "DB_PATH", os.path.join(root, "test.db")), \
+                 patch.object(config, "DATA_DIR", root), \
+                 patch.object(transcode, "TRANSCODE_DIR", os.path.join(root, "converted")):
+                database.init_db()
+                con = database.connect()
+                try:
+                    media_id = con.execute("""INSERT INTO media_files(path,kind,duration,vcodec,transcode_status)
+                        VALUES(?,?,?,?,?)""", (source, "episode", 10, "hevc", "pending")).lastrowid
+                    con.commit()
+                finally:
+                    con.close()
+
+                def encode(_, destination, __, ___):
+                    with open(destination, "wb") as output:
+                        output.write(b"verified h264")
+                    return True, ""
+
+                details = {"duration": 10, "acodec": "aac", "width": 1280,
+                           "height": 720, "bitrate": 1000, "size": 13, "mtime": 1}
+                with patch.object(transcode, "_ffprobe_duration", return_value=10), \
+                     patch.object(transcode, "_encode", side_effect=encode), \
+                     patch.object(transcode, "_validated_output", return_value=details):
+                    transcode.run_one(media_id, source, 10)
+                con = database.connect()
+                try:
+                    row = con.execute("SELECT path,transcode_status FROM media_files WHERE id=?",
+                                      (media_id,)).fetchone()
+                finally:
+                    con.close()
+                self.assertEqual(row["path"], os.path.join(root, "Example S01E01.h264.mkv"))
+                self.assertEqual(row["transcode_status"], "done")
+                self.assertFalse(os.path.exists(source))
+                with open(row["path"], "rb") as replacement:
+                    self.assertEqual(replacement.read(), b"verified h264")
+
+    def test_saved_phone_failure_precedes_new_jobs(self):
+        with tempfile.TemporaryDirectory() as root, \
+             patch.object(config, "DB_PATH", os.path.join(root, "test.db")):
+            database.init_db()
+            con = database.connect()
+            try:
+                saved = con.execute("""INSERT INTO media_files(path,kind,transcode_status,transcode_worker,transcode_error)
+                    VALUES(?,?,?,?,?)""", ("saved.mkv", "episode", "pending", "phone", "phone: interrupted by SSD")).lastrowid
+                con.execute("""INSERT INTO media_files(path,kind,transcode_status)
+                    VALUES(?,?,?)""", ("new.mkv", "episode", "pending"))
+                con.commit()
+                self.assertEqual(transcode.next_pending(con)["id"], saved)
+            finally:
+                con.close()
 
     def test_phone_and_pi_cannot_encode_at_once(self):
         with tempfile.TemporaryDirectory() as root, patch.object(config, "DATA_DIR", root):
