@@ -1,9 +1,7 @@
-"""Background transcoding for video files the Pi 4's hardware HEVC decoder
-corrupts (see scanner.needs_hw_transcode). Produces a Pi-safe 1080p 8-bit
-H.264 copy alongside the original -- the original file is never touched.
-"""
+"""Background HEVC replacement with validated H.264 copies on the media SSD."""
 import logging
 import json
+import fcntl
 import os
 import signal
 import subprocess
@@ -12,6 +10,7 @@ import time
 
 import config
 import database
+import phone_transcode
 
 log = logging.getLogger("retro-tv.transcode")
 
@@ -47,7 +46,12 @@ def playable_path(row):
 
 def next_pending(con):
     return con.execute(
-        "SELECT id, path, duration FROM media_files WHERE transcode_status='pending' ORDER BY id LIMIT 1"
+        """SELECT id, path, duration FROM media_files WHERE transcode_status='pending'
+           ORDER BY CASE WHEN transcode_error LIKE 'phone: phone paused%'
+                              OR transcode_error LIKE 'phone: phone cooling%'
+                              OR transcode_error LIKE 'phone: phone too hot%' THEN 0
+                         WHEN transcode_error LIKE 'phone:%' THEN 2 ELSE 1 END,
+                    id LIMIT 1"""
     ).fetchone()
 
 
@@ -55,15 +59,20 @@ def _progress_path(media_id):
     return os.path.join(TRANSCODE_DIR, f".progress_{media_id}")
 
 
-def read_progress(media_id, source_duration):
+def read_progress(media_id, source_duration, worker="pi"):
     """Parse ffmpeg's -progress key=value stream for the job's most recent
     values (later lines win on repeated keys, since ffmpeg appends a full
     block on every report rather than truncating the file)."""
-    path = _progress_path(media_id)
-    try:
-        with open(path) as f:
-            lines = f.readlines()
-    except OSError:
+    if worker == "phone":
+        lines = phone_transcode.progress_text(media_id).splitlines()
+    else:
+        path = _progress_path(media_id)
+        try:
+            with open(path) as f:
+                lines = f.readlines()
+        except OSError:
+            return None
+    if not lines:
         return None
     fields = {}
     for line in lines:
@@ -95,17 +104,28 @@ def current_status():
     con = database.connect()
     try:
         running = con.execute(
-            "SELECT id, path, duration FROM media_files WHERE transcode_status='running' LIMIT 1").fetchone()
+            "SELECT id, path, duration, transcode_worker FROM media_files WHERE transcode_status='running' LIMIT 1").fetchone()
         pending = con.execute(
             "SELECT id, path, duration FROM media_files WHERE transcode_status='pending' ORDER BY id").fetchall()
+        done_phone = con.execute(
+            "SELECT COUNT(*) FROM media_files WHERE transcode_status='done' AND transcode_worker='phone'").fetchone()[0]
     finally:
         con.close()
-    result = {"running": None, "pending": []}
+    result = {"running": None, "pending": [], "phone": phone_transcode.status(),
+              "phone_completed": done_phone, "resume": None}
     if running:
-        progress = read_progress(running["id"], running["duration"] or 0)
+        worker = running["transcode_worker"] or "pi"
+        progress = read_progress(running["id"], running["duration"] or 0, worker)
         result["running"] = {"media_id": running["id"], "path": running["path"],
-                              "duration": running["duration"], **(progress or {})}
+                              "duration": running["duration"], "worker": worker,
+                              **(progress or {})}
     result["pending"] = [{"media_id": r["id"], "path": r["path"], "duration": r["duration"]} for r in pending]
+    if not running:
+        for item in result["pending"]:
+            partial = phone_transcode.partial_status(item["media_id"], item["duration"])
+            if partial:
+                result["resume"] = partial
+                break
     return result
 
 
@@ -207,20 +227,41 @@ def _encode(src_path, out_path, source_duration, media_id):
     return False, last_err
 
 
-def run_one(media_id, src_path, source_duration):
+def run_one(media_id, src_path, source_duration, use_phone=False):
+    """Serialize Pi and phone jobs even if two app processes are started."""
+    os.makedirs(config.DATA_DIR, exist_ok=True)
+    with open(os.path.join(config.DATA_DIR, "transcode.lock"), "a+") as lock_file:
+        try:
+            fcntl.flock(lock_file, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError:
+            log.info("Another transcoding worker is already active")
+            return False
+        try:
+            _run_one_unlocked(media_id, src_path, source_duration, use_phone)
+            return True
+        finally:
+            fcntl.flock(lock_file, fcntl.LOCK_UN)
+
+
+def _run_one_unlocked(media_id, src_path, source_duration, use_phone=False):
     os.makedirs(TRANSCODE_DIR, exist_ok=True)
     final_path = os.path.join(TRANSCODE_DIR, f"{media_id}.mkv")
     tmp_path = final_path + ".tmp"
     con = database.connect()
     try:
-        con.execute("UPDATE media_files SET transcode_status='running' WHERE id=?", (media_id,))
+        con.execute("UPDATE media_files SET transcode_status='running', transcode_worker=? WHERE id=?",
+                    ("phone" if use_phone else "pi", media_id))
         con.commit()
     finally:
         con.close()
-    log.info("Transcode starting: media_id=%s %r", media_id, src_path)
+    log.info("Transcode starting on %s: media_id=%s %r",
+             "phone" if use_phone else "Pi", media_id, src_path)
     t0 = time.monotonic()
     try:
-        ok, err = _encode(src_path, tmp_path, source_duration, media_id)
+        if use_phone:
+            ok, err = phone_transcode.encode(src_path, tmp_path, media_id, source_duration)
+        else:
+            ok, err = _encode(src_path, tmp_path, source_duration, media_id)
     except Exception:
         log.exception("Transcode crashed: media_id=%s", media_id)
         ok, err = False, "internal error, see log"
@@ -260,15 +301,20 @@ def run_one(media_id, src_path, source_duration):
                 else:
                     log.info("Transcode replaced source: media_id=%s in %.0fs -> %s",
                              media_id, time.monotonic() - t0, final_path)
+                if use_phone:
+                    phone_transcode.finish(media_id)
         else:
-            for p in (tmp_path, final_path):
+            for p in (tmp_path,):
                 try:
                     os.remove(p)
                 except OSError:
                     pass
-            con.execute(
-                "UPDATE media_files SET transcode_status='failed', transcode_error=? WHERE id=?",
-                ((err or "output validation failed")[-2000:], media_id))
+            status = "pending" if use_phone else "failed"
+            error = (("phone: " if use_phone else "") + (err or "output validation failed"))[-2000:]
+            if use_phone and ok:
+                phone_transcode.reset(media_id)
+            con.execute("UPDATE media_files SET transcode_status=?, transcode_error=? WHERE id=?",
+                        (status, error, media_id))
             log.warning("Transcode failed: media_id=%s: %s", media_id, err[-500:])
         con.commit()
     finally:
@@ -294,7 +340,8 @@ def run_loop(stop_event=None):
     try:
         con = database.connect()
         try:
-            con.execute("UPDATE media_files SET transcode_status='pending' WHERE transcode_status='running'")
+            con.execute("""UPDATE media_files SET transcode_status='pending', transcode_worker=''
+                WHERE transcode_status='running'""")
             con.commit()
         finally:
             con.close()
@@ -302,14 +349,16 @@ def run_loop(stop_event=None):
         log.exception("Failed to reclaim orphaned running transcode jobs")
     while not stop_event.is_set():
         try:
+            phone_transcode.ensure_status_screen()
             con = database.connect()
             try:
                 job = next_pending(con)
             finally:
                 con.close()
             if job and os.path.isfile(job["path"]):
+                use_phone = phone_transcode.available()
                 temp = _cpu_temp_c()
-                if temp is not None and temp >= THERMAL_PAUSE_C:
+                if not use_phone and temp is not None and temp >= THERMAL_PAUSE_C:
                     stop_event.wait(30)
                     continue
                 src_size = os.path.getsize(job["path"])
@@ -317,7 +366,10 @@ def run_loop(stop_event=None):
                     log.warning("Insufficient disk headroom to transcode media_id=%s (%r); waiting for free space", job["id"], job["path"])
                     stop_event.wait(120)
                     continue
-                run_one(job["id"], job["path"], job["duration"])
+                if not run_one(job["id"], job["path"], job["duration"], use_phone=use_phone):
+                    stop_event.wait(30)
+                if use_phone:
+                    stop_event.wait(30)
                 continue
             elif job:
                 # source vanished since being queued

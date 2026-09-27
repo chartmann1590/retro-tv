@@ -164,22 +164,21 @@ def probe_info(path):
     return info
 
 def needs_hw_transcode(info):
-    """True for the video class confirmed to corrupt the picture on the Pi 4's
-    zero-copy HEVC hardware decode path: all HEVC/H.265 content (both 8-bit and 10-bit).
-    mpv forces software decode for these files (see playback._hwdec_for), so any HEVC
-    file needs a background-transcoded 8-bit H.264 copy for reliable real-time playback."""
+    """HEVC needs an H.264 copy for smooth HDMI and browser playback on the Pi 4.
+
+    drm-copy shows a correct HDMI picture while the copy is being prepared, but
+    large HEVC files can still drop frames.
+    """
     vc = (info.get("vcodec") or "").lower()
     return vc in ("hevc", "h265")
 
 def _transcode_headroom_ok(source_size, reserved=0):
     """Guard against auto-queueing more transcode work than the disk can hold.
 
-    The transcoded copy lands alongside the original (never replacing it), on
-    config.TRANSCODE_DIR's filesystem (the media SSD, not the small root
-    filesystem). A library can still have more HEVC content than even
-    that has free. Require real headroom (accounting for already queued work and
-    a multiple of the source size, plus a fixed floor so we never run the disk to zero)
-    before auto-queueing; compat_warning() still surfaces the file either way.
+    The output is written to config.TRANSCODE_DIR on the media SSD. The original
+    stays in place until the output is validated, then it is removed. Require
+    headroom for the temporary overlap, already queued work, and a fixed floor;
+    compat_warning() still surfaces files that cannot be queued yet.
     """
     import shutil
     try:
@@ -198,7 +197,7 @@ def compat_warning(info, kind):
     cont = (info.get("container") or "").lower()
     br = info.get("bitrate", 0)
     if needs_hw_transcode(info):
-        warns.append("HEVC: Pi4 HW decoder corrupts output (blue/blank picture) -- auto-transcoding a Pi-safe copy")
+        warns.append("HEVC may drop frames on Pi 4; queued for an H.264 replacement when disk space and temperature allow")
     elif h >= 2000:
         warns.append("4K may stutter on Pi 4; prefer 1080p")
     if br and br > 20_000_000:

@@ -35,21 +35,31 @@ async function loadTranscodeStatus(){
   try{s=await jget('/api/transcode/status');}catch(e){return;}
   if(!s.ok){el.innerHTML='';return;}
   const parts=[];
+  const p=s.phone||{};
+  const phoneState=!p.connected?'Disconnected':!p.installed?'Connected · transcoder missing':
+    p.ready?'Connected · ready':'Connected · cooling before next job';
+  const phoneTemp=p.temperature_c==null?'':` · ${Number(p.temperature_c).toFixed(1)}°C`;
+  parts.push(`<div class="panel" style="margin-bottom:14px"><b>📱 Phone transcoder:</b> ${esc(p.model||'Android phone')} · ${phoneState}${phoneTemp}<br>
+    <span class="hint">${s.phone_completed||0} shows converted on phone · Pi and phone conversion jobs run one at a time</span></div>`);
   if(s.running){
     const r=s.running;
+    const phase=r.worker==='phone'&&r.percent==null?'Sending source to phone · ':'';
     parts.push(`<div class="panel" style="margin-bottom:14px">
       <div style="display:flex;justify-content:space-between;gap:12px;margin-bottom:8px">
-        <b>⚙ Transcoding now:</b> ${esc(r.title)}
-        <span class="hint">${r.speed?r.speed+'x speed · ':''}ETA ${fmtEta(r.eta_sec)}</span>
+        <b>⚙ ${r.worker==='phone'?'Phone transcoding (Pi show converter idle)':'Pi transcoding'}:</b> ${esc(r.title)}
+        <span class="hint">${phase}${r.speed?r.speed+'x speed · ':''}ETA ${fmtEta(r.eta_sec)}</span>
       </div>
       <div class="progress"><div style="width:${r.percent||0}%"></div></div>
       <div class="hint" style="margin-top:4px">${r.percent||0}% · ${fmtEta(r.out_time_sec)} of ${fmtEta(r.source_duration)} encoded</div>
     </div>`);
+  }else if(s.resume){
+    parts.push(`<div class="panel" style="margin-bottom:14px"><b>Phone job saved:</b> ${esc(s.resume.title)} · ${s.resume.percent}% complete
+      <div class="hint">${s.resume.completed_sections} sections are stored on the SSD; conversion resumes after cooling.</div></div>`);
   }
   if(s.pending&&s.pending.length){
-    parts.push(`<div class="panel"><b>Queued next (${s.pending.length}):</b><br>${
-      s.pending.map((p,i)=>`<span class="chip">${i+1}. ${esc(p.title)}</span>`).join('')
-    }</div>`);
+    const next=s.pending.slice(0,10).map((item,i)=>`<span class="chip">${i+1}. ${esc(item.title)}</span>`).join('');
+    const more=s.pending.length>10?`<span class="chip">+${s.pending.length-10} more</span>`:'';
+    parts.push(`<div class="panel"><b>Queued next (${s.pending.length}):</b><br>${next}${more}</div>`);
   }
   el.innerHTML=parts.join('');
 }

@@ -294,9 +294,19 @@ maintenance loop.
 
 mpv uses hardware decoding and a persistent player process (reused across
 channel changes) tuned for a Raspberry Pi 4 driving 1080p HDMI. Browser
-streaming only copies video and transcodes audio when needed — it never
-transcodes video — so some source formats will play on HDMI but not in a
-browser tab. Keep the Pi adequately cooled for sustained playback.
+streaming remuxes compatible files and converts incompatible video to H.264
+while they play. The background HEVC queue makes permanent H.264 replacements;
+it removes an original only after validating the replacement. Keep the Pi
+adequately cooled for sustained playback.
+
+An ADB-connected Android arm64 phone can handle the background queue at 720p
+instead of loading the Pi. Install the pinned phone binary with
+`bash scripts/install_phone_transcoder.sh`, then leave USB debugging connected.
+The phone and Pi never convert shows at the same time. Phone work pauses when
+the battery reaches 46.5°C or Android reports moderate thermal stress, and
+resumes from completed sections after cooling. `/admin` shows the worker,
+temperature, and progress; the phone displays the same status at
+`http://127.0.0.1:5000/phone-transcode` through ADB USB forwarding.
 
 ## Important: exactly one instance
 
