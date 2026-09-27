@@ -182,7 +182,7 @@ class RetroTvApi(private val authManager: AuthManager) {
         try {
             val url = "${authManager.baseUrl}/api/vod/show/$showId"
             val request = authRequest(url).build()
-            client.newCall(request).execute().use { resp ->
+            val result = client.newCall(request).execute().use { resp ->
                 if (resp.isSuccessful) {
                     val body = resp.body?.string() ?: return@use null
                     val response = try {
@@ -190,9 +190,12 @@ class RetroTvApi(private val authManager: AuthManager) {
                     } catch (_: Exception) {
                         null
                     }
-                    return@withContext response?.show ?: gson.fromJson(body, VodShow::class.java)
+                    response?.show ?: gson.fromJson(body, VodShow::class.java)
+                } else {
+                    null
                 }
             }
+            return@withContext result
         } catch (_: Exception) {}
         null
     }
