@@ -56,18 +56,18 @@ def _color(rgb):
 
 def render(channel=None, entry_id=None, start=None):
     import playback
+    try:
+        import tvvod
+        tvvod.close_vod()
+    except Exception:
+        pass
+    try:
+        import tvsports
+        tvsports.close_sports()
+    except Exception:
+        pass
     global _visible, _channel, _entry_id, _start, _last_refresh, _selection, _last_artwork
     with _lock:
-        try:
-            import tvvod
-            tvvod.close_vod()
-        except Exception:
-            pass
-        try:
-            import tvsports
-            tvsports.close_sports()
-        except Exception:
-            pass
         if not _visible and channel is None:
             _channel = playback._current["channel"]
         _channel = channel if channel is not None else _channel

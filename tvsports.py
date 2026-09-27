@@ -227,22 +227,22 @@ def _build_categories(games, query=""):
     return cats
 
 
-def open_sports():
+def open_sports(game_id=None, league=None, sport=None):
     import playback
     import tvguide
     import tvvod
 
+    try:
+        tvguide.close()
+    except Exception:
+        pass
+    try:
+        tvvod.close_vod()
+    except Exception:
+        pass
+
     global _visible, _mode, _categories, _cat_idx, _item_idx, _game_data, _game_detail, _search_query
     with _lock:
-        try:
-            tvguide.close()
-        except Exception:
-            pass
-        try:
-            tvvod.close_vod()
-        except Exception:
-            pass
-
         if not playback.mpv_alive():
             playback.restore_last()
 
@@ -255,6 +255,19 @@ def open_sports():
         _game_data = None
         _game_detail = None
         _search_query = ""
+
+        if game_id:
+            target = next((g for g in games if str(g.get("id")) == str(game_id)), None)
+            if target:
+                _game_data = target
+                _game_detail = sports.get_game_detail(league or target.get("league"), game_id, sport=sport or target.get("sport"))
+                _mode = "game"
+            else:
+                detail_resp = sports.get_game_detail(league or "nfl", game_id, sport=sport)
+                if detail_resp and detail_resp.get("game"):
+                    _game_data = detail_resp.get("game")
+                    _game_detail = detail_resp
+                    _mode = "game"
 
         ok = render()
         _visible = ok
@@ -337,8 +350,30 @@ def nav(action, query=None):
                         wav_path = os.path.join(out_dir, "announcer.wav")
                         with open(wav_path, "wb") as f:
                             f.write(audio_bytes)
-                        # Tell mpv to play the synthesized narration audio
-                        _send(["loadfile", wav_path, "append-play"])
+                        # Tell mpv to play the synthesized narration audio immediately over HDMI
+                        orig_aid = _send(["get_property", "aid"]).get("data", 1)
+                        res = _send(["audio-add", wav_path, "select", "Announcer"])
+                        if res.get("error") != "success":
+                            # Fallback if player is idle
+                            _send(["loadfile", wav_path, "replace"])
+                        else:
+                            # Estimate duration from audio bytes (Kokoro outputs 24kHz 16-bit mono WAV = 48000 B/s + 44 B header)
+                            dur = max(2.0, (len(audio_bytes) - 44) / 48000.0)
+
+                            def _cleanup_announcer(prev_aid, p):
+                                try:
+                                    tl = _send(["get_property", "track-list"]).get("data", [])
+                                    for tr in tl:
+                                        if tr.get("type") == "audio" and (tr.get("title") == "Announcer" or tr.get("external-filename") == p):
+                                            _send(["audio-remove", tr.get("id")])
+                                    _send(["set_property", "aid", prev_aid or 1])
+                                except Exception:
+                                    pass
+
+                            timer = threading.Timer(dur + 0.5, _cleanup_announcer, args=(orig_aid, wav_path))
+                            timer.daemon = True
+                            timer.start()
+
                         return {**get_status(), "announced": True, "narration": narration}
                     except Exception as e:
                         log.warning("Announcer playback failed: %s", e)

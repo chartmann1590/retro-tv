@@ -426,7 +426,14 @@ def refresh_sports_channel():
     total_seconds = _build_concat_loop(part_mp4s, loop_path, refresh_sec)
 
     show_name = getattr(config, "SPORTS_SHOW", "Retro Sports")
+    _ensure_sports_channel()
     _upsert_sports_episode(loop_path, show_name, "Sports Center Live", f"Live scores, field radar, and sports news loop ({len(part_mp4s)} segments)")
+
+    try:
+        import scheduler
+        scheduler.ensure_schedules()
+    except Exception:
+        log.exception("Failed to generate schedule for sports channel")
 
     log.info("Sports channel refreshed successfully: %d segments looped to %.0fs", len(part_mp4s), total_seconds)
     return total_seconds

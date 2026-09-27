@@ -25,7 +25,7 @@ KEY_ACTIONS = {
     'KEY_HOMEPAGE': 'LIVE', 'KEY_HOME': 'LIVE', 'KEY_TV': 'LIVE',
     'KEY_BACK': 'BACK', 'KEY_ESC': 'BACK', 'KEY_BACKSPACE': 'BACK',
     'KEY_LAST': 'PREV_CHANNEL', 'KEY_INFO': 'INFO',
-    'KEY_G': 'GUIDE', 'KEY_V': 'VOD', 'KEY_F': 'SEARCH', 'KEY_I': 'INFO',
+    'KEY_G': 'GUIDE', 'KEY_V': 'VOD', 'KEY_S': 'SPORTS', 'KEY_F': 'SEARCH', 'KEY_I': 'INFO',
     'KEY_M': 'MUTE', 'KEY_P': 'PLAY_PAUSE', 'KEY_EQUAL': 'VOLUME_UP',
     'KEY_MINUS': 'VOLUME_DOWN',
 }
@@ -155,7 +155,9 @@ class Controller:
         import playback
         import tvguide
         import tvvod
+        import tvsports
         tvvod.close_vod()
+        tvsports.close_sports()
         tvguide.close()
         result = playback.tune(channel, reason='api')
         if not result.get('ok'):
@@ -167,6 +169,7 @@ class Controller:
         import scheduler
         import tvguide
         import tvvod
+        import tvsports
         now = time.monotonic() if now is None else now
         if action.isdigit():
             self.digits = (self.digits + action)[-3:]
@@ -190,10 +193,20 @@ class Controller:
             self.search_prompt()
         elif action in ('UP', 'DOWN', 'LEFT', 'RIGHT', 'OK', 'BACK') and tvvod.is_visible():
             tvvod.nav('select' if action == 'OK' else action.lower())
+        elif action in ('UP', 'DOWN', 'LEFT', 'RIGHT', 'OK', 'BACK') and tvsports.is_visible():
+            tvsports.nav('select' if action == 'OK' else action.lower())
         elif action in ('UP', 'DOWN', 'LEFT', 'RIGHT', 'OK', 'BACK') and tvguide.is_visible():
             tvguide.navigate(action.lower())
+        elif action == 'SPORTS':
+            tvvod.close_vod()
+            tvguide.close()
+            if tvsports.is_visible():
+                tvsports.close_sports()
+            else:
+                tvsports.open_sports()
         elif action == 'GUIDE':
             tvvod.close_vod()
+            tvsports.close_sports()
             if tvguide.is_visible():
                 tvguide.close()
             else:
@@ -201,12 +214,14 @@ class Controller:
                     playback.restore_last()
                 tvguide.render(start=int(time.time() // 1800) * 1800)
         elif action == 'VOD':
+            tvsports.close_sports()
             if tvvod.is_visible():
                 tvvod.close_vod()
             else:
                 tvvod.open_vod()
         elif action in ('LIVE', 'BACK'):
             tvvod.close_vod()
+            tvsports.close_sports()
             tvguide.close()
             playback.stop_vod()
         elif action in ('CHANNEL_UP', 'CHANNEL_DOWN', 'UP', 'DOWN'):

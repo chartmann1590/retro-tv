@@ -2,12 +2,19 @@
 
 Controls the running receiver at localhost:5000. Does not change USB mappings.
 """
-from playwright.sync_api import sync_playwright, expect
+try:
+    from playwright.sync_api import sync_playwright, expect
+except ImportError:
+    sync_playwright = None
+    expect = None
 
 BASE = 'http://127.0.0.1:5000'
 
 
 def run():
+    if sync_playwright is None:
+        print('playwright not installed; skipping USB remote E2E tests.')
+        return
     with sync_playwright() as p:
         browser = p.chromium.launch(executable_path='/usr/bin/chromium', headless=True,
                                     args=['--no-sandbox', '--disable-gpu'])

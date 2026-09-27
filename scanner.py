@@ -140,27 +140,21 @@ def probe_info(path):
 
 def needs_hw_transcode(info):
     """True for the video class confirmed to corrupt the picture on the Pi 4's
-    zero-copy HEVC hardware decode path (rpi-hevc-dec's drm_prime/rpi4_10 output):
-    any 10-bit HEVC/Main10, not just 4K -- confirmed at both 2160p (Sinners) and
-    720p (Fight Club). mpv reports decoding as fully successful while the actual
-    output is a blank/blue frame. The only other options on this hardware --
-    v4l2m2m-copy and software decode -- are also confirmed broken/unusably slow
-    for this content (see transcode.py), so any 10-bit HEVC file needs a
-    background-transcoded 8-bit copy for reliable playback."""
+    zero-copy HEVC hardware decode path: all HEVC/H.265 content (both 8-bit and 10-bit).
+    mpv forces software decode for these files (see playback._hwdec_for), so any HEVC
+    file needs a background-transcoded 8-bit H.264 copy for reliable real-time playback."""
     vc = (info.get("vcodec") or "").lower()
-    return vc in ("hevc", "h265") and info.get("bit_depth") == 10
+    return vc in ("hevc", "h265")
 
-def _transcode_headroom_ok(source_size):
+def _transcode_headroom_ok(source_size, reserved=0):
     """Guard against auto-queueing more transcode work than the disk can hold.
 
     The transcoded copy lands alongside the original (never replacing it), on
     config.TRANSCODE_DIR's filesystem (the media SSD, not the small root
-    filesystem). A library can still have more 10-bit HEVC content than even
-    that has free -- e.g. this box once had 249 newly-flagged files (~188GB of
-    source). Require real headroom (a multiple of the source size, since even
-    a compressed re-encode of a large file needs real room, plus a fixed floor
-    so we never run the disk to zero) before auto-queueing; compat_warning()
-    still surfaces the file either way.
+    filesystem). A library can still have more HEVC content than even
+    that has free. Require real headroom (accounting for already queued work and
+    a multiple of the source size, plus a fixed floor so we never run the disk to zero)
+    before auto-queueing; compat_warning() still surfaces the file either way.
     """
     import shutil
     try:
@@ -168,7 +162,8 @@ def _transcode_headroom_ok(source_size):
         free = shutil.disk_usage(config.TRANSCODE_DIR).free
     except OSError:
         return False
-    return free > max(source_size * 2, 4_000_000_000)
+    effective_free = free - reserved
+    return effective_free > max(source_size * 2, 4_000_000_000)
 
 def compat_warning(info, kind):
     warns = []
@@ -178,7 +173,7 @@ def compat_warning(info, kind):
     cont = (info.get("container") or "").lower()
     br = info.get("bitrate", 0)
     if needs_hw_transcode(info):
-        warns.append("10-bit HEVC: Pi4 HW decoder corrupts output (blue/blank picture) -- auto-transcoding a Pi-safe copy")
+        warns.append("HEVC: Pi4 HW decoder corrupts output (blue/blank picture) -- auto-transcoding a Pi-safe copy")
     elif h >= 2000:
         warns.append("4K may stutter on Pi 4; prefer 1080p")
     if br and br > 20_000_000:
@@ -231,6 +226,8 @@ def _full_scan(light=False):
     con = database.connect()
     try:
         existing = {r["path"]: dict(r) for r in con.execute("SELECT * FROM media_files")}
+        r_res = con.execute("SELECT COALESCE(SUM(size), 0) s FROM media_files WHERE transcode_status IN ('pending', 'running')").fetchone()
+        reserved_transcode_bytes = int(r_res["s"] if r_res else 0) * 2
     finally:
         con.close()
     for path in iter_media_files():
@@ -274,8 +271,11 @@ def _full_scan(light=False):
                 # iterating, and writing back the stale snapshot value would clobber that.
                 live_status = con.execute("SELECT transcode_status FROM media_files WHERE id=?", (prev["id"],)).fetchone()
                 prev_status = live_status["transcode_status"] if live_status else ""
-                if hw_risk and (not unchanged or prev_status == "") and _transcode_headroom_ok(st.st_size):
+                should_queue = hw_risk and (not unchanged or prev_status == "") and _transcode_headroom_ok(st.st_size, reserved=reserved_transcode_bytes)
+                if should_queue:
                     new_status = "pending"
+                    if prev_status != "pending":
+                        reserved_transcode_bytes += st.st_size * 2
                 elif not hw_risk:
                     new_status = ""
                 else:
@@ -289,6 +289,9 @@ def _full_scan(light=False):
                 updated += 1
                 media_id = prev["id"]
             else:
+                queue_insert = hw_risk and _transcode_headroom_ok(st.st_size, reserved=reserved_transcode_bytes)
+                if queue_insert:
+                    reserved_transcode_bytes += st.st_size * 2
                 try:
                     cur = con.execute("""INSERT INTO media_files(path,kind,size,mtime,duration,container,resolution,
                         width,height,vcodec,acodec,bitrate,compat_warning,pix_fmt,bit_depth,transcode_status)
@@ -296,7 +299,7 @@ def _full_scan(light=False):
                         (path, kind, st.st_size, st.st_mtime, info["duration"], info["container"], info["resolution"],
                          info["width"], info["height"], info["vcodec"], info["acodec"], info["bitrate"], warn,
                          info["pix_fmt"], info["bit_depth"],
-                         "pending" if (hw_risk and _transcode_headroom_ok(st.st_size)) else ""))
+                         "pending" if queue_insert else ""))
                     media_id = cur.lastrowid
                     added += 1
                 except sqlite3.IntegrityError:

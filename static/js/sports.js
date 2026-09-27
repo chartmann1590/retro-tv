@@ -10,6 +10,7 @@ let SELECTED_GAME = null;
 let SELECTED_GAME_DETAIL = null;
 let CURRENT_FILTER = 'all';
 let SEARCH_TIMER = null;
+let SCORE_REFRESH_TIMER = null;
 
 document.addEventListener('DOMContentLoaded', () => {
   initSports();
@@ -18,7 +19,62 @@ document.addEventListener('DOMContentLoaded', () => {
 async function initSports() {
   await Promise.all([loadScores(), loadNews()]);
   setupKeyboardNav();
+  startScorePolling();
 }
+
+function startScorePolling() {
+  stopScorePolling();
+  SCORE_REFRESH_TIMER = setInterval(() => {
+    if (!document.hidden) {
+      refreshScoresAndActiveGame();
+    }
+  }, 20000);
+}
+
+function stopScorePolling() {
+  if (SCORE_REFRESH_TIMER) {
+    clearInterval(SCORE_REFRESH_TIMER);
+    SCORE_REFRESH_TIMER = null;
+  }
+}
+
+async function refreshScoresAndActiveGame() {
+  try {
+    const res = await fetch('/api/sports/scores');
+    const data = await res.json();
+    if (data.games && data.games.length) {
+      ALL_GAMES = data.games;
+      if (SELECTED_GAME) {
+        const updated = ALL_GAMES.find(g => String(g.id) === String(SELECTED_GAME.id));
+        if (updated) {
+          SELECTED_GAME = updated;
+          setBillboardGame(updated);
+        }
+      }
+      renderDashboard();
+    }
+    const modal = document.getElementById('gameModal');
+    if (modal && !modal.hidden && SELECTED_GAME) {
+      const sportParam = SELECTED_GAME.sport ? `?sport=${SELECTED_GAME.sport}` : '';
+      const detRes = await fetch(`/api/sports/game/${SELECTED_GAME.league}/${SELECTED_GAME.id}${sportParam}`);
+      const detData = await detRes.json();
+      if (detData.game) {
+        SELECTED_GAME_DETAIL = detData.game;
+        renderModalField(SELECTED_GAME, SELECTED_GAME_DETAIL);
+        renderModalPlays(SELECTED_GAME_DETAIL);
+        renderModalBoxscore(SELECTED_GAME_DETAIL);
+      }
+    }
+  } catch (err) {
+    console.warn('Background sports telemetry refresh failed:', err);
+  }
+}
+
+document.addEventListener('visibilitychange', () => {
+  if (!document.hidden) {
+    refreshScoresAndActiveGame();
+  }
+});
 
 async function loadScores() {
   try {
@@ -50,10 +106,10 @@ function renderDashboard() {
     return;
   }
 
-  // Select spotlight game: live game first, then close upcoming matchup
+  // Select spotlight game: preserve current selection if valid, else live game first, then close upcoming matchup
   const live = ALL_GAMES.filter(g => g.status?.isLive);
   const upcoming = ALL_GAMES.filter(g => g.status?.isScheduled);
-  const featured = live[0] || upcoming[0] || ALL_GAMES[0];
+  const featured = (SELECTED_GAME ? ALL_GAMES.find(g => String(g.id) === String(SELECTED_GAME.id)) : null) || live[0] || upcoming[0] || ALL_GAMES[0];
   setBillboardGame(featured);
 
   // Build category carousels
@@ -642,12 +698,19 @@ function speakNewsArticle(text) {
 }
 
 // TV Actions
-async function openGameOnTV() {
+async function openGameOnTV(game = null) {
+  const g = game || SELECTED_GAME;
+  const payload = { action: 'open' };
+  if (g) {
+    payload.game_id = g.id;
+    payload.league = g.league;
+    payload.sport = g.sport;
+  }
   try {
     const res = await fetch('/api/tv-sports', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action: 'open' })
+      body: JSON.stringify(payload)
     });
     const st = await res.json();
     if (st.visible) {
@@ -661,8 +724,9 @@ async function openGameOnTV() {
 }
 
 async function openGameOnTVFromModal() {
+  const g = SELECTED_GAME;
   hideGameModal();
-  await openGameOnTV();
+  await openGameOnTV(g);
 }
 
 async function tuneSportsChannel() {

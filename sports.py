@@ -219,7 +219,7 @@ def generate_football_field_svg(home_team, away_team, situation=None, play=None,
     away_color = _norm_hex(away_team.get("color"), "af5c37")
 
     # Extract yard line (0 to 100). 0 = away goal line, 100 = home goal line
-    yard_line = 50
+    yard_line = situation.get("yardLine", 50) if isinstance(situation, dict) else 50
     down = situation.get("down")
     distance = situation.get("distance")
     is_red_zone = situation.get("isRedZone", False)

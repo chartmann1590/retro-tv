@@ -674,14 +674,14 @@ def api_tv_sports():
         ok = tvsports.close_sports()
         return jsonify({"ok": ok, "visible": False})
     elif act == "open":
-        st = tvsports.open_sports()
+        st = tvsports.open_sports(game_id=d.get("game_id"), league=d.get("league"), sport=d.get("sport"))
         return jsonify(st)
     elif act == "toggle":
         if tvsports.is_visible():
             ok = tvsports.close_sports()
             return jsonify({"ok": ok, "visible": False})
         else:
-            st = tvsports.open_sports()
+            st = tvsports.open_sports(game_id=d.get("game_id"), league=d.get("league"), sport=d.get("sport"))
             return jsonify(st)
     return jsonify({"ok": False, "error": "Invalid action"}), 400
 

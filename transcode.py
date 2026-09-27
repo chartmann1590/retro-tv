@@ -193,6 +193,16 @@ def run_one(media_id, src_path, source_duration):
         con.close()
 
 
+def _has_disk_headroom(source_size):
+    import shutil
+    try:
+        os.makedirs(TRANSCODE_DIR, exist_ok=True)
+        free = shutil.disk_usage(TRANSCODE_DIR).free
+    except OSError:
+        return False
+    return free > max(source_size * 2, 4_000_000_000)
+
+
 def run_loop(stop_event=None):
     stop_event = stop_event or threading.Event()
     _deprioritize()
@@ -216,6 +226,11 @@ def run_loop(stop_event=None):
             finally:
                 con.close()
             if job and os.path.isfile(job["path"]):
+                src_size = os.path.getsize(job["path"])
+                if not _has_disk_headroom(src_size):
+                    log.warning("Insufficient disk headroom to transcode media_id=%s (%r); waiting for free space", job["id"], job["path"])
+                    stop_event.wait(120)
+                    continue
                 run_one(job["id"], job["path"], job["duration"])
                 continue
             elif job:
