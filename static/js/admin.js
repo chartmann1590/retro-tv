@@ -41,7 +41,11 @@ async function loadTranscodeStatus(){
     p.ready?'Connected · ready':'Connected · cooling before next job';
   const phoneTemp=p.temperature_c==null?'':` · ${Number(p.temperature_c).toFixed(1)}°C`;
   const batteryPause=p.battery_throttle_enabled?'ON':'OFF';
+  const ssdState=s.ssd_ready===true?
+    '<span class="chip" style="background:#1c3325;color:var(--ok)">Connected</span>':
+    '<span class="chip" style="background:#3a1d1d;color:var(--bad)">Unavailable</span>';
   parts.push(`<div class="panel" style="margin-bottom:14px"><div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap">
+    <div><b>Media SSD:</b> ${ssdState}</div>
     <div><b>Phone transcoder:</b> ${esc(p.model||'Android phone')} · ${phoneState}${phoneTemp}</div>
     <button class="ghost" style="margin:0 0 0 auto;white-space:nowrap" onclick="togglePhoneBatteryThrottle()" aria-label="Toggle phone battery temperature pause">Battery pause: ${batteryPause}</button>
   </div></div>`);
