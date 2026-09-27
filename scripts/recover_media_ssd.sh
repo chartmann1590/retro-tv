@@ -8,10 +8,18 @@ APP_DIR=${RETRO_TV_APP_DIR:-/home/charles/retro-tv}
 LOCK=/run/retro-tv-ssd-recover.lock
 
 healthy() {
-  local options
+  local options source device media_mount
   mountpoint -q "$SSD_MOUNT" || return 1
+  device=$(readlink -f "/dev/disk/by-uuid/$SSD_UUID" 2>/dev/null) || return 1
+  source=$(findmnt -rn -o SOURCE --mountpoint "$SSD_MOUNT" 2>/dev/null) || return 1
+  [[ $(readlink -f "$source" 2>/dev/null) == "$device" ]] || return 1
   options=$(findmnt -rn -o OPTIONS --target "$SSD_MOUNT" 2>/dev/null) || return 1
   [[ ",$options," != *,shutdown,* ]] || return 1
+  for media_mount in /srv/media/TVShows/SSD /srv/media/Movies/SSD /srv/media/Commercials/SSD; do
+    mountpoint -q "$media_mount" || return 1
+    options=$(findmnt -rn -o OPTIONS --mountpoint "$media_mount" 2>/dev/null) || return 1
+    [[ ",$options," != *,shutdown,* ]] || return 1
+  done
   [[ -d "$SSD_MOUNT/transcoded" ]] || return 1
   ls -U "$SSD_MOUNT/transcoded" >/dev/null 2>&1
 }
