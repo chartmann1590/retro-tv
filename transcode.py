@@ -126,12 +126,17 @@ def current_status():
                               "duration": running["duration"], "worker": worker,
                               **(progress or {})}
     result["pending"] = [{"media_id": r["id"], "path": r["path"], "duration": r["duration"]} for r in pending]
-    for item in pending:
-        if item["transcode_worker"] == "phone" or (item["transcode_error"] or "").startswith("phone:"):
+    phone_jobs = [item for item in pending if item["transcode_worker"] == "phone"
+                  or (item["transcode_error"] or "").startswith("phone:")]
+    if result["ssd_ready"]:
+        for item in phone_jobs:
             partial = phone_transcode.partial_status(item["id"], item["duration"])
             if partial:
                 result["resume"] = partial
                 break
+    elif phone_jobs:
+        result["resume"] = {"media_id": phone_jobs[0]["id"],
+                            "percent": None, "completed_sections": None}
     return result
 
 

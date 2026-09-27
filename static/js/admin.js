@@ -62,8 +62,9 @@ async function loadTranscodeStatus(){
     </div>`);
   }
   if(s.resume){
-    parts.push(`<div class="panel" style="margin-bottom:14px"><b>Partly converted, waiting to resume:</b> ${esc(s.resume.title)} · ${s.resume.percent}% of this show encoded
-      <div class="hint">${s.resume.completed_sections} sections are saved on the SSD. The show leaves the queue only after the full replacement is verified.</div></div>`);
+    const saved=s.resume.completed_sections!=null;
+    parts.push(`<div class="panel" style="margin-bottom:14px"><b>Phone job paused:</b> ${esc(s.resume.title)}${saved?' · '+s.resume.percent+'% of this show encoded':''}
+      <div class="hint">${saved?s.resume.completed_sections+' sections are saved on the SSD. ':'Waiting for the SSD to recover. '}The show leaves the queue only after the full replacement is verified.</div></div>`);
   }
   if(s.pending&&s.pending.length){
     const waiting=s.pending.filter(item=>!s.resume||item.media_id!==s.resume.media_id);
