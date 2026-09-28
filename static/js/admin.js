@@ -35,21 +35,44 @@ async function loadTranscodeStatus(){
   try{s=await jget('/api/transcode/status');}catch(e){return;}
   if(!s.ok){el.innerHTML='';return;}
   const parts=[];
+  if(s.ssd_ready===false)parts.push('<div class="warn" style="margin-bottom:14px">Media SSD unavailable; show conversion is paused. Check the USB power and SSD mount.</div>');
+  const p=s.phone||{};
+  const phoneState=!p.connected?'Disconnected':!p.installed?'Connected · transcoder missing':
+    p.ready?'Connected · ready':'Connected · cooling before next job';
+  const phoneTemp=p.temperature_c==null?'':` · ${Number(p.temperature_c).toFixed(1)}°C`;
+  const batteryPause=p.battery_throttle_enabled?'ON':'OFF';
+  const ssdState=s.ssd_ready===true?
+    '<span class="chip" style="background:#1c3325;color:var(--ok)">Connected</span>':
+    '<span class="chip" style="background:#3a1d1d;color:var(--bad)">Unavailable</span>';
+  parts.push(`<div class="panel" style="margin-bottom:14px"><div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap">
+    <div><b>Media SSD:</b> ${ssdState}</div>
+    <div><b>Phone transcoder:</b> ${esc(p.model||'Android phone')} · ${phoneState}${phoneTemp}</div>
+    <button class="ghost" style="margin:0 0 0 auto;white-space:nowrap" onclick="togglePhoneBatteryThrottle()" aria-label="Toggle phone battery temperature pause">Battery pause: ${batteryPause}</button>
+  </div></div>`);
   if(s.running){
     const r=s.running;
+    const phase=r.worker==='phone'&&r.percent==null?'Sending source to phone · ':'';
     parts.push(`<div class="panel" style="margin-bottom:14px">
       <div style="display:flex;justify-content:space-between;gap:12px;margin-bottom:8px">
-        <b>⚙ Transcoding now:</b> ${esc(r.title)}
-        <span class="hint">${r.speed?r.speed+'x speed · ':''}ETA ${fmtEta(r.eta_sec)}</span>
+        <b>⚙ ${r.worker==='phone'?'Phone transcoding (Pi show converter idle)':'Pi transcoding'}:</b> ${esc(r.title)}
+        <span class="hint">${phase}${r.speed?r.speed+'x speed · ':''}ETA ${fmtEta(r.eta_sec)}</span>
       </div>
       <div class="progress"><div style="width:${r.percent||0}%"></div></div>
       <div class="hint" style="margin-top:4px">${r.percent||0}% · ${fmtEta(r.out_time_sec)} of ${fmtEta(r.source_duration)} encoded</div>
     </div>`);
   }
+  if(s.resume){
+    const saved=s.resume.completed_sections!=null;
+    parts.push(`<div class="panel" style="margin-bottom:14px"><b>Phone job paused:</b> ${esc(s.resume.title)}${saved?' · '+s.resume.percent+'% of this show encoded':''}
+      <div class="hint">${saved?s.resume.completed_sections+' sections are saved on the SSD. ':'Waiting for the SSD to recover. '}The show leaves the queue only after the full replacement is verified.</div></div>`);
+  }
   if(s.pending&&s.pending.length){
-    parts.push(`<div class="panel"><b>Queued next (${s.pending.length}):</b><br>${
-      s.pending.map((p,i)=>`<span class="chip">${i+1}. ${esc(p.title)}</span>`).join('')
-    }</div>`);
+    const waiting=s.pending.filter(item=>!s.resume||item.media_id!==s.resume.media_id);
+    if(waiting.length){
+      const next=waiting.slice(0,10).map((item,i)=>`<span class="chip">${i+1}. ${esc(item.title)}</span>`).join('');
+      const more=waiting.length>10?`<span class="chip">+${waiting.length-10} more</span>`:'';
+      parts.push(`<div class="panel"><b>Other shows queued (${waiting.length}):</b><br>${next}${more}</div>`);
+    }
   }
   el.innerHTML=parts.join('');
 }
@@ -196,8 +219,9 @@ async function restartPb(){const r=await jpost('/api/restart-playback',{});alert
 async function toggleCC(){const s=await jget('/api/captions');await jpost('/api/captions',{enabled:s.cc!=='1'});loadHdmi();}
 async function loadSys(){const s=await jget('/api/system');document.getElementById('sys').innerHTML=`<pre>${JSON.stringify({system_health:s.system_health,playback_health:s.playback_health,disk:s.disk,mpv:s.mpv,sessions:s.sessions},null,2)}</pre>`;
   document.getElementById('streams').innerHTML=(s.sessions||[]).map(x=>`<div>${esc(x.id)} ch${x.channel}</div>`).join('')||'no browser sessions';}
-async function loadSets(){const r=await jget('/api/settings');document.getElementById('sets').innerHTML=Object.entries(r.settings).map(([k,v])=>`<div class="kv"><label>${k}</label><input id="set-${k}" value="${esc(v)}"></div>`).join('');}
-async function saveSets(){const o={};document.querySelectorAll('#sets input').forEach(i=>o[i.id.slice(4)]=i.value);await jpost('/api/settings',o);alert('Saved');}
+async function loadSets(){const r=await jget('/api/settings');document.getElementById('phoneBatteryThrottle').value=r.settings.phone_battery_throttle_enabled||'0';document.getElementById('sets').innerHTML=Object.entries(r.settings).filter(([k])=>k!=='phone_battery_throttle_enabled').map(([k,v])=>`<div class="kv"><label>${k}</label><input id="set-${k}" value="${esc(v)}"></div>`).join('');}
+async function saveSets(){const o={phone_battery_throttle_enabled:document.getElementById('phoneBatteryThrottle').value};document.querySelectorAll('#sets input').forEach(i=>o[i.id.slice(4)]=i.value);const r=await jpost('/api/settings',o);if(r.ok){loadTranscodeStatus();alert('Saved');}else alert(r.error||'Save failed');}
+async function togglePhoneBatteryThrottle(){const s=await jget('/api/transcode/status');const enabled=!s.phone.battery_throttle_enabled;const r=await jpost('/api/settings',{phone_battery_throttle_enabled:enabled?'1':'0'});if(r.ok){loadTranscodeStatus();loadSets();}else alert(r.error||'Save failed');}
 async function loadLogs(){const r=await jget('/api/logs');document.getElementById('logs').textContent=(r.lines||[]).join('');}
 
 // ---------- reminders ----------

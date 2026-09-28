@@ -1,10 +1,10 @@
-"""Background transcoding for video files the Pi 4's hardware HEVC decoder
-corrupts (see scanner.needs_hw_transcode). Produces a Pi-safe 1080p 8-bit
-H.264 copy alongside the original -- the original file is never touched.
-"""
+"""Background HEVC replacement with validated H.264 copies on the media SSD."""
 import logging
 import json
+import fcntl
+import math
 import os
+import shutil
 import signal
 import subprocess
 import threading
@@ -12,6 +12,7 @@ import time
 
 import config
 import database
+import phone_transcode
 
 log = logging.getLogger("retro-tv.transcode")
 
@@ -47,7 +48,14 @@ def playable_path(row):
 
 def next_pending(con):
     return con.execute(
-        "SELECT id, path, duration FROM media_files WHERE transcode_status='pending' ORDER BY id LIMIT 1"
+        """SELECT id, path, duration FROM media_files WHERE transcode_status='pending'
+           ORDER BY CASE WHEN transcode_worker='phone' THEN 0
+                         WHEN transcode_error LIKE 'phone: phone thermal pause%'
+                              OR transcode_error LIKE 'phone: phone paused%'
+                              OR transcode_error LIKE 'phone: phone cooling%'
+                              OR transcode_error LIKE 'phone: phone too hot%' THEN 0
+                         WHEN transcode_error LIKE 'phone:%' THEN 2 ELSE 1 END,
+                    id LIMIT 1"""
     ).fetchone()
 
 
@@ -55,15 +63,20 @@ def _progress_path(media_id):
     return os.path.join(TRANSCODE_DIR, f".progress_{media_id}")
 
 
-def read_progress(media_id, source_duration):
+def read_progress(media_id, source_duration, worker="pi"):
     """Parse ffmpeg's -progress key=value stream for the job's most recent
     values (later lines win on repeated keys, since ffmpeg appends a full
     block on every report rather than truncating the file)."""
-    path = _progress_path(media_id)
-    try:
-        with open(path) as f:
-            lines = f.readlines()
-    except OSError:
+    if worker == "phone":
+        lines = phone_transcode.progress_text(media_id).splitlines()
+    else:
+        path = _progress_path(media_id)
+        try:
+            with open(path) as f:
+                lines = f.readlines()
+        except OSError:
+            return None
+    if not lines:
         return None
     fields = {}
     for line in lines:
@@ -95,17 +108,35 @@ def current_status():
     con = database.connect()
     try:
         running = con.execute(
-            "SELECT id, path, duration FROM media_files WHERE transcode_status='running' LIMIT 1").fetchone()
+            "SELECT id, path, duration, transcode_worker FROM media_files WHERE transcode_status='running' LIMIT 1").fetchone()
         pending = con.execute(
-            "SELECT id, path, duration FROM media_files WHERE transcode_status='pending' ORDER BY id").fetchall()
+            "SELECT id, path, duration, transcode_worker, transcode_error FROM media_files WHERE transcode_status='pending' ORDER BY id").fetchall()
+        done_phone = con.execute(
+            "SELECT COUNT(*) FROM media_files WHERE transcode_status='done' AND transcode_worker='phone'").fetchone()[0]
     finally:
         con.close()
-    result = {"running": None, "pending": []}
+    import scanner
+    result = {"running": None, "pending": [], "phone": phone_transcode.status(),
+              "ssd_ready": scanner.ssd_storage_healthy(),
+              "phone_completed": done_phone, "resume": None}
     if running:
-        progress = read_progress(running["id"], running["duration"] or 0)
+        worker = running["transcode_worker"] or "pi"
+        progress = read_progress(running["id"], running["duration"] or 0, worker)
         result["running"] = {"media_id": running["id"], "path": running["path"],
-                              "duration": running["duration"], **(progress or {})}
+                              "duration": running["duration"], "worker": worker,
+                              **(progress or {})}
     result["pending"] = [{"media_id": r["id"], "path": r["path"], "duration": r["duration"]} for r in pending]
+    phone_jobs = [item for item in pending if item["transcode_worker"] == "phone"
+                  or (item["transcode_error"] or "").startswith("phone:")]
+    if result["ssd_ready"]:
+        for item in phone_jobs:
+            partial = phone_transcode.partial_status(item["id"], item["duration"])
+            if partial:
+                result["resume"] = partial
+                break
+    elif phone_jobs:
+        result["resume"] = {"media_id": phone_jobs[0]["id"],
+                            "percent": None, "completed_sections": None}
     return result
 
 
@@ -118,7 +149,8 @@ def _ffprobe_duration(path):
         out = subprocess.run(
             ["ffprobe", "-v", "quiet", "-show_entries", "format=duration", "-of", "csv=p=0", path],
             capture_output=True, text=True, timeout=30)
-        return float((out.stdout or "0").strip() or 0)
+        duration = float((out.stdout or "0").strip() or 0)
+        return duration if out.returncode == 0 and math.isfinite(duration) and duration > 0 else 0
     except Exception:
         return 0
 
@@ -207,20 +239,58 @@ def _encode(src_path, out_path, source_duration, media_id):
     return False, last_err
 
 
-def run_one(media_id, src_path, source_duration):
+def run_one(media_id, src_path, source_duration, use_phone=False):
+    """Serialize Pi and phone jobs even if two app processes are started."""
+    os.makedirs(config.DATA_DIR, exist_ok=True)
+    with open(os.path.join(config.DATA_DIR, "transcode.lock"), "a+") as lock_file:
+        try:
+            fcntl.flock(lock_file, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError:
+            log.info("Another transcoding worker is already active")
+            return False
+        try:
+            _run_one_unlocked(media_id, src_path, source_duration, use_phone)
+            return True
+        finally:
+            fcntl.flock(lock_file, fcntl.LOCK_UN)
+
+
+def _run_one_unlocked(media_id, src_path, source_duration, use_phone=False):
     os.makedirs(TRANSCODE_DIR, exist_ok=True)
-    final_path = os.path.join(TRANSCODE_DIR, f"{media_id}.mkv")
-    tmp_path = final_path + ".tmp"
+    tmp_path = os.path.join(TRANSCODE_DIR, f"{media_id}.mkv.tmp")
+    # Keep completed media in the scanned library. An MKV can be atomically
+    # replaced in place; other containers need an MKV sibling before deletion.
+    final_path = (src_path if src_path.lower().endswith(".mkv") else
+                  os.path.splitext(src_path)[0] + ".h264.mkv")
+    # Scanner durations can be placeholders when probing originally failed.
+    # Only a fresh source probe may set the chunk boundary and deletion check.
+    measured_duration = _ffprobe_duration(src_path)
+    if not measured_duration:
+        con = database.connect()
+        try:
+            con.execute("""UPDATE media_files SET transcode_status='failed',
+                transcode_error='source duration unavailable' WHERE id=?""", (media_id,))
+            con.commit()
+        finally:
+            con.close()
+        log.warning("Source duration unavailable; preserving media_id=%s", media_id)
+        return
+    source_duration = measured_duration
     con = database.connect()
     try:
-        con.execute("UPDATE media_files SET transcode_status='running' WHERE id=?", (media_id,))
+        con.execute("""UPDATE media_files SET duration=?, transcode_status='running',
+            transcode_worker=? WHERE id=?""", (source_duration, "phone" if use_phone else "pi", media_id))
         con.commit()
     finally:
         con.close()
-    log.info("Transcode starting: media_id=%s %r", media_id, src_path)
+    log.info("Transcode starting on %s: media_id=%s %r",
+             "phone" if use_phone else "Pi", media_id, src_path)
     t0 = time.monotonic()
     try:
-        ok, err = _encode(src_path, tmp_path, source_duration, media_id)
+        if use_phone:
+            ok, err = phone_transcode.encode(src_path, tmp_path, media_id, source_duration)
+        else:
+            ok, err = _encode(src_path, tmp_path, source_duration, media_id)
     except Exception:
         log.exception("Transcode crashed: media_id=%s", media_id)
         ok, err = False, "internal error, see log"
@@ -236,39 +306,66 @@ def run_one(media_id, src_path, source_duration):
             import scanner
             with scanner._scan_lock:
                 original = con.execute("SELECT * FROM media_files WHERE id=?", (media_id,)).fetchone()
-                os.replace(tmp_path, final_path)
+                if os.stat(tmp_path).st_dev == os.stat(os.path.dirname(final_path)).st_dev:
+                    os.replace(tmp_path, final_path)
+                else:
+                    # A non-SSD source may live on a different filesystem.
+                    # Copy beside it and validate before the atomic rename.
+                    staged_path = final_path + ".tmp"
+                    try:
+                        shutil.copyfile(tmp_path, staged_path)
+                        if not _validated_output(staged_path, source_duration):
+                            raise OSError("copied conversion failed validation")
+                        os.replace(staged_path, final_path)
+                        os.remove(tmp_path)
+                    finally:
+                        if os.path.exists(staged_path):
+                            os.remove(staged_path)
+                final_stat = os.stat(final_path)
                 con.execute("""UPDATE media_files SET path=?, size=?, mtime=?, duration=?,
                     container='mkv', vcodec='h264', acodec=?, width=?, height=?, bitrate=?,
                     pix_fmt='yuv420p', bit_depth=8, compat_warning='',
                     transcode_status='done', transcode_path=?, transcode_error=''
-                    WHERE id=?""", (final_path, details["size"], details["mtime"], details["duration"],
+                    WHERE id=?""", (final_path, final_stat.st_size, final_stat.st_mtime, details["duration"],
                     details["acodec"], details["width"], details["height"], details["bitrate"],
                     final_path, media_id))
                 con.commit()
-                try:
-                    os.unlink(src_path)
-                except OSError:
-                    log.exception("Could not remove converted source %s", src_path)
-                    con.execute("""UPDATE media_files SET path=?, size=?, mtime=?, duration=?,
-                        container=?, vcodec=?, acodec=?, width=?, height=?, bitrate=?,
-                        pix_fmt=?, bit_depth=?, compat_warning=? WHERE id=?""",
-                        (src_path, original["size"], original["mtime"], original["duration"],
-                         original["container"], original["vcodec"], original["acodec"],
-                         original["width"], original["height"], original["bitrate"],
-                         original["pix_fmt"], original["bit_depth"], original["compat_warning"], media_id))
-                    con.commit()
+                converted = True
+                if final_path != src_path:
+                    try:
+                        os.unlink(src_path)
+                    except OSError:
+                        log.exception("Could not remove converted source %s", src_path)
+                        con.execute("""UPDATE media_files SET path=?, size=?, mtime=?, duration=?,
+                            container=?, vcodec=?, acodec=?, width=?, height=?, bitrate=?,
+                            pix_fmt=?, bit_depth=?, compat_warning=?, transcode_status='pending',
+                            transcode_path='' WHERE id=?""",
+                            (src_path, original["size"], original["mtime"], original["duration"],
+                             original["container"], original["vcodec"], original["acodec"],
+                             original["width"], original["height"], original["bitrate"],
+                             original["pix_fmt"], original["bit_depth"], original["compat_warning"], media_id))
+                        os.remove(final_path)
+                        converted = False
+                    else:
+                        log.info("Transcode replaced source: media_id=%s in %.0fs -> %s",
+                                 media_id, time.monotonic() - t0, final_path)
                 else:
                     log.info("Transcode replaced source: media_id=%s in %.0fs -> %s",
                              media_id, time.monotonic() - t0, final_path)
+                if use_phone and converted:
+                    phone_transcode.finish(media_id)
         else:
-            for p in (tmp_path, final_path):
+            for p in (tmp_path,):
                 try:
                     os.remove(p)
                 except OSError:
                     pass
-            con.execute(
-                "UPDATE media_files SET transcode_status='failed', transcode_error=? WHERE id=?",
-                ((err or "output validation failed")[-2000:], media_id))
+            status = "pending" if use_phone else "failed"
+            error = (("phone: " if use_phone else "") + (err or "output validation failed"))[-2000:]
+            if use_phone and ok:
+                phone_transcode.reset(media_id)
+            con.execute("UPDATE media_files SET transcode_status=?, transcode_error=? WHERE id=?",
+                        (status, error, media_id))
             log.warning("Transcode failed: media_id=%s: %s", media_id, err[-500:])
         con.commit()
     finally:
@@ -294,22 +391,53 @@ def run_loop(stop_event=None):
     try:
         con = database.connect()
         try:
-            con.execute("UPDATE media_files SET transcode_status='pending' WHERE transcode_status='running'")
+            con.execute("""UPDATE media_files SET transcode_status='pending'
+                WHERE transcode_status='running'""")
             con.commit()
         finally:
             con.close()
     except Exception:
         log.exception("Failed to reclaim orphaned running transcode jobs")
+    missing_rechecked = False
     while not stop_event.is_set():
         try:
+            phone_transcode.ensure_status_screen()
+            import scanner
+            if not scanner.ssd_storage_healthy():
+                missing_rechecked = False
+                log.warning("Media SSD unavailable; pausing show conversion without changing queue state")
+                stop_event.wait(120)
+                continue
+            if not missing_rechecked:
+                con = database.connect()
+                try:
+                    for row in con.execute("""SELECT id, path FROM media_files
+                            WHERE transcode_status='failed' AND transcode_error='source file missing'"""):
+                        if os.path.isfile(row["path"]):
+                            con.execute("""UPDATE media_files SET transcode_status='pending',
+                                transcode_error='' WHERE id=?""", (row["id"],))
+                    con.commit()
+                finally:
+                    con.close()
+                missing_rechecked = True
             con = database.connect()
             try:
                 job = next_pending(con)
             finally:
                 con.close()
             if job and os.path.isfile(job["path"]):
+                phone_state = phone_transcode.status()
+                # Keep a saved phone job on the phone while Android cools. A
+                # temporary thermal pause must not restart it on the Pi.
+                if ((os.environ.get("RETRO_TV_ADB_SERIAL") and not phone_state["ready"])
+                        or (phone_state["connected"] and phone_state["installed"] and not phone_state["ready"])
+                        or (not phone_state["ready"] and
+                            phone_transcode.partial_status(job["id"], job["duration"]))):
+                    stop_event.wait(30)
+                    continue
+                use_phone = phone_state["ready"]
                 temp = _cpu_temp_c()
-                if temp is not None and temp >= THERMAL_PAUSE_C:
+                if not use_phone and temp is not None and temp >= THERMAL_PAUSE_C:
                     stop_event.wait(30)
                     continue
                 src_size = os.path.getsize(job["path"])
@@ -317,9 +445,16 @@ def run_loop(stop_event=None):
                     log.warning("Insufficient disk headroom to transcode media_id=%s (%r); waiting for free space", job["id"], job["path"])
                     stop_event.wait(120)
                     continue
-                run_one(job["id"], job["path"], job["duration"])
+                if not run_one(job["id"], job["path"], job["duration"], use_phone=use_phone):
+                    stop_event.wait(30)
+                if use_phone:
+                    stop_event.wait(30)
                 continue
             elif job:
+                if not scanner.ssd_storage_healthy():
+                    missing_rechecked = False
+                    stop_event.wait(120)
+                    continue
                 # source vanished since being queued
                 con = database.connect()
                 try:

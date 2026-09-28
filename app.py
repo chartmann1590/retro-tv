@@ -468,10 +468,29 @@ def api_library():
 @app.route("/api/transcode/status")
 def api_transcode_status():
     status = transcode.current_status()
+    con = database.connect()
+    try:
+        titles = {}
+        for row in con.execute("""SELECT m.id, e.show_name, e.season, e.episode,
+                e.title AS episode_title, mo.title AS movie_title
+                FROM media_files m LEFT JOIN episodes e ON e.media_id=m.id
+                LEFT JOIN movies mo ON mo.media_id=m.id
+                WHERE m.transcode_status IN ('running','pending')"""):
+            code = vod.episode_code(row["season"], row["episode"])
+            titles[row["id"]] = (" ".join(part for part in (row["show_name"], code) if part)
+                                 or row["movie_title"] or row["episode_title"])
+    finally:
+        con.close()
     for item in ([status["running"]] if status["running"] else []) + status["pending"]:
-        info = vod.get_media_item(item["media_id"])
-        item["title"] = (info or {}).get("title") or os.path.basename(item["path"])
+        item["title"] = titles.get(item["media_id"]) or os.path.basename(item["path"])
+    if status["resume"]:
+        item = status["resume"]
+        item["title"] = titles.get(item["media_id"]) or "Show in progress"
     return jsonify({"ok": True, **status})
+
+@app.route("/phone-transcode")
+def phone_transcode_screen():
+    return render_template("phone_transcode.html")
 
 @app.route("/api/scan", methods=["POST"])
 def api_scan():

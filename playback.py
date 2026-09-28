@@ -24,16 +24,12 @@ _HWDEC_DEFAULT = "drm,v4l2m2m-copy,auto-safe"
 
 
 def _hwdec_for(path):
-    """The zero-copy 'drm' hwdec path corrupts the picture (blue/blank frame, zero
-    frames ever actually composited per mpv's vo-passes) for HEVC on this hardware,
-    even though mpv reports it decoding fine. Originally confirmed on 10-bit HEVC
-    only; after the 6.18.50 kernel/firmware update the same corruption reproduced
-    on plain 8-bit HEVC too (rpi4_8, not just rpi4_10) -- so this now blanket-covers
-    any HEVC content rather than trust a bit-depth-based allowlist against a hardware
-    path that's proven unreliable more than once. A row here always means `path` is
-    the untouched original (a ready transcoded copy lives under a different path and
-    matches no media_files.path), so force software decode until that copy exists
-    rather than risk showing a corrupted frame."""
+    """Copy HEVC hardware-decoded frames before display on this Pi.
+
+    The zero-copy DRM path corrupts HEVC video. The drm-copy path was checked on
+    both 8-bit 720p and 10-bit 1080p files and produced a correct HDMI picture;
+    large HEVC files still need a prepared H.264 copy for smooth playback.
+    """
     try:
         con = database.connect()
         try:
@@ -41,7 +37,7 @@ def _hwdec_for(path):
         finally:
             con.close()
         if row and (row["vcodec"] or "").lower() in ("hevc", "h265"):
-            return "no"
+            return "drm-copy"
     except Exception:
         log.exception("hwdec safety check failed for %s", path)
     return _HWDEC_DEFAULT
@@ -222,11 +218,8 @@ def play_file(path, offset=0, channel=None, title=None):
         mpv = _find_mpv()
         if not mpv:
             return False
-        # Pi HEVC prefers direct DRM frames: copying 4K 10-bit frames back to RAM
-        # overwhelms memory bandwidth and falls behind audio. But zero-copy 'drm'
-        # corrupts the picture for any 10-bit HEVC file (confirmed on this hardware
-        # -- see scanner.needs_hw_transcode), so _hwdec_for() forces software decode
-        # for those specifically until a transcoded copy exists.
+        # HEVC uses drm-copy to avoid the corrupted zero-copy picture. A prepared
+        # H.264 replacement remains the smoothest option for large HEVC files.
         cmd = [mpv, "--no-config", "--fullscreen", "--no-terminal", "--idle=yes",
                "--force-window=yes", "--keep-open=no", "--osc=no", "--osd-level=0",
                "--no-input-default-bindings", "--input-ipc-server=" + config.MPV_SOCKET,

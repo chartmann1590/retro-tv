@@ -15,6 +15,7 @@ import re
 import subprocess
 import threading
 import time
+import wave
 from datetime import datetime
 
 import config
@@ -112,6 +113,73 @@ def _mux_card(image_path, audio_path, out_mp4):
          "-profile:v", "main", "-bf", "0", "-r", "2", "-pix_fmt", "yuv420p",
          "-c:a", "aac", "-b:a", "128k", "-t", f"{duration + 0.4:.2f}", out_mp4],
         check=True, capture_output=True, timeout=120, preexec_fn=_deprioritized)
+
+
+def _render_score_card(title, lines, out_png):
+    """Draw a readable broadcast card without starting a Chromium process."""
+    from PIL import Image, ImageDraw, ImageFont
+
+    image = Image.new("RGB", (CARD_W, CARD_H), COLORS["bg"])
+    draw = ImageDraw.Draw(image)
+    regular = "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf"
+    bold = "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf"
+    brand_font = ImageFont.truetype(bold, 46)
+    title_font = ImageFont.truetype(bold, 34)
+    line_font = ImageFont.truetype(regular, 25)
+    foot_font = ImageFont.truetype(regular, 19)
+    draw.rectangle((0, 0, CARD_W, 110), fill=COLORS["panel"])
+    draw.rectangle((0, 106, CARD_W, 110), fill=COLORS["hi"])
+    draw.text((42, 29), "RETRO SPORTS", font=brand_font, fill=COLORS["hi"])
+    draw.text((42, 140), title[:48], font=title_font, fill=COLORS["txt"])
+    y = 220
+    for line in lines[:9]:
+        # Fit long team names/headlines without clipping the right edge.
+        while draw.textlength(line, font=line_font) > CARD_W - 100 and len(line) > 12:
+            line = line[:-4] + "..."
+        draw.text((52, y), line, font=line_font, fill=COLORS["txt"])
+        y += 47
+    draw.rectangle((0, CARD_H - 72, CARD_W, CARD_H), fill=COLORS["panel"])
+    timestamp = datetime.now(scheduler.TZ).strftime("Updated %b %-d, %-I:%M %p %Z")
+    draw.text((42, CARD_H - 49), timestamp, font=foot_font, fill=COLORS["hi"])
+    draw.text((850, CARD_H - 49), "Scores and news", font=foot_font, fill=COLORS["dim"])
+    image.save(out_png)
+
+
+def _silent_narration(path, seconds=12):
+    with wave.open(path, "wb") as wav:
+        wav.setnchannels(1)
+        wav.setsampwidth(2)
+        wav.setframerate(16000)
+        wav.writeframes(b"\0\0" * (16000 * seconds))
+
+
+def _score_card_specs(games, articles):
+    """Build a small, current lineup even when the HTML renderer is overloaded."""
+    live = [g for g in games if g.get("status", {}).get("isLive")]
+    other = [g for g in games if g not in live]
+    chosen = (live + other)[:8]
+    specs = []
+    for index in range(0, len(chosen), 4):
+        group = chosen[index:index + 4]
+        lines = []
+        for game in group:
+            away = game.get("awayTeam") or {}
+            home = game.get("homeTeam") or {}
+            status = game.get("status") or {}
+            names = f"{away.get('abbreviation') or away.get('displayName') or 'Away'} @ {home.get('abbreviation') or home.get('displayName') or 'Home'}"
+            score = f"{away.get('score', 0)} - {home.get('score', 0)}"
+            lines.extend((f"{game.get('leagueName') or (game.get('league') or 'Sports').upper()}: {names}   {score}",
+                          f"    {status.get('detail') or 'Scheduled'}"))
+        specs.append(("Live Scores" if index == 0 else "More Matchups", lines,
+                      "Retro Sports scoreboard. " + ". ".join(lines[::2])))
+    if articles:
+        headlines = [(a.get("headline") or "Sports news") for a in articles[:4]]
+        specs.append(("Sports Headlines", headlines, "Retro Sports headlines. " + ". ".join(headlines)))
+    if not specs:
+        specs.append(("Retro Sports", ["Scores and headlines are updating.",
+                                        "Visit the Sports Center for game details."],
+                      "Welcome to Retro Sports. Scores and headlines are updating."))
+    return specs
 
 
 def _build_concat_loop(card_mp4s, out_path, target_seconds):
@@ -388,7 +456,7 @@ def _build_game_cards(games, out_dir):
 
 
 def refresh_sports_channel():
-    """Main generation cycle: fetch live data, render cards, synthesize TTS, and build loop."""
+    """Refresh a playable score/news loop without a heavyweight browser render."""
     out_dir = os.path.join(config.LIVE_CONTENT_DIR, "sports")
     os.makedirs(out_dir, exist_ok=True)
     _ensure_sports_channel()
@@ -398,29 +466,24 @@ def refresh_sports_channel():
     games = scores_data.get("games", [])
     news_articles = sports.get_all_news()
 
-    all_card_specs = []
-    all_card_specs.extend(_build_news_cards(news_articles, out_dir))
-    all_card_specs.extend(_build_game_cards(games, out_dir))
-
-    if not all_card_specs:
-        log.warning("No sports cards to render")
-        return 0
-
     part_mp4s = []
-    for idx, card in enumerate(all_card_specs, 1):
+    for idx, (title, lines, narration) in enumerate(_score_card_specs(games, news_articles), 1):
         png = os.path.join(out_dir, f"card_{idx:02d}.png")
         wav = os.path.join(out_dir, f"card_{idx:02d}.wav")
         mp4 = os.path.join(out_dir, f"card_{idx:02d}.mp4")
         try:
-            _render_card_png(card["html"], png)
-            # Synthesize narration via Kokoro TTS
-            audio_bytes, ctype = sports.synthesize_speech(card["narration"], voice=card["voice"])
-            with open(wav, "wb") as f:
-                f.write(audio_bytes)
+            _render_score_card(title, lines, png)
+            try:
+                audio_bytes, _ = sports.synthesize_speech(narration[:900])
+                with open(wav, "wb") as f:
+                    f.write(audio_bytes)
+            except Exception:
+                log.warning("Sports narration unavailable for %s; using silent card", title)
+                _silent_narration(wav)
             _mux_card(png, wav, mp4)
             part_mp4s.append(mp4)
         except Exception:
-            log.exception("sports card %d (%s) failed", idx, card.get("name"))
+            log.exception("sports card %d (%s) failed", idx, title)
 
     if not part_mp4s:
         raise RuntimeError("no sports cards succeeded this cycle")

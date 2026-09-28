@@ -198,6 +198,8 @@ def init_db():
             con.execute("ALTER TABLE media_files ADD COLUMN transcode_path TEXT DEFAULT ''")
         if "transcode_error" not in mf_cols:
             con.execute("ALTER TABLE media_files ADD COLUMN transcode_error TEXT DEFAULT ''")
+        if "transcode_worker" not in mf_cols:
+            con.execute("ALTER TABLE media_files ADD COLUMN transcode_worker TEXT DEFAULT ''")
         for k, v in config.DEFAULT_SETTINGS.items():
             con.execute("INSERT OR IGNORE INTO settings(key,value) VALUES(?,?)", (k, v))
         defaults = [
@@ -335,4 +337,3 @@ def revoke_paired_device(identifier):
         return cur.rowcount > 0
     finally:
         con.close()
-
