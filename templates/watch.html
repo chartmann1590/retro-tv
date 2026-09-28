@@ -5,7 +5,7 @@
 <video id="v" autoplay playsinline></video>
 {% if sports_league %}<section class="league-broadcast" id="leagueBroadcast" aria-label="Live {{ sports_league }} game coverage">
   <header class="league-masthead"><strong>RETRO<span>SPORTS</span></strong><span id="leagueName">{{ sports_league|upper }}</span><span class="league-live" id="leagueLive">ARENAPULSE LIVE</span><span id="leagueUpdated">Connecting…</span></header>
-  <div class="league-scoreboard"><div class="league-team"><img id="leagueAwayLogo" alt="" hidden><div><small>AWAY</small><strong id="leagueAwayName">AWAY</strong><span id="leagueAwayRecord"></span></div><b id="leagueAwayScore">--</b></div><div class="league-status"><strong id="leagueStatus">Loading</strong><span id="leagueClock"></span></div><div class="league-team home"><b id="leagueHomeScore">--</b><div><small>HOME</small><strong id="leagueHomeName">HOME</strong><span id="leagueHomeRecord"></span></div><img id="leagueHomeLogo" alt="" hidden></div></div>
+  <div class="league-scoreboard"><div class="league-team"><img id="leagueAwayLogo" alt="" hidden><div><small>AWAY</small><strong id="leagueAwayName">AWAY</strong><span id="leagueAwayRecord"></span></div><b id="leagueAwayScore">--</b></div><div class="league-status"><strong id="leagueStatus">Loading</strong><span id="leagueClock"></span><b id="leagueCountdown"></b></div><div class="league-team home"><b id="leagueHomeScore">--</b><div><small>HOME</small><strong id="leagueHomeName">HOME</strong><span id="leagueHomeRecord"></span></div><img id="leagueHomeLogo" alt="" hidden></div></div>
   <div class="league-main"><div class="league-field" id="leagueField"><span>Loading field view…</span></div><aside class="league-plays"><div class="league-plays-heading">PLAY BY PLAY <span id="leaguePlayCount"></span></div><div id="leaguePlayList" class="league-play-list">Loading game updates…</div></aside></div>
   <footer class="league-footer"><button id="leaguePrev" type="button" aria-label="Previous game">◀</button><span id="leagueGameIndex">Checking games…</span><button id="leagueNext" type="button" aria-label="Next game">▶</button><button id="leagueSpeak" type="button">🔊 READ PLAYS</button><span id="leagueVenue"></span></footer>
 </section>{% endif %}
@@ -21,4 +21,4 @@
 {% endblock %}
 {% block js %}<script src="/static/js/player.js?v=6"></script>
 {% if sports_league %}<script src="/static/js/league-broadcast.js?v=1"></script>{% endif %}
-<script>initPlayer({{current|tojson}}, {{offset or 0}}, true, {{vod|tojson if vod else 'null'}});{% if sports_league %}initLeagueBroadcast({{sports_league|tojson}});{% endif %}</script>{% endblock %}
+<script>initPlayer({{current|tojson}}, {{offset or 0}}, true, {{vod|tojson if vod else 'null'}});{% if sports_league %}initLeagueBroadcast({{sports_league|tojson}}, {{config_timezone|tojson}});{% endif %}</script>{% endblock %}

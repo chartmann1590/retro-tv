@@ -10,6 +10,7 @@ import asyncio
 import html
 import json
 import logging
+import math
 import os
 import re
 import subprocess
@@ -188,7 +189,7 @@ def _build_concat_loop(card_mp4s, out_path, target_seconds):
     """Concatenate card MP4s into a continuous loop meeting target_seconds."""
     durations = [scanner.probe_info(p).get("duration") or 4.0 for p in card_mp4s]
     pass_seconds = sum(durations)
-    repeats = max(1, round(target_seconds / pass_seconds)) if pass_seconds else 1
+    repeats = max(1, math.ceil(target_seconds / pass_seconds)) if pass_seconds else 1
     list_path = out_path + ".concat.txt"
     tmp_path = out_path + ".building.mp4"
     with open(list_path, "w", encoding="utf-8") as f:
@@ -512,6 +513,9 @@ def _build_game_cards(games, out_dir):
             "name": f"Game_{i}",
             "voice": voice,
             "narration": narration,
+            "speech": (f"{league_name}. {play_text[:100]}" if is_live and latest_play else
+                       f"{league_name}. {away.get('abbreviation') or 'Away'} at {home.get('abbreviation') or 'Home'}. "
+                       f"{status.get('shortDetail') or status.get('detail') or 'Game coverage'}")[:130],
             "html": body
         })
     return cards
@@ -557,7 +561,8 @@ def _render_channel_cards(cards, out_dir, show_name, title, refresh_sec):
         try:
             _render_card_png(card["html"], png)
             try:
-                audio_bytes, _ = sports.synthesize_speech(card["narration"], voice=card["voice"])
+                audio_bytes, _ = sports.synthesize_speech(card.get("speech") or card["narration"],
+                                                           voice=card["voice"])
                 with open(wav, "wb") as f:
                     f.write(audio_bytes)
             except Exception:

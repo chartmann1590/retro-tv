@@ -8,6 +8,32 @@ let leagueSpokenPlay = '';
 let leagueSpeechEnabled = false;
 let leagueAudio = null;
 let leagueLoading = false;
+let leagueSelectedGame = null;
+let leagueTimezone = 'America/New_York';
+
+function updateLeagueCountdown() {
+  const game = leagueSelectedGame;
+  const date = game?.date ? new Date(game.date) : null;
+  if (!game?.status?.isScheduled || !date || Number.isNaN(date.getTime())) {
+    leagueText('leagueCountdown', '');
+    return;
+  }
+  leagueText('leagueClock', new Intl.DateTimeFormat([], {
+    timeZone: leagueTimezone, weekday: 'short', month: 'short', day: 'numeric',
+    hour: 'numeric', minute: '2-digit', timeZoneName: 'short'
+  }).format(date));
+  const seconds = Math.max(0, Math.ceil((date.getTime() - Date.now()) / 1000));
+  if (!seconds) {
+    leagueText('leagueCountdown', 'STARTING NOW');
+    return;
+  }
+  const days = Math.floor(seconds / 86400);
+  const hours = Math.floor(seconds % 86400 / 3600);
+  const minutes = Math.floor(seconds % 3600 / 60);
+  const secs = seconds % 60;
+  const clock = [hours, minutes, secs].map(value => String(value).padStart(2, '0')).join(':');
+  leagueText('leagueCountdown', `LIVE IN ${days ? `${days}D ` : ''}${clock}`);
+}
 
 function leagueText(id, value) {
   document.getElementById(id).textContent = value == null ? '' : String(value);
@@ -46,6 +72,7 @@ async function leagueSpeak(text) {
 
 async function leagueRenderGame() {
   const game = leagueGames[leagueGameIndex];
+  leagueSelectedGame = game || null;
   if (!game) {
     leagueCurrentKey = '';
     leagueLatestPlay = '';
@@ -66,6 +93,7 @@ async function leagueRenderGame() {
     leagueText('leagueGameIndex', 'No games on the board');
     leagueText('leagueStatus', 'STANDBY');
     leagueText('leagueClock', 'Coverage resumes with the next matchup');
+    updateLeagueCountdown();
     leagueText('leaguePlayList', 'ArenaPulse has no scheduled or live games for this league right now.');
     leagueText('leagueField', 'Field view appears when a matchup is available.');
     return;
@@ -85,6 +113,7 @@ async function leagueRenderGame() {
   leagueLogo('leagueHomeLogo', home.logo);
   leagueText('leagueStatus', status.isLive ? '● LIVE' : status.isFinal ? 'FINAL' : 'UPCOMING');
   leagueText('leagueClock', status.shortDetail || status.detail || '');
+  updateLeagueCountdown();
   leagueText('leagueGameIndex', `${leagueGameIndex + 1} / ${leagueGames.length} · ${away.abbreviation || 'AWAY'} @ ${home.abbreviation || 'HOME'}`);
   leagueText('leagueVenue', (game.venue || {}).name || '');
   document.getElementById('leagueLive').classList.toggle('on', !!status.isLive);
@@ -157,7 +186,8 @@ async function leagueRefresh(league) {
   }
 }
 
-function initLeagueBroadcast(league) {
+function initLeagueBroadcast(league, timezone) {
+  leagueTimezone = timezone || leagueTimezone;
   const video = document.getElementById('v');
   video.muted = true;
   document.getElementById('watchMute').textContent = 'UNMUTE';
@@ -179,4 +209,5 @@ function initLeagueBroadcast(league) {
   document.addEventListener('visibilitychange', () => {if (!document.hidden) leagueRefresh(league);});
   leagueRefresh(league);
   setInterval(() => leagueRefresh(league), 20000);
+  setInterval(updateLeagueCountdown, 1000);
 }

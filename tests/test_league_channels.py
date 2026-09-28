@@ -8,6 +8,8 @@ from unittest.mock import patch
 import config
 import database
 import livesports
+import scheduler
+import tvcountdown
 from app import app
 
 
@@ -45,7 +47,40 @@ class LeagueChannelTests(unittest.TestCase):
         page = app.test_client().get(f"/watch/{first[0]['number']}")
         self.assertEqual(page.status_code, 200)
         self.assertIn(b"league-broadcast.js", page.data)
-        self.assertIn(b"initLeagueBroadcast(\"nfl\")", page.data)
+        self.assertIn(b"initLeagueBroadcast(\"nfl\", \"America/New_York\")", page.data)
+        self.assertIn(b"leagueCountdown", page.data)
+
+    def test_upcoming_start_time_and_countdown(self):
+        game = {"date": "2026-09-29T00:15Z", "status": {"isScheduled": True}}
+        label, countdown = tvcountdown.countdown_info(game, now=1790640000)
+        self.assertIn("SEP 28  8:15 PM EDT", label)
+        self.assertTrue(countdown.startswith("LIVE IN "))
+        self.assertIsNone(tvcountdown.countdown_info({"date": game["date"], "status": {"isLive": True}}))
+
+    def test_league_guide_collapses_slots_and_labels_pending_channel(self):
+        channels = livesports.ensure_league_channels([{"id": "nfl", "name": "NFL"},
+                                                       {"id": "wnba", "name": "WNBA"}])
+        nfl, wnba = channels[0]["number"], channels[1]["number"]
+        con = database.connect()
+        try:
+            for index in range(3):
+                con.execute("""INSERT INTO schedule_entries(channel_number,start_ts,end_ts,kind,
+                    title,subtitle,description,day) VALUES(?,?,?,'episode','Old','Old','','2026-09-28')""",
+                    (nfl, 1000 + index * 300, 1300 + index * 300))
+            con.commit()
+        finally:
+            con.close()
+        guide = scheduler.guide_data(1100, hours=1)
+        nfl_entries = next(row["entries"] for row in guide if row["channel"]["number"] == nfl)
+        self.assertEqual(len(nfl_entries), 1)
+        self.assertEqual(nfl_entries[0]["end_ts"], 1900)
+        self.assertEqual(nfl_entries[0]["title"], "NFL Live")
+        with patch("scheduler.channel_pool", return_value=([], [], [])):
+            scheduler.generate_day({"number": wnba, "name": "WNBA Live"}, scheduler.local_day())
+        guide = scheduler.guide_data(hours=1)
+        wnba_entries = next(row["entries"] for row in guide if row["channel"]["number"] == wnba)
+        self.assertEqual(wnba_entries[0]["title"], "WNBA Live")
+        self.assertIn("ArenaPulse", wnba_entries[0]["subtitle"])
 
     def test_broadcast_uses_game_detail_field_and_arena_tts(self):
         game = {"id": "123", "league": "nfl", "sport": "football", "status": {"isLive": True},

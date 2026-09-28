@@ -1145,6 +1145,8 @@ def api_restart_playback():
 
 def init():
     database.init_db()
+    import tvcountdown
+    threading.Thread(target=tvcountdown.run_loop, daemon=True).start()
     import usbremote
     usbremote.start()
     import discovery
