@@ -654,8 +654,9 @@ def script_for_game(game, detail=None):
         clock = status.get("displayClock") or ""
         period = status.get("detail") or f"Period {status.get('period', 1)}"
         text = f"Live action in {league_name}: The {away_name} with {away_score}, and the {home_name} with {home_score}. {period} on the game clock."
-        if detail and detail.get("visualPlays"):
-            recent_play = detail["visualPlays"][-1]
+        plays = ((detail or {}).get("visualPlays") or (detail or {}).get("plays") or [])
+        if plays:
+            recent_play = plays[-1]
             p_text = recent_play.get("text")
             if p_text:
                 text += f" On the latest play: {p_text}"

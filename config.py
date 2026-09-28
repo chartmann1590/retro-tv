@@ -114,7 +114,7 @@ SPORTS_CHANNEL_NAME = "Retro Sports"
 SPORTS_CHANNEL_NUMBER = 38
 TTS_VOICE_SPORTS = os.environ.get("TTS_VOICE_SPORTS", "am_michael")
 TTS_VOICE_SPORTS_NEWS = os.environ.get("TTS_VOICE_SPORTS_NEWS", "af_nicole")
-SPORTS_REFRESH_SEC = 15 * 60
+SPORTS_REFRESH_SEC = 5 * 60
 
 # Reminders (reminders.py): user sets one for a specific upcoming airing (from the
 # guide or a search result); a background loop fires it this many seconds before

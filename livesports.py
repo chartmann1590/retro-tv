@@ -38,6 +38,8 @@ COLORS = {
     "red": "#e50914",
     "green": "#2ecc71"
 }
+_last_center_refresh = 0
+_league_signatures = {}
 
 
 def _deprioritized():
@@ -240,6 +242,50 @@ def _ensure_sports_channel():
         con.close()
 
 
+def ensure_league_channels(leagues):
+    """Add one stable, user-editable channel for every ArenaPulse league."""
+    con = database.connect()
+    created = []
+    try:
+        con.execute("BEGIN IMMEDIATE")
+        used = {r[0] for r in con.execute("SELECT number FROM channels")}
+        next_number = max(used | {config.SPORTS_CHANNEL_NUMBER}) + 1
+        for league in leagues:
+            league_id = league.get("id") or league.get("league")
+            if not league_id or not re.fullmatch(r"[a-z0-9.-]+", league_id):
+                continue
+            show = f"Retro Sports · {league_id}"
+            if con.execute("SELECT 1 FROM channel_sources WHERE source_type='show' AND source_value=?", (show,)).fetchone():
+                continue
+            while next_number in used:
+                next_number += 1
+            name = f"{league.get('name') or league_id.upper()} Live"
+            color = config.AUTO_CHANNEL_COLORS[len(created) % len(config.AUTO_CHANNEL_COLORS)]
+            con.execute("""INSERT INTO channels(number,name,enabled,color,ordering,commercial_mode,
+                max_repeats_per_day,sort_order) VALUES(?,?,1,?,'sequential','off',288,?)""",
+                (next_number, name, color, next_number))
+            con.execute("INSERT INTO channel_sources(channel_number,source_type,source_value) VALUES(?,'show',?)",
+                        (next_number, show))
+            created.append({"number": next_number, "league": league_id})
+            used.add(next_number)
+            next_number += 1
+        con.commit()
+    finally:
+        con.close()
+    return created
+
+
+def league_for_channel(channel_number):
+    con = database.connect()
+    try:
+        row = con.execute("""SELECT source_value FROM channel_sources
+            WHERE channel_number=? AND source_type='show' AND source_value LIKE 'Retro Sports · %'""",
+            (channel_number,)).fetchone()
+        return row["source_value"].split(" · ", 1)[1] if row else None
+    finally:
+        con.close()
+
+
 def _upsert_sports_episode(path, show_name, title, description):
     info = scanner.probe_info(path)
     warn = scanner.compat_warning(info, "episode")
@@ -347,16 +393,20 @@ def _build_game_cards(games, out_dir):
         situation = g.get("situation") or {}
 
         # Fetch deep detail for visual plays or box score
-        detail = sports.get_game_detail(league, gid, sport=sport)
+        detail = sports.get_game_detail(league, gid, sport=sport) or {}
         narration = sports.script_for_game(g, detail=detail)
+        plays = detail.get("visualPlays") or detail.get("plays") or []
+        latest_play = plays[-1] if plays else {}
+        play_text = (latest_play.get("text") or "Play-by-play updates when the game begins.")[:185]
+        play_clock = latest_play.get("clock") or latest_play.get("time") or "LATEST PLAY"
 
         # Generate gameplay field SVG
         field_svg = sports.generate_field_svg(
             sport, home, away,
             situation=situation,
-            play=(detail.get("visualPlays")[-1] if detail.get("visualPlays") else None),
+            play=latest_play or None,
             status=status,
-            width=1160, height=360
+            width=1160, height=330
         )
 
         # Download team logos if available
@@ -376,7 +426,7 @@ def _build_game_cards(games, out_dir):
         is_final = status.get("isFinal")
         if is_live:
             badge_class = "badge-tag badge-live"
-            badge_text = f"● LIVE · {status.get('detail') or 'IN PROGRESS'}"
+            badge_text = "● LIVE"
             status_desc = f"{status.get('displayClock') or ''} {status.get('period', '')}".strip()
         elif is_final:
             badge_class = "badge-tag"
@@ -433,17 +483,22 @@ def _build_game_cards(games, out_dir):
         </div>
 
         <!-- Gameplay Field Visualizer -->
-        <div style="padding:16px 50px 0;display:flex;flex-direction:column;align-items:center">
-          <div style="width:1160px;height:350px">
+        <div style="padding:12px 50px 0;display:flex;flex-direction:column;align-items:center">
+          <div style="width:1160px;height:330px">
             {field_svg}
           </div>
+        </div>
+
+        <div style="margin:0 50px;padding:10px 17px;display:flex;gap:16px;align-items:center;background:#102744;border-left:5px solid {COLORS['hi']};height:64px;overflow:hidden">
+          <span style="color:{COLORS['hi']};font-size:13px;font-weight:900;white-space:nowrap">{html.escape(str(play_clock))}</span>
+          <span style="font-size:17px;font-weight:700;line-height:1.25">{html.escape(play_text)}</span>
         </div>
 
         <div class="ticker-bar">
           <span class="ticker-lead">GAME CENTER</span>
           <span>VENUE: {html.escape(venue_name)}</span>
           <span>BROADCAST: {html.escape(broadcast_str)}</span>
-          <span>WEATHER: {html.escape(str(weather_temp))}&deg;F</span>
+          <span>{html.escape(status.get('detail') or 'Scores from ArenaPulse')}</span>
         </div>
         """
         cards.append({
@@ -455,19 +510,11 @@ def _build_game_cards(games, out_dir):
     return cards
 
 
-def refresh_sports_channel():
-    """Refresh a playable score/news loop without a heavyweight browser render."""
-    out_dir = os.path.join(config.LIVE_CONTENT_DIR, "sports")
-    os.makedirs(out_dir, exist_ok=True)
-    _ensure_sports_channel()
-
-    log.info("Refreshing Retro Sports channel content from ArenaPulse...")
-    scores_data = sports.get_all_scores(force_refresh=True)
-    games = scores_data.get("games", [])
-    news_articles = sports.get_all_news()
-
+def _refresh_center(games, out_dir, refresh_sec):
+    """Keep the existing lightweight Retro Sports score/news channel."""
+    cards = _score_card_specs(games, sports.get_all_news())
     part_mp4s = []
-    for idx, (title, lines, narration) in enumerate(_score_card_specs(games, news_articles), 1):
+    for idx, (title, lines, narration) in enumerate(cards, 1):
         png = os.path.join(out_dir, f"card_{idx:02d}.png")
         wav = os.path.join(out_dir, f"card_{idx:02d}.wav")
         mp4 = os.path.join(out_dir, f"card_{idx:02d}.mp4")
@@ -475,32 +522,118 @@ def refresh_sports_channel():
             _render_score_card(title, lines, png)
             try:
                 audio_bytes, _ = sports.synthesize_speech(narration[:900])
-                with open(wav, "wb") as f:
-                    f.write(audio_bytes)
+                with open(wav, "wb") as audio:
+                    audio.write(audio_bytes)
             except Exception:
                 log.warning("Sports narration unavailable for %s; using silent card", title)
                 _silent_narration(wav)
             _mux_card(png, wav, mp4)
             part_mp4s.append(mp4)
         except Exception:
-            log.exception("sports card %d (%s) failed", idx, title)
-
+            log.exception("Sports Center card %d (%s) failed", idx, title)
     if not part_mp4s:
-        raise RuntimeError("no sports cards succeeded this cycle")
-
+        raise RuntimeError("no Sports Center cards succeeded this cycle")
     loop_path = os.path.join(out_dir, "loop.mp4")
-    refresh_sec = getattr(config, "SPORTS_REFRESH_SEC", 15 * 60)
     total_seconds = _build_concat_loop(part_mp4s, loop_path, refresh_sec)
+    _upsert_sports_episode(loop_path, config.SPORTS_SHOW, "Sports Center Live",
+                           f"Live scores and sports news loop ({len(part_mp4s)} segments)")
+    return total_seconds
 
-    show_name = getattr(config, "SPORTS_SHOW", "Retro Sports")
+
+def _render_channel_cards(cards, out_dir, show_name, title, refresh_sec):
+    os.makedirs(out_dir, exist_ok=True)
+    part_mp4s = []
+    for idx, card in enumerate(cards, 1):
+        png = os.path.join(out_dir, f"card_{idx:02d}.png")
+        wav = os.path.join(out_dir, f"card_{idx:02d}.wav")
+        mp4 = os.path.join(out_dir, f"card_{idx:02d}.mp4")
+        try:
+            _render_card_png(card["html"], png)
+            try:
+                audio_bytes, _ = sports.synthesize_speech(card["narration"], voice=card["voice"])
+                with open(wav, "wb") as f:
+                    f.write(audio_bytes)
+            except Exception:
+                log.warning("ArenaPulse TTS unavailable for %s; rendering silent card", title)
+                with wave.open(wav, "wb") as audio:
+                    audio.setnchannels(1)
+                    audio.setsampwidth(2)
+                    audio.setframerate(16000)
+                    audio.writeframes(b"\0\0" * 16000 * 8)
+            _mux_card(png, wav, mp4)
+            part_mp4s.append(mp4)
+        except Exception:
+            log.exception("sports card %d (%s) failed", idx, card.get("name"))
+    if not part_mp4s:
+        raise RuntimeError(f"no sports cards succeeded for {title}")
+    loop_path = os.path.join(out_dir, "loop.mp4")
+    total_seconds = _build_concat_loop(part_mp4s, loop_path, refresh_sec)
+    _upsert_sports_episode(loop_path, show_name, title, f"ArenaPulse scores, field view, and play-by-play for {title}")
+    return total_seconds
+
+
+def _league_slate_card(league):
+    name = html.escape(league.get("name") or league.get("id") or "Sports")
+    body = f"""
+    <div class="top-bar"><span class="brand-logo">RETRO<span>SPORTS</span></span><span class="badge-tag">{name}</span></div>
+    <div style="padding:90px 70px;text-align:center;background:radial-gradient(circle at center,#194063,#071322 70%);height:630px">
+      <div style="font-size:20px;font-weight:900;letter-spacing:5px;color:{COLORS['hi']}">ARENAPULSE LIVE</div>
+      <div style="font-size:66px;font-weight:900;margin:55px auto 25px">{name}</div>
+      <div style="font-size:28px;color:#b8cce2">No games on the board right now</div>
+      <div style="font-size:18px;color:#8e9eb3;margin-top:28px">Scores and game coverage resume with the next matchup.</div>
+    </div>"""
+    return {"name": "Off air", "html": body, "voice": config.TTS_VOICE_SPORTS,
+            "narration": f"{league.get('name') or 'Sports'} coverage. No games are scheduled right now."}
+
+
+def refresh_sports_channel():
+    """Build every ArenaPulse league as a playable browser and HDMI TV channel."""
+    global _last_center_refresh
     _ensure_sports_channel()
-    _upsert_sports_episode(loop_path, show_name, "Sports Center Live", f"Live scores, field radar, and sports news loop ({len(part_mp4s)} segments)")
+    scores_data = sports.get_all_scores(force_refresh=True)
+    games = scores_data.get("games") or []
+    leagues = sports.get_leagues() or scores_data.get("leagues") or []
+    if not leagues and not games:
+        log.warning("ArenaPulse unavailable; retaining the last sports broadcasts")
+        return 0
+    ensure_league_channels(leagues)
+    refresh_sec = getattr(config, "SPORTS_REFRESH_SEC", 15 * 60)
+    out_dir = os.path.join(config.LIVE_CONTENT_DIR, "sports")
+    os.makedirs(out_dir, exist_ok=True)
+    total_seconds = 0
+    if not _last_center_refresh or time.monotonic() - _last_center_refresh >= config.LIVE_CONTENT_REFRESH_SEC:
+        try:
+            total_seconds = _refresh_center(games, out_dir, refresh_sec)
+            _last_center_refresh = time.monotonic()
+        except Exception:
+            log.exception("Sports Center broadcast refresh failed")
+
+    for league in leagues:
+        league_id = league.get("id") or league.get("league")
+        if not league_id or not re.fullmatch(r"[a-z0-9.-]+", league_id):
+            continue
+        league_games = [g for g in games if g.get("league") == league_id]
+        live = [g for g in league_games if (g.get("status") or {}).get("isLive")]
+        upcoming = [g for g in league_games if (g.get("status") or {}).get("isScheduled")]
+        final = [g for g in league_games if (g.get("status") or {}).get("isFinal")]
+        featured = (live + upcoming + final)[:2]
+        league_dir = os.path.join(out_dir, "leagues", league_id)
+        loop_path = os.path.join(league_dir, "loop.mp4")
+        signature = json.dumps(featured, sort_keys=True, default=str)
+        if not live and _league_signatures.get(league_id) == signature and os.path.isfile(loop_path):
+            continue
+        os.makedirs(league_dir, exist_ok=True)
+        cards = _build_game_cards(featured, league_dir) if featured else [_league_slate_card(league)]
+        try:
+            _render_channel_cards(cards, league_dir, f"Retro Sports · {league_id}",
+                                  f"{league.get('name') or league_id} Live", refresh_sec)
+            _league_signatures[league_id] = signature
+        except Exception:
+            log.exception("League broadcast failed for %s", league_id)
 
     try:
-        import scheduler
         scheduler.ensure_schedules()
     except Exception:
-        log.exception("Failed to generate schedule for sports channel")
-
-    log.info("Sports channel refreshed successfully: %d segments looped to %.0fs", len(part_mp4s), total_seconds)
+        log.exception("Failed to generate sports channel schedules")
+    log.info("Sports channels refreshed: %d leagues", len(leagues))
     return total_seconds

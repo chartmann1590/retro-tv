@@ -428,20 +428,23 @@ def run_loop(stop_event=None):
     import threading
     stop_event = stop_event or threading.Event()
     os.makedirs(config.LIVE_CONTENT_DIR, exist_ok=True)
+    last_weather_news = 0
     while not stop_event.is_set():
         t0 = time.monotonic()
-        try:
-            refresh_weather()
-        except Exception:
-            log.exception("weather refresh cycle failed")
-        try:
-            refresh_news()
-        except Exception:
-            log.exception("news refresh cycle failed")
+        if not last_weather_news or t0 - last_weather_news >= config.LIVE_CONTENT_REFRESH_SEC:
+            try:
+                refresh_weather()
+            except Exception:
+                log.exception("weather refresh cycle failed")
+            try:
+                refresh_news()
+            except Exception:
+                log.exception("news refresh cycle failed")
+            last_weather_news = time.monotonic()
         try:
             import livesports
             livesports.refresh_sports_channel()
         except Exception:
             log.exception("sports refresh cycle failed")
         log.info("Live content cycle took %.1fs", time.monotonic() - t0)
-        stop_event.wait(config.LIVE_CONTENT_REFRESH_SEC)
+        stop_event.wait(max(1, config.SPORTS_REFRESH_SEC - (time.monotonic() - t0)))

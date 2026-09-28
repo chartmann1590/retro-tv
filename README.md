@@ -191,6 +191,15 @@ as root.
 
 The sports channel and interactive sports screen connect to the
 [ArenaPulse Sports Dashboard](https://github.com/chartmann1590/sports-dashboard).
+Retro-TV also creates one live TV channel for every league returned by ArenaPulse's
+`/api/leagues` endpoint. In `/watch`, league channels show current scores, team
+logos, a sport-specific field, and recent plays, refreshed every 20 seconds.
+Use the **READ PLAYS** button to hear new live plays through the existing
+`/api/sports/tts` endpoint. The HDMI channel plays an ArenaPulse-narrated game
+card loop refreshed every five minutes; a newly generated card appears when the
+current scheduled segment ends. Channels remain available during the offseason
+with a standby screen. A missing ArenaPulse or TTS service leaves the last
+generated broadcast playable until the next successful refresh.
 Run it with Docker on the same machine or anywhere on your local network:
 
 ```bash

@@ -143,7 +143,9 @@ def watch(ch=None):
         except Exception:
             ch = channels[0]["number"]
     entry, offset, path, dur = streaming.resolve_live(ch)
-    return render_template("watch.html", channels=channels, current=ch, entry=entry, offset=int(offset or 0))
+    import livesports
+    return render_template("watch.html", channels=channels, current=ch, entry=entry,
+                           offset=int(offset or 0), sports_league=livesports.league_for_channel(ch))
 
 @app.route("/vod")
 def vod_page():
