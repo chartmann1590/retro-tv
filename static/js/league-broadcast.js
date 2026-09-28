@@ -47,6 +47,22 @@ async function leagueSpeak(text) {
 async function leagueRenderGame() {
   const game = leagueGames[leagueGameIndex];
   if (!game) {
+    leagueCurrentKey = '';
+    leagueLatestPlay = '';
+    leagueNewestKey = '';
+    leagueSpokenPlay = '';
+    if (leagueAudio) leagueAudio.pause();
+    leagueText('leagueAwayName', 'AWAY');
+    leagueText('leagueHomeName', 'HOME');
+    leagueText('leagueAwayRecord', '');
+    leagueText('leagueHomeRecord', '');
+    leagueText('leagueAwayScore', '--');
+    leagueText('leagueHomeScore', '--');
+    leagueLogo('leagueAwayLogo', '');
+    leagueLogo('leagueHomeLogo', '');
+    leagueText('leagueVenue', '');
+    leagueText('leaguePlayCount', '0 PLAYS');
+    document.getElementById('leagueLive').classList.remove('on');
     leagueText('leagueGameIndex', 'No games on the board');
     leagueText('leagueStatus', 'STANDBY');
     leagueText('leagueClock', 'Coverage resumes with the next matchup');

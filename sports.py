@@ -84,7 +84,8 @@ def get_all_scores(force_refresh=False):
         return _get_json(url, ttl=30)
     except Exception as e:
         log.warning("get_all_scores failed: %s", e)
-        return {"stats": {"totalGames": 0, "liveTotal": 0, "upcomingTotal": 0, "finalTotal": 0}, "leagues": [], "games": []}
+        return {"stats": {"totalGames": 0, "liveTotal": 0, "upcomingTotal": 0, "finalTotal": 0},
+                "leagues": [], "games": [], "_unavailable": True}
 
 
 def get_league_scores(league, sport=None, date=None):

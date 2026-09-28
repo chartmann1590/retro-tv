@@ -286,23 +286,25 @@ def league_for_channel(channel_number):
         con.close()
 
 
-def _upsert_sports_episode(path, show_name, title, description):
+def _upsert_sports_episode(path, show_name, title, description, airing_seconds=None):
     info = scanner.probe_info(path)
     warn = scanner.compat_warning(info, "episode")
     st = os.stat(path)
+    duration = float(airing_seconds or info["duration"])
     con = database.connect()
     try:
-        row = con.execute("SELECT id FROM media_files WHERE path=?", (path,)).fetchone()
+        row = con.execute("SELECT id,duration FROM media_files WHERE path=?", (path,)).fetchone()
+        duration_changed = bool(row and abs((row["duration"] or 0) - duration) > 0.5)
         if row:
             media_id = row["id"]
             con.execute("""UPDATE media_files SET size=?,mtime=?,duration=?,container=?,resolution=?,
                 width=?,height=?,vcodec=?,acodec=?,bitrate=?,compat_warning=? WHERE id=?""",
-                (st.st_size, st.st_mtime, info["duration"], info["container"], info["resolution"],
+                (st.st_size, st.st_mtime, duration, info["container"], info["resolution"],
                  info["width"], info["height"], info["vcodec"], info["acodec"], info["bitrate"], warn, media_id))
         else:
             cur = con.execute("""INSERT INTO media_files(path,kind,size,mtime,duration,container,resolution,
                 width,height,vcodec,acodec,bitrate,compat_warning) VALUES(?,'episode',?,?,?,?,?,?,?,?,?,?,?)""",
-                (path, st.st_size, st.st_mtime, info["duration"], info["container"], info["resolution"],
+                (path, st.st_size, st.st_mtime, duration, info["container"], info["resolution"],
                  info["width"], info["height"], info["vcodec"], info["acodec"], info["bitrate"], warn))
             media_id = cur.lastrowid
         con.execute("INSERT OR IGNORE INTO shows(name) VALUES(?)", (show_name,))
@@ -312,6 +314,11 @@ def _upsert_sports_episode(path, show_name, title, description):
             show_name=excluded.show_name, season=excluded.season, episode=excluded.episode,
             title=excluded.title, description=excluded.description""",
             (media_id, show_id, show_name, title, description))
+        if duration_changed:
+            # Keep the current airing intact; rebuild only future guide slots.
+            con.execute("""DELETE FROM schedule_entries WHERE start_ts>=? AND channel_number IN
+                (SELECT channel_number FROM channel_sources WHERE source_type='show' AND source_value=?)""",
+                (time.time(), show_name))
         con.commit()
     finally:
         con.close()
@@ -567,8 +574,12 @@ def _render_channel_cards(cards, out_dir, show_name, title, refresh_sec):
     if not part_mp4s:
         raise RuntimeError(f"no sports cards succeeded for {title}")
     loop_path = os.path.join(out_dir, "loop.mp4")
-    total_seconds = _build_concat_loop(part_mp4s, loop_path, refresh_sec)
-    _upsert_sports_episode(loop_path, show_name, title, f"ArenaPulse scores, field view, and play-by-play for {title}")
+    # Leave enough video for any existing slot from a previous variable-length loop.
+    # The scheduler always sees a fixed five-minute airing after this upsert.
+    total_seconds = _build_concat_loop(part_mp4s, loop_path, refresh_sec * 2)
+    _upsert_sports_episode(loop_path, show_name, title,
+                           f"ArenaPulse scores, field view, and play-by-play for {title}",
+                           airing_seconds=refresh_sec)
     return total_seconds
 
 
@@ -591,6 +602,9 @@ def refresh_sports_channel():
     global _last_center_refresh
     _ensure_sports_channel()
     scores_data = sports.get_all_scores(force_refresh=True)
+    if scores_data.get("_unavailable"):
+        log.warning("ArenaPulse scores unavailable; retaining the last sports broadcasts")
+        return 0
     games = scores_data.get("games") or []
     leagues = sports.get_leagues() or scores_data.get("leagues") or []
     if not leagues and not games:
