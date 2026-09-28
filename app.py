@@ -995,14 +995,6 @@ def _is_request_authorized():
     token = auth.removeprefix("Bearer ").strip() if auth.startswith("Bearer ") else request.headers.get("X-Device-Token", "").strip()
     if token and database.is_device_paired(token):
         return True, token
-    # Same-origin web UI on receiver host
-    sec_site = request.headers.get("Sec-Fetch-Site", "")
-    if sec_site in ("same-origin", "same-site"):
-        return True, None
-    ref = request.referrer or ""
-    host = request.headers.get("Host", "")
-    if host and (f"://{host}/" in ref or ref.endswith(f"://{host}")):
-        return True, None
     if request.remote_addr in ("127.0.0.1", "::1"):
         return True, None
     return False, None

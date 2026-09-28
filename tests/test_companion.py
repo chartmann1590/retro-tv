@@ -71,8 +71,13 @@ class CompanionTests(unittest.TestCase):
         unauth_res = self.client.get("/api/pair/devices", environ_base={"REMOTE_ADDR": "192.168.1.150"})
         self.assertEqual(unauth_res.status_code, 401)
 
-        # 2. Generate code via Web UI endpoint (same-origin simulated)
-        gen_res = self.client.post("/api/pair/generate", headers={"Sec-Fetch-Site": "same-origin"})
+        # 1b. Spoofed Sec-Fetch-Site header from external IP should still be rejected
+        spoof_res = self.client.get("/api/pair/devices", headers={"Sec-Fetch-Site": "same-origin"},
+                                    environ_base={"REMOTE_ADDR": "192.168.1.150"})
+        self.assertEqual(spoof_res.status_code, 401)
+
+        # 2. Generate code via Web UI endpoint
+        gen_res = self.client.post("/api/pair/generate")
         self.assertEqual(gen_res.status_code, 200)
         gen_data = gen_res.get_json()
         code = gen_data["code"]
@@ -108,9 +113,9 @@ class CompanionTests(unittest.TestCase):
                                          environ_base={"REMOTE_ADDR": "192.168.1.150"})
         self.assertEqual(unauth_revoke.status_code, 401)
 
-        # 7. Authorized revoke using device_id from web UI
+        # 7. Authorized revoke from authenticated local web UI
         revoke_res = self.client.post("/api/pair/revoke", json={"device_id": device_id},
-                                      headers={"Sec-Fetch-Site": "same-origin"})
+                                      environ_base={"REMOTE_ADDR": "127.0.0.1"})
         self.assertEqual(revoke_res.status_code, 200)
         self.assertTrue(revoke_res.get_json()["ok"])
 
