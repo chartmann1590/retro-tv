@@ -148,6 +148,17 @@ CREATE TABLE IF NOT EXISTS reminders (
   notified INTEGER DEFAULT 0
 );
 CREATE INDEX IF NOT EXISTS idx_reminders_start ON reminders(start_ts);
+CREATE TABLE IF NOT EXISTS pair_codes (
+  code TEXT PRIMARY KEY,
+  created_ts REAL NOT NULL,
+  expires_ts REAL NOT NULL
+);
+CREATE TABLE IF NOT EXISTS paired_devices (
+  token TEXT PRIMARY KEY,
+  device_name TEXT NOT NULL,
+  paired_ts REAL NOT NULL,
+  last_seen_ts REAL NOT NULL
+);
 """
 
 def connect():
@@ -187,6 +198,8 @@ def init_db():
             con.execute("ALTER TABLE media_files ADD COLUMN transcode_path TEXT DEFAULT ''")
         if "transcode_error" not in mf_cols:
             con.execute("ALTER TABLE media_files ADD COLUMN transcode_error TEXT DEFAULT ''")
+        if "transcode_worker" not in mf_cols:
+            con.execute("ALTER TABLE media_files ADD COLUMN transcode_worker TEXT DEFAULT ''")
         for k, v in config.DEFAULT_SETTINGS.items():
             con.execute("INSERT OR IGNORE INTO settings(key,value) VALUES(?,?)", (k, v))
         defaults = [
@@ -254,3 +267,73 @@ def backup_db():
             con.close()
     except Exception:
         pass
+
+
+def create_pair_code(code, expires_sec=600):
+    con = connect()
+    try:
+        now = time.time()
+        con.execute("DELETE FROM pair_codes WHERE expires_ts < ?", (now,))
+        con.execute("INSERT OR REPLACE INTO pair_codes(code, created_ts, expires_ts) VALUES(?,?,?)",
+                    (str(code), now, now + expires_sec))
+        con.commit()
+    finally:
+        con.close()
+
+
+def verify_and_consume_pair_code(code, device_name="Android Companion"):
+    import uuid
+    con = connect()
+    try:
+        now = time.time()
+        r = con.execute("SELECT code FROM pair_codes WHERE code=? AND expires_ts >= ?", (str(code).strip(), now)).fetchone()
+        if not r:
+            return None
+        con.execute("DELETE FROM pair_codes WHERE code=?", (str(code).strip(),))
+        token = uuid.uuid4().hex
+        con.execute("INSERT OR REPLACE INTO paired_devices(token, device_name, paired_ts, last_seen_ts) VALUES(?,?,?,?)",
+                    (token, device_name, now, now))
+        con.commit()
+        return token
+    finally:
+        con.close()
+
+
+def is_device_paired(token):
+    if not token:
+        return False
+    con = connect()
+    try:
+        now = time.time()
+        r = con.execute("SELECT token FROM paired_devices WHERE token=?", (token,)).fetchone()
+        if r:
+            con.execute("UPDATE paired_devices SET last_seen_ts=? WHERE token=?", (now, token))
+            con.commit()
+            return True
+        return False
+    finally:
+        con.close()
+
+
+def list_paired_devices():
+    con = connect()
+    try:
+        rows = con.execute("SELECT rowid AS device_id, device_name, paired_ts, last_seen_ts FROM paired_devices ORDER BY paired_ts DESC").fetchall()
+        return [dict(r) for r in rows]
+    finally:
+        con.close()
+
+
+def revoke_paired_device(identifier):
+    if not identifier:
+        return False
+    con = connect()
+    try:
+        if isinstance(identifier, int) or (isinstance(identifier, str) and identifier.isdigit()):
+            cur = con.execute("DELETE FROM paired_devices WHERE rowid=?", (int(identifier),))
+        else:
+            cur = con.execute("DELETE FROM paired_devices WHERE token=?", (str(identifier),))
+        con.commit()
+        return cur.rowcount > 0
+    finally:
+        con.close()

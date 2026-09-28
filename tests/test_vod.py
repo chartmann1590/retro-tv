@@ -78,6 +78,24 @@ class VodTests(unittest.TestCase):
                 con.close()
         return sid, media_ids
 
+    def test_episode_without_number_stays_browsable(self):
+        con = database.connect()
+        try:
+            media_id = con.execute("INSERT INTO media_files(path,kind,duration) VALUES(?,?,?)",
+                                   (os.path.join(self.tmp.name, "special.mkv"), "episode", 1200)).lastrowid
+            con.execute("INSERT INTO episodes(media_id,show_name,title) VALUES(?,?,?)",
+                        (media_id, "Special Show", "Pilot"))
+            con.commit()
+        finally:
+            con.close()
+        self.assertEqual(vod.get_media_item(media_id)["title"], "Special Show")
+        con = database.connect()
+        try:
+            recent = vod.get_recently_added(con)
+        finally:
+            con.close()
+        self.assertTrue(any(item["media_id"] == media_id for item in recent))
+
     def test_catalog_returns_movies_shows_and_categories(self):
         self.add_movie("The Matrix", 1999, "Action, Sci-Fi")
         self.add_show_with_episodes("Seinfeld", 4)
@@ -324,5 +342,3 @@ class VodTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
-
-

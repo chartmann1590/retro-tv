@@ -1,0 +1,32 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <!-- Antennas -->
+    <path
+        android:strokeColor="#8FA0B8"
+        android:strokeWidth="3"
+        android:strokeLineCap="round"
+        android:pathData="M38,32 L26,18 M70,32 L82,18" />
+    <!-- TV Chassis -->
+    <path
+        android:fillColor="#16253A"
+        android:strokeColor="#253A56"
+        android:strokeWidth="2"
+        android:pathData="M24,32 h60 a8,8 0 0 1 8,8 v44 a8,8 0 0 1 -8,8 h-60 a8,8 0 0 1 -8,-8 v-44 a8,8 0 0 1 8,-8 z" />
+    <!-- Screen -->
+    <path
+        android:fillColor="#141910"
+        android:strokeColor="#F8CB63"
+        android:strokeWidth="2"
+        android:pathData="M22,38 h46 a4,4 0 0 1 4,4 v32 a4,4 0 0 1 -4,4 h-46 a4,4 0 0 1 -4,-4 v-32 a4,4 0 0 1 4,-4 z" />
+    <!-- Dials -->
+    <path
+        android:fillColor="#F8CB63"
+        android:pathData="M78,46 a4,4 0 1 0 8,0 a4,4 0 1 0 -8,0 M78,58 a4,4 0 1 0 8,0 a4,4 0 1 0 -8,0" />
+    <!-- LED Power Indicator -->
+    <path
+        android:fillColor="#2ECC71"
+        android:pathData="M80,72 a2,2 0 1 0 4,0 a2,2 0 1 0 -4,0" />
+</vector>

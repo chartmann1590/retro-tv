@@ -29,6 +29,29 @@
 <div class="reminder-banner-text"><b id="reminderTitle"></b><span id="reminderSub"></span></div>
 <button onclick="reminderTuneNow()">▶ TUNE NOW</button><button class="ghost" onclick="dismissReminderBanner()" aria-label="Dismiss reminder">✕</button>
 </div>
+<div id="mobileAppPrompt" class="mobile-prompt-overlay" style="display: none;" role="dialog" aria-modal="true" aria-labelledby="mobilePromptTitle">
+<div class="mobile-prompt-modal">
+<button class="mobile-prompt-close" onclick="dismissMobilePrompt()" aria-label="Close">✕</button>
+<div class="mobile-prompt-header">
+<div class="mobile-prompt-icon">📺</div>
+<div class="mobile-prompt-title-wrap">
+<span class="mobile-prompt-badge">NATIVE ANDROID APP</span>
+<h3 id="mobilePromptTitle">Retro TV Companion</h3>
+</div>
+</div>
+<p class="mobile-prompt-desc">
+You are browsing on a mobile device! For synchronized live TV streaming, EPG program guide, and tactile universal remote, download our native Android companion app.
+</p>
+<div class="mobile-prompt-actions">
+<a href="/download/companion.apk" class="btn-prompt-download">
+⬇️ Download Android App (APK)
+</a>
+<button class="btn-prompt-continue" onclick="dismissMobilePrompt()">
+Continue in Browser &rarr;
+</button>
+</div>
+</div>
+</div>
 <script>window.TV_TIMEZONE={{config_timezone|default('America/New_York')|tojson}};</script>
 <script src="/static/js/common.js?v=6"></script>
 {% block js %}{% endblock %}

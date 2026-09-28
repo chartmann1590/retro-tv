@@ -1,11 +1,17 @@
 venv/
 __pycache__/
 *.pyc
-data/
-logs/
-hls_cache/
-mpv-local/
+/data/
+/logs/
+/hls_cache/
+/mpv-local/
 CLAUDE.md
 AGENTS.md
 .env
 
+# Android
+.gradle/
+**/build/
+android/local.properties
+*.apk
+*.aab

@@ -104,6 +104,25 @@ class MovieChannelTests(unittest.TestCase):
         self.assertIn(added, {row["media_id"] for row in self.rows(
             "SELECT media_id FROM schedule_entries WHERE day=? AND kind='movie'", (fourth_day,))})
 
+    def test_missing_media_in_full_schedule_is_replaced(self):
+        for i in range(6):
+            self.media(f"Film {i}")
+        scheduler.ensure_schedules(days_ahead=1)
+        now = datetime.now(scheduler.TZ).timestamp()
+        current = self.rows("""SELECT media_id FROM schedule_entries
+            WHERE kind='movie' AND end_ts>? ORDER BY start_ts LIMIT 1""", (now,))[0]["media_id"]
+        con = database.connect()
+        try:
+            con.execute("DELETE FROM movies WHERE media_id=?", (current,))
+            con.execute("DELETE FROM media_files WHERE id=?", (current,))
+            con.commit()
+        finally:
+            con.close()
+        self.assertGreater(scheduler.ensure_schedules(days_ahead=1), 0)
+        self.assertEqual(self.rows("""SELECT s.id FROM schedule_entries s
+            LEFT JOIN media_files m ON m.id=s.media_id
+            WHERE s.end_ts>? AND s.media_id IS NOT NULL AND m.id IS NULL""", (now,)), [])
+
 
 if __name__ == "__main__":
     unittest.main()

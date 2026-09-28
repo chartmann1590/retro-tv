@@ -86,6 +86,37 @@ media on the local network.
   block per cycle, then a commercial break, just like a real local channel.
 - **Auto-created channels** — any show with enough episodes and no channel of
   its own yet gets one automatically as your library grows.
+- **Native Android Companion App** — 100% native Kotlin Android application
+  with UDP auto-discovery, 6-digit Web UI pairing, ExoPlayer Media3 live TV
+  streaming, interactive EPG guide, Retroflix VOD catalog, and tactile remote.
+
+## Android Companion App
+
+Retro TV includes a complete native Android companion application (`android/`) with zero WebViews:
+
+- **Zero-Config Auto-Discovery**: Finds your Retro TV server on the local network automatically using UDP broadcast (`RETRO_TV_DISCOVER` on port 5002) with manual IP fallback and server identity handshake (`/api/server/identity`).
+- **Secure 6-Digit PIN Pairing**: Generate a 6-digit pairing code on the TV Web UI (`/remote`), enter it in the app, and persist authorization with secure token exchange.
+- **Live TV Streaming**: High-performance ExoPlayer Media3 player supporting inline channel switching and fullscreen playback.
+- **Interactive TV Guide (EPG)**: Browse channel schedules, view upcoming program details, and tune the TV receiver or stream on phone with a single tap.
+- **Retroflix On Demand (VOD)**: Full mobile catalog for movies and TV series with episode browsing, poster art caching, "Watch on Phone", and "Play on TV".
+- **Authentic Remote Handset**: Universal tactile remote with live LCD receiver telemetry, D-pad, channel/volume rockers, and direct 0–9 keypad.
+- **Automated Cloud CI/CD**: Built and packaged automatically in GitHub Actions (`.github/workflows/android.yml`).
+
+### Companion App Screenshots
+
+<table>
+<tr>
+<td width="33%"><img src="screenshots/companion-connect.png" width="100%" alt="Companion App Auto-Discovery & Pairing"><br><em><b>Auto-Discovery &amp; Pairing</b> — zero-config UDP broadcast detection, server handshake verification, and 6-digit sync PIN</em></td>
+<td width="33%"><img src="screenshots/companion-live.png" width="100%" alt="Companion App Live TV Streaming"><br><em><b>Live TV Streaming</b> — native ExoPlayer Media3 player synchronized to broadcast offset with schedule progress bar and lineup</em></td>
+<td width="33%"><img src="screenshots/companion-guide.png" width="100%" alt="Companion App TV Guide EPG"><br><em><b>Mobile TV Guide (EPG)</b> — synchronous multi-channel program timeline grid with live markers and one-tap receiver tuning</em></td>
+</tr>
+<tr>
+<td width="33%"><img src="screenshots/companion-vod.png" width="100%" alt="Companion App Retroflix VOD"><br><em><b>Retroflix VOD Hub</b> — high-definition poster artwork, movie/series categories, and episode drawers with mobile streaming</em></td>
+<td width="33%"><img src="screenshots/companion-remote.png" width="100%" alt="Companion App Universal Remote Handset"><br><em><b>Universal Cable Remote</b> — tactile handset with amber LCD receiver readout, D-pad, channel/volume rockers, and 0–9 keypad</em></td>
+<td width="33%"><img src="screenshots/companion-settings.png" width="100%" alt="Companion App Hardware Health Settings"><br><em><b>Receiver Settings</b> — live Raspberry Pi hardware health telemetry (CPU temp, load avg, disk headroom) and auth control</em></td>
+</tr>
+</table>
+
 
 ## Requirements
 
@@ -263,9 +294,30 @@ maintenance loop.
 
 mpv uses hardware decoding and a persistent player process (reused across
 channel changes) tuned for a Raspberry Pi 4 driving 1080p HDMI. Browser
-streaming only copies video and transcodes audio when needed — it never
-transcodes video — so some source formats will play on HDMI but not in a
-browser tab. Keep the Pi adequately cooled for sustained playback.
+streaming remuxes compatible files and converts incompatible video to H.264
+while they play. The background HEVC queue makes permanent H.264 replacements;
+it removes an original only after validating the replacement. Keep the Pi
+adequately cooled for sustained playback.
+
+An ADB-connected Android arm64 phone can handle the background queue at 720p
+instead of loading the Pi. Install the pinned phone binary with
+`bash scripts/install_phone_transcoder.sh`, then leave USB debugging connected.
+The phone and Pi never convert shows at the same time. The battery temperature
+is shown for monitoring. The Admin Settings page can enable a 46.5°C battery
+pause; it is off by default. Phone work always pauses when Android reports
+moderate thermal stress and resumes from completed sections afterward. `/admin` shows the worker,
+temperature, and progress; the phone displays the same status at
+`http://127.0.0.1:5000/phone-transcode` through ADB forwarding over USB or Wi-Fi.
+
+If the media SSD disconnects, Retro TV pauses conversion and keeps the SSD
+library indexed rather than treating I/O errors as deleted shows. After the
+USB connection is stable, `sudo bash scripts/install_ssd_recovery.sh` installs
+a two-minute systemd recovery timer. It waits for two minutes without USB
+disconnects, unmounts the stale bind mounts, runs `e2fsck -p`, and remounts
+the SSD. Any check needing manual repair leaves the drive unmounted. The
+worker then requeues files incorrectly marked missing during the outage and
+resumes saved phone sections. A powered USB hub or separate SSD supply is
+still needed if the Pi reports USB over-current.
 
 ## Important: exactly one instance
 

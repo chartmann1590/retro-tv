@@ -375,6 +375,64 @@
       line-height: 1.6;
     }
 
+    /* Native Mobile Showcase */
+    .companion-showcase-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+      gap: 20px;
+      margin-top: 36px;
+    }
+    .phone-mockup-card {
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      border-radius: 14px;
+      padding: 12px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      transition: all 0.25s ease;
+      cursor: pointer;
+    }
+    .phone-mockup-card:hover {
+      transform: translateY(-4px);
+      border-color: var(--hi);
+      box-shadow: 0 12px 28px rgba(0, 0, 0, 0.5);
+    }
+    .phone-screen-wrap {
+      width: 100%;
+      aspect-ratio: 9 / 19.5;
+      border-radius: 10px;
+      overflow: hidden;
+      border: 2px solid #203556;
+      background: #000;
+      box-shadow: 0 6px 16px rgba(0,0,0,0.5);
+    }
+    .phone-screen-wrap img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      display: block;
+      transition: transform 0.3s ease;
+    }
+    .phone-mockup-card:hover .phone-screen-wrap img {
+      transform: scale(1.03);
+    }
+    .phone-card-title {
+      font-family: 'Chakra Petch', sans-serif;
+      font-size: 13px;
+      color: #fff;
+      margin-top: 10px;
+      text-align: center;
+      font-weight: 700;
+    }
+    .phone-card-desc {
+      font-size: 11px;
+      color: var(--text-dim);
+      text-align: center;
+      margin-top: 3px;
+      line-height: 1.4;
+    }
+
     /* Screenshot Gallery Grid */
     .gallery-section {
       max-width: 1240px;
@@ -587,6 +645,158 @@
       .nav-links { display: none; }
       .footer-inner { flex-direction: column; text-align: center; }
     }
+
+    /* Mobile App Detection Modal */
+    .mobile-prompt-overlay {
+      position: fixed;
+      inset: 0;
+      z-index: 10000;
+      background: rgba(5, 10, 18, 0.85);
+      backdrop-filter: blur(10px);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+      animation: fadeInModal 0.25s ease-out;
+    }
+    @keyframes fadeInModal {
+      from { opacity: 0; }
+      to { opacity: 1; }
+    }
+    .mobile-prompt-modal {
+      background: #0e1726;
+      border: 2px solid var(--hi);
+      border-radius: 16px;
+      box-shadow: 0 24px 60px rgba(0, 0, 0, 0.8), 0 0 30px rgba(248, 203, 99, 0.25);
+      max-width: 440px;
+      width: 100%;
+      padding: 24px 22px;
+      position: relative;
+      animation: scaleInModal 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+    @keyframes scaleInModal {
+      from { transform: scale(0.92) translateY(20px); opacity: 0; }
+      to { transform: scale(1) translateY(0); opacity: 1; }
+    }
+    .mobile-prompt-close {
+      position: absolute;
+      top: 14px;
+      right: 14px;
+      background: rgba(255, 255, 255, 0.06);
+      border: 1px solid var(--card-border);
+      color: var(--text-dim);
+      font-size: 16px;
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .mobile-prompt-close:hover {
+      background: rgba(255, 255, 255, 0.15);
+      color: #fff;
+    }
+    .mobile-prompt-header {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      margin-bottom: 14px;
+    }
+    .mobile-prompt-icon {
+      font-size: 32px;
+      background: #070c14;
+      border: 1px solid #1c2c47;
+      border-radius: 12px;
+      padding: 8px 12px;
+      line-height: 1;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+    }
+    .mobile-prompt-badge {
+      font-size: 10px;
+      font-weight: 800;
+      letter-spacing: 1.5px;
+      color: var(--hi);
+      text-transform: uppercase;
+      display: block;
+      margin-bottom: 2px;
+    }
+    .mobile-prompt-modal h3 {
+      font-family: 'Chakra Petch', sans-serif;
+      font-size: 20px;
+      font-weight: 900;
+      color: #fff;
+      margin: 0;
+    }
+    .mobile-prompt-desc {
+      font-size: 13px;
+      color: var(--text-dim);
+      line-height: 1.5;
+      margin-bottom: 16px;
+    }
+    .mobile-prompt-features {
+      background: #080e1a;
+      border: 1px solid #1a2a44;
+      border-radius: 10px;
+      padding: 12px 14px;
+      margin-bottom: 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    .mobile-prompt-feat-item {
+      font-size: 12px;
+      color: #d1dfed;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .mobile-prompt-feat-item b {
+      color: #fff;
+    }
+    .mobile-prompt-actions {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    .btn-prompt-download {
+      background: var(--hi);
+      color: #0b1424;
+      font-weight: 800;
+      font-size: 14px;
+      padding: 13px 18px;
+      border-radius: 10px;
+      text-decoration: none;
+      text-align: center;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      box-shadow: 0 4px 18px var(--hi-glow);
+      transition: all 0.2s;
+    }
+    .btn-prompt-download:hover {
+      background: #ffdb85;
+      transform: translateY(-1px);
+    }
+    .btn-prompt-continue {
+      background: transparent;
+      border: 1px solid #233754;
+      color: var(--text-dim);
+      font-weight: 600;
+      font-size: 13px;
+      padding: 11px 18px;
+      border-radius: 10px;
+      cursor: pointer;
+      text-align: center;
+      transition: all 0.2s;
+    }
+    .btn-prompt-continue:hover {
+      background: #142236;
+      color: #fff;
+    }
   </style>
 </head>
 <body>
@@ -599,6 +809,8 @@
     </a>
     <nav class="nav-links">
       <a href="#features">Features</a>
+      <a href="#companion">Android App</a>
+      <a href="https://github.com/chartmann1590/retro-tv/releases/download/v1.0.0-companion/app-debug.apk" style="color:var(--hi);font-weight:700;">⬇️ APK</a>
       <a href="#screenshots">Screenshots</a>
       <a href="#sports">Sports Center</a>
       <a href="#quickstart">Quick Start</a>
@@ -620,6 +832,9 @@
     <div class="hero-ctas">
       <a href="https://github.com/chartmann1590/retro-tv" class="btn btn-gold" target="_blank" rel="noopener">
         ⭐ Star on GitHub
+      </a>
+      <a href="https://github.com/chartmann1590/retro-tv/releases/download/v1.0.0-companion/app-debug.apk" class="btn btn-gold" style="background:#2ecc71;border-color:#27ae60;color:#fff;">
+        📱 Download Android App
       </a>
       <a href="https://buymeacoffee.com/charleshartmann" class="btn btn-coffee" target="_blank" rel="noopener">
         ☕ Sponsor Author on Buy Me A Coffee
@@ -725,6 +940,116 @@
         <span class="feature-icon">🌐</span>
         <h3>Watch In Any Browser</h3>
         <p>Stream your live cable channels anywhere on your local network at `/watch`, complete with on-the-fly audio transcoding and HLS remuxing for mobile and desktop browsers.</p>
+      </div>
+
+      <div class="feature-card" id="android-app">
+        <span class="feature-icon">🤖</span>
+        <h3>Native Android Companion App</h3>
+        <p>100% native Kotlin companion app with UDP broadcast auto-discovery, 6-digit Web UI pairing, ExoPlayer Media3 live TV streaming, interactive EPG guide, Retroflix VOD, and tactile remote.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- Android Companion App Section -->
+  <section class="companion-section" id="companion" style="max-width: 1200px; margin: 0 auto 90px; padding: 0 24px;">
+    <div class="section-header">
+      <div class="section-eyebrow">Pure Kotlin · Zero WebViews</div>
+      <h2>Native Android Companion App</h2>
+      <p style="color: var(--text-dim); max-width: 650px; margin: 12px auto 0; font-size: 15px;">Experience Retro TV on your phone with zero-config auto-discovery, persistent 6-digit PIN pairing, low-latency ExoPlayer streaming, and a classic tactile handset remote.</p>
+    </div>
+
+    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 24px; margin-top: 40px;">
+      <div class="feature-card" style="border-color: rgba(248, 203, 99, 0.35);">
+        <span class="feature-icon">📡</span>
+        <h3 style="color: var(--hi);">Zero-Config Auto Discovery</h3>
+        <p>Finds your Retro TV server instantly via UDP broadcast responder on port 5002, with automatic fallback to manual IP entry and server handshake verification.</p>
+      </div>
+
+      <div class="feature-card" style="border-color: rgba(46, 204, 113, 0.35);">
+        <span class="feature-icon">🔐</span>
+        <h3 style="color: var(--accent);">Secure 6-Digit PIN Pairing</h3>
+        <p>Generate a one-time 6-digit sync code on the Web UI (<code>/remote</code>), punch it into your phone, and establish a permanent cryptographically signed session token.</p>
+      </div>
+
+      <div class="feature-card" style="border-color: rgba(29, 114, 184, 0.45);">
+        <span class="feature-icon">⚡</span>
+        <h3 style="color: #64b5f6;">ExoPlayer Media3 Live Streaming</h3>
+        <p>Hardware-accelerated native video playback with low-latency HLS remuxing, seamless channel switching, picture-in-picture, and fullscreen player modes.</p>
+      </div>
+
+      <div class="feature-card">
+        <span class="feature-icon">📅</span>
+        <h3>Interactive EPG Program Guide</h3>
+        <p>Explore synchronous multi-channel program timelines, view episode descriptions, tune the TV receiver with one tap, or watch directly on your mobile device.</p>
+      </div>
+
+      <div class="feature-card">
+        <span class="feature-icon">🍿</span>
+        <h3>Retroflix VOD Mobile Hub</h3>
+        <p>Browse your library's movies and TV shows with cached poster artwork, season/episode drawers, and quick "Watch on Phone" or "Play on TV" controls.</p>
+      </div>
+
+      <div class="feature-card">
+        <span class="feature-icon">🎛️</span>
+        <h3>Tactile Universal Remote</h3>
+        <p>Authentic handheld handset with real-time amber LCD receiver telemetry, directional D-pad, channel and volume rockers, and 0–9 keypad.</p>
+      </div>
+    </div>
+
+    <!-- On-Device Verification Showcase -->
+    <div style="margin-top: 48px; text-align: center;">
+      <div class="section-eyebrow" style="margin-bottom: 6px;">Physical Hardware Verification · UMIDIGI A7 Pro</div>
+      <h3 style="font-family: 'Chakra Petch', sans-serif; font-size: 22px; color: #fff;">Native Android Companion Experience</h3>
+      <p style="color: var(--text-dim); max-width: 600px; margin: 6px auto 0; font-size: 13px;">Tested, paired, and verified on physical hardware over USB ADB. Zero WebViews — pure AndroidX, Media3 ExoPlayer, and Kotlin Coroutines.</p>
+    </div>
+
+    <div class="companion-showcase-grid">
+      <div class="phone-mockup-card" onclick="openLightbox('screenshots/companion-connect.png', 'Companion App — Zero-Config UDP Discovery and 6-Digit PIN Pairing')">
+        <div class="phone-screen-wrap">
+          <img src="screenshots/companion-connect.png" alt="UDP Discovery & Pairing" loading="lazy">
+        </div>
+        <div class="phone-card-title">Discovery &amp; Pairing</div>
+        <div class="phone-card-desc">Zero-config UDP search, server validation, and 6-digit sync PIN</div>
+      </div>
+
+      <div class="phone-mockup-card" onclick="openLightbox('screenshots/companion-live.png', 'Companion App — ExoPlayer Media3 Live TV Synchronized Streaming')">
+        <div class="phone-screen-wrap">
+          <img src="screenshots/companion-live.png" alt="Live TV Streaming" loading="lazy">
+        </div>
+        <div class="phone-card-title">Live TV Streaming</div>
+        <div class="phone-card-desc">ExoPlayer Media3 player synchronized to broadcast schedule</div>
+      </div>
+
+      <div class="phone-mockup-card" onclick="openLightbox('screenshots/companion-guide.png', 'Companion App — Interactive Mobile EPG TV Guide Grid')">
+        <div class="phone-screen-wrap">
+          <img src="screenshots/companion-guide.png" alt="Mobile TV Guide" loading="lazy">
+        </div>
+        <div class="phone-card-title">Interactive TV Guide</div>
+        <div class="phone-card-desc">Multi-channel program grid with one-tap receiver tuning</div>
+      </div>
+
+      <div class="phone-mockup-card" onclick="openLightbox('screenshots/companion-vod.png', 'Companion App — Retroflix Video On Demand Catalog')">
+        <div class="phone-screen-wrap">
+          <img src="screenshots/companion-vod.png" alt="Retroflix VOD" loading="lazy">
+        </div>
+        <div class="phone-card-title">Retroflix VOD</div>
+        <div class="phone-card-desc">High-definition posters, category chips, and episode browser</div>
+      </div>
+
+      <div class="phone-mockup-card" onclick="openLightbox('screenshots/companion-remote.png', 'Companion App — Universal Tactile Handset Remote with Amber LCD')">
+        <div class="phone-screen-wrap">
+          <img src="screenshots/companion-remote.png" alt="Universal Remote" loading="lazy">
+        </div>
+        <div class="phone-card-title">Universal Remote</div>
+        <div class="phone-card-desc">Tactile handset with live amber LCD receiver readout &amp; D-pad</div>
+      </div>
+
+      <div class="phone-mockup-card" onclick="openLightbox('screenshots/companion-settings.png', 'Companion App — Receiver Settings & Hardware Health Telemetry')">
+        <div class="phone-screen-wrap">
+          <img src="screenshots/companion-settings.png" alt="Receiver Settings" loading="lazy">
+        </div>
+        <div class="phone-card-title">Receiver Settings</div>
+        <div class="phone-card-desc">Raspberry Pi CPU temp, load avg, and disk headroom stats</div>
       </div>
     </div>
   </section>
@@ -981,7 +1306,61 @@
     </div>
   </footer>
 
+  <!-- Mobile App Detection Modal -->
+  <div id="mobileAppPrompt" class="mobile-prompt-overlay" style="display: none;" role="dialog" aria-modal="true" aria-labelledby="mobilePromptTitle">
+    <div class="mobile-prompt-modal">
+      <button class="mobile-prompt-close" onclick="dismissMobilePrompt()" aria-label="Close">✕</button>
+      <div class="mobile-prompt-header">
+        <div class="mobile-prompt-icon">📺</div>
+        <div class="mobile-prompt-title-wrap">
+          <span class="mobile-prompt-badge">NATIVE ANDROID APP</span>
+          <h3 id="mobilePromptTitle">Retro TV Companion</h3>
+        </div>
+      </div>
+      <p class="mobile-prompt-desc">
+        We detected you are on a mobile device! For the ultimate experience with synchronized live TV streaming, EPG program guide, and tactile universal remote, download our native Android companion app.
+      </p>
+      <div class="mobile-prompt-features">
+        <div class="mobile-prompt-feat-item"><span>⚡</span> <span><b>Zero-Config Discovery</b> — auto-finds TV receiver</span></div>
+        <div class="mobile-prompt-feat-item"><span>📺</span> <span><b>ExoPlayer Streaming</b> — live broadcast sync</span></div>
+        <div class="mobile-prompt-feat-item"><span>🎛️</span> <span><b>Universal Remote</b> — tactile amber LCD handset</span></div>
+      </div>
+      <div class="mobile-prompt-actions">
+        <a id="mobileDownloadBtn" href="https://github.com/chartmann1590/retro-tv/releases/download/v1.0.0-companion/app-debug.apk" class="btn-prompt-download">
+          ⬇️ Download Android App (APK)
+        </a>
+        <button class="btn-prompt-continue" onclick="dismissMobilePrompt()">
+          Continue to Website &rarr;
+        </button>
+      </div>
+    </div>
+  </div>
+
   <script>
+    function checkMobilePrompt() {
+      if (sessionStorage.getItem('retroTvMobilePromptDismissed') === '1') {
+        return;
+      }
+      const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) ||
+                       (window.matchMedia && window.matchMedia('(max-width: 768px)').matches && ('ontouchstart' in window || navigator.maxTouchPoints > 0));
+      if (isMobile) {
+        const prompt = document.getElementById('mobileAppPrompt');
+        if (prompt) {
+          prompt.style.display = 'flex';
+        }
+      }
+    }
+
+    function dismissMobilePrompt() {
+      const prompt = document.getElementById('mobileAppPrompt');
+      if (prompt) {
+        prompt.style.display = 'none';
+      }
+      sessionStorage.setItem('retroTvMobilePromptDismissed', '1');
+    }
+
+    window.addEventListener('DOMContentLoaded', checkMobilePrompt);
+
     function switchTvScreen(src, btn) {
       const img = document.getElementById('tvScreenImg');
       const caption = document.getElementById('tvScreenCaption');
@@ -1004,7 +1383,9 @@
         'screenshots/sports-game.png': 'Game Center Modal · Real-Time Box Score &amp; Neural Announcer',
         'screenshots/weather.png': 'Local Weather Scan · Current Observations, Radar &amp; 7-Day Outlook',
         'screenshots/guide.png': 'TV Guide Grid · True Multi-Channel Program Schedule',
-        'screenshots/remote.png': 'Mobile Remote · Tactile Keypad, D-pad &amp; Sports Button'
+        'screenshots/remote.png': 'Mobile Remote · Tactile Keypad, D-pad &amp; Sports Button',
+        'screenshots/companion-remote.png': 'Android Handset Remote · Tactile D-pad, Rockers &amp; Amber LCD Readout',
+        'screenshots/companion-live.png': 'Android Live TV · Native ExoPlayer Media3 Streaming &amp; Synchronized Schedule'
       };
       caption.innerHTML = captions[src] || 'Retro TV Broadcast Output';
     }
@@ -1020,7 +1401,10 @@
     }
 
     document.addEventListener('keydown', (e) => {
-      if (e.key === 'Escape') closeLightbox();
+      if (e.key === 'Escape') {
+        closeLightbox();
+        dismissMobilePrompt();
+      }
     });
   </script>
 </body>

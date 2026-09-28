@@ -1,0 +1,487 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@color/retro_bg"
+    android:fillViewport="true">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:gravity="center_horizontal"
+        android:orientation="vertical"
+        android:paddingHorizontal="24dp"
+        android:paddingVertical="16dp">
+
+        <!-- Handset Body Frame -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_gravity="center_horizontal"
+            android:background="@color/handset_bg"
+            android:orientation="vertical"
+            android:padding="20dp">
+
+            <!-- Remote Brand Header -->
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_gravity="center_horizontal"
+                android:fontFamily="sans-serif-black"
+                android:letterSpacing="0.15"
+                android:text="RETRO TV"
+                android:textColor="@color/retro_amber"
+                android:textSize="20sp" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_gravity="center_horizontal"
+                android:layout_marginTop="2dp"
+                android:fontFamily="sans-serif-medium"
+                android:letterSpacing="0.2"
+                android:text="UNIVERSAL CABLE REMOTE"
+                android:textColor="@color/text_muted"
+                android:textSize="8sp" />
+
+            <!-- Remote LCD Screen -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="14dp"
+                android:background="@drawable/bg_lcd"
+                android:orientation="vertical"
+                android:padding="12dp">
+
+                <!-- LCD Top Row -->
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal">
+
+                    <TextView
+                        android:id="@+id/lcdConnection"
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:fontFamily="monospace"
+                        android:text="● CONNECTED"
+                        android:textColor="@color/lcd_dim"
+                        android:textSize="10sp" />
+
+                    <TextView
+                        android:id="@+id/lcdMode"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:fontFamily="monospace"
+                        android:text="TV"
+                        android:textColor="@color/lcd_dim"
+                        android:textSize="10sp" />
+                </LinearLayout>
+
+                <!-- LCD Main Row -->
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginVertical="6dp"
+                    android:gravity="center_vertical"
+                    android:orientation="horizontal">
+
+                    <TextView
+                        android:id="@+id/lcdChannel"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:fontFamily="monospace"
+                        android:text="--"
+                        android:textColor="@color/lcd_text"
+                        android:textSize="34sp"
+                        android:textStyle="bold" />
+
+                    <LinearLayout
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_marginStart="12dp"
+                        android:layout_weight="1"
+                        android:orientation="vertical">
+
+                        <TextView
+                            android:id="@+id/lcdTitle"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:ellipsize="end"
+                            android:fontFamily="monospace"
+                            android:maxLines="1"
+                            android:text="Connecting…"
+                            android:textColor="@color/lcd_text"
+                            android:textSize="12sp"
+                            android:textStyle="bold" />
+
+                        <TextView
+                            android:id="@+id/lcdSubtitle"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="2dp"
+                            android:ellipsize="end"
+                            android:fontFamily="monospace"
+                            android:maxLines="1"
+                            android:textColor="@color/lcd_dim"
+                            android:textSize="10sp" />
+                    </LinearLayout>
+                </LinearLayout>
+
+                <!-- LCD Bottom Row -->
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal">
+
+                    <TextView
+                        android:id="@+id/lcdVolume"
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:fontFamily="monospace"
+                        android:text="VOL 80"
+                        android:textColor="@color/lcd_dim"
+                        android:textSize="10sp" />
+
+                    <TextView
+                        android:id="@+id/lcdDigits"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:fontFamily="monospace"
+                        android:textColor="@color/lcd_text"
+                        android:textSize="10sp" />
+                </LinearLayout>
+            </LinearLayout>
+
+            <!-- Mode Buttons Row -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="16dp"
+                android:orientation="horizontal">
+
+                <Button
+                    android:id="@+id/btnVod"
+                    style="@style/Widget.MaterialComponents.Button"
+                    android:layout_width="0dp"
+                    android:layout_height="40dp"
+                    android:layout_marginEnd="4dp"
+                    android:layout_weight="1.2"
+                    android:backgroundTint="@color/handset_vod_btn"
+                    android:insetTop="0dp"
+                    android:insetBottom="0dp"
+                    android:padding="0dp"
+                    android:text="ON DEMAND"
+                    android:textColor="@color/white"
+                    android:textSize="9sp" />
+
+                <Button
+                    android:id="@+id/btnGuide"
+                    style="@style/Widget.MaterialComponents.Button"
+                    android:layout_width="0dp"
+                    android:layout_height="40dp"
+                    android:layout_marginEnd="4dp"
+                    android:layout_weight="1"
+                    android:backgroundTint="@color/handset_guide_btn"
+                    android:insetTop="0dp"
+                    android:insetBottom="0dp"
+                    android:padding="0dp"
+                    android:text="GUIDE"
+                    android:textColor="@color/white"
+                    android:textSize="9sp" />
+
+                <Button
+                    android:id="@+id/btnInfo"
+                    style="@style/Widget.MaterialComponents.Button"
+                    android:layout_width="0dp"
+                    android:layout_height="40dp"
+                    android:layout_marginEnd="4dp"
+                    android:layout_weight="0.8"
+                    android:backgroundTint="@color/handset_btn"
+                    android:insetTop="0dp"
+                    android:insetBottom="0dp"
+                    android:padding="0dp"
+                    android:text="INFO"
+                    android:textColor="@color/text_primary"
+                    android:textSize="9sp" />
+
+                <Button
+                    android:id="@+id/btnLast"
+                    style="@style/Widget.MaterialComponents.Button"
+                    android:layout_width="0dp"
+                    android:layout_height="40dp"
+                    android:layout_weight="0.8"
+                    android:backgroundTint="@color/handset_btn"
+                    android:insetTop="0dp"
+                    android:insetBottom="0dp"
+                    android:padding="0dp"
+                    android:text="LAST"
+                    android:textColor="@color/text_primary"
+                    android:textSize="9sp" />
+            </LinearLayout>
+
+            <!-- D-Pad Navigation -->
+            <GridLayout
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_gravity="center_horizontal"
+                android:layout_marginTop="16dp"
+                android:columnCount="3"
+                android:rowCount="3">
+
+                <!-- Row 0: Up -->
+                <Space
+                    android:layout_width="48dp"
+                    android:layout_height="44dp" />
+
+                <Button
+                    android:id="@+id/dpadUp"
+                    android:layout_width="48dp"
+                    android:layout_height="44dp"
+                    android:backgroundTint="@color/handset_btn"
+                    android:insetTop="0dp"
+                    android:insetBottom="0dp"
+                    android:padding="0dp"
+                    android:text="▲"
+                    android:textColor="@color/text_primary"
+                    android:textSize="14sp" />
+
+                <Space
+                    android:layout_width="48dp"
+                    android:layout_height="44dp" />
+
+                <!-- Row 1: Left, OK, Right -->
+                <Button
+                    android:id="@+id/dpadLeft"
+                    android:layout_width="48dp"
+                    android:layout_height="44dp"
+                    android:backgroundTint="@color/handset_btn"
+                    android:insetTop="0dp"
+                    android:insetBottom="0dp"
+                    android:padding="0dp"
+                    android:text="◀"
+                    android:textColor="@color/text_primary"
+                    android:textSize="14sp" />
+
+                <Button
+                    android:id="@+id/dpadOk"
+                    android:layout_width="48dp"
+                    android:layout_height="44dp"
+                    android:backgroundTint="@color/handset_ok_btn"
+                    android:insetTop="0dp"
+                    android:insetBottom="0dp"
+                    android:padding="0dp"
+                    android:text="OK"
+                    android:textColor="@color/white"
+                    android:textSize="12sp"
+                    android:textStyle="bold" />
+
+                <Button
+                    android:id="@+id/dpadRight"
+                    android:layout_width="48dp"
+                    android:layout_height="44dp"
+                    android:backgroundTint="@color/handset_btn"
+                    android:insetTop="0dp"
+                    android:insetBottom="0dp"
+                    android:padding="0dp"
+                    android:text="▶"
+                    android:textColor="@color/text_primary"
+                    android:textSize="14sp" />
+
+                <!-- Row 2: Down -->
+                <Space
+                    android:layout_width="48dp"
+                    android:layout_height="44dp" />
+
+                <Button
+                    android:id="@+id/dpadDown"
+                    android:layout_width="48dp"
+                    android:layout_height="44dp"
+                    android:backgroundTint="@color/handset_btn"
+                    android:insetTop="0dp"
+                    android:insetBottom="0dp"
+                    android:padding="0dp"
+                    android:text="▼"
+                    android:textColor="@color/text_primary"
+                    android:textSize="14sp" />
+
+                <Space
+                    android:layout_width="48dp"
+                    android:layout_height="44dp" />
+            </GridLayout>
+
+            <!-- Rocker Controls Row (VOL and CH) -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="16dp"
+                android:gravity="center"
+                android:orientation="horizontal">
+
+                <!-- VOL Rocker -->
+                <LinearLayout
+                    android:layout_width="60dp"
+                    android:layout_height="wrap_content"
+                    android:background="@drawable/bg_card"
+                    android:orientation="vertical">
+
+                    <Button
+                        android:id="@+id/btnVolUp"
+                        android:layout_width="match_parent"
+                        android:layout_height="44dp"
+                        android:backgroundTint="@color/handset_btn"
+                        android:insetTop="0dp"
+                        android:insetBottom="0dp"
+                        android:padding="0dp"
+                        android:text="+"
+                        android:textColor="@color/text_primary"
+                        android:textSize="20sp" />
+
+                    <TextView
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:fontFamily="sans-serif-black"
+                        android:gravity="center"
+                        android:padding="4dp"
+                        android:text="VOL"
+                        android:textColor="@color/text_secondary"
+                        android:textSize="9sp" />
+
+                    <Button
+                        android:id="@+id/btnVolDown"
+                        android:layout_width="match_parent"
+                        android:layout_height="44dp"
+                        android:backgroundTint="@color/handset_btn"
+                        android:insetTop="0dp"
+                        android:insetBottom="0dp"
+                        android:padding="0dp"
+                        android:text="−"
+                        android:textColor="@color/text_primary"
+                        android:textSize="20sp" />
+                </LinearLayout>
+
+                <!-- Center Mute / Seal -->
+                <LinearLayout
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:gravity="center"
+                    android:orientation="vertical">
+
+                    <Button
+                        android:id="@+id/btnMute"
+                        style="@style/Widget.MaterialComponents.Button.OutlinedButton"
+                        android:layout_width="wrap_content"
+                        android:layout_height="40dp"
+                        android:text="MUTE"
+                        android:textColor="@color/text_secondary"
+                        android:textSize="10sp"
+                        app:strokeColor="@color/handset_btn_border"
+                        app:strokeWidth="1dp" />
+                </LinearLayout>
+
+                <!-- CH Rocker -->
+                <LinearLayout
+                    android:layout_width="60dp"
+                    android:layout_height="wrap_content"
+                    android:background="@drawable/bg_card"
+                    android:orientation="vertical">
+
+                    <Button
+                        android:id="@+id/btnChUp"
+                        android:layout_width="match_parent"
+                        android:layout_height="44dp"
+                        android:backgroundTint="@color/handset_btn"
+                        android:insetTop="0dp"
+                        android:insetBottom="0dp"
+                        android:padding="0dp"
+                        android:text="+"
+                        android:textColor="@color/text_primary"
+                        android:textSize="20sp" />
+
+                    <TextView
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:fontFamily="sans-serif-black"
+                        android:gravity="center"
+                        android:padding="4dp"
+                        android:text="CH"
+                        android:textColor="@color/text_secondary"
+                        android:textSize="9sp" />
+
+                    <Button
+                        android:id="@+id/btnChDown"
+                        android:layout_width="match_parent"
+                        android:layout_height="44dp"
+                        android:backgroundTint="@color/handset_btn"
+                        android:insetTop="0dp"
+                        android:insetBottom="0dp"
+                        android:padding="0dp"
+                        android:text="−"
+                        android:textColor="@color/text_primary"
+                        android:textSize="20sp" />
+                </LinearLayout>
+            </LinearLayout>
+
+            <!-- Keypad Grid (3 columns) -->
+            <GridLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="16dp"
+                android:columnCount="3"
+                android:rowCount="4">
+
+                <Button android:id="@+id/key1" style="@style/Widget.MaterialComponents.Button" android:layout_width="0dp" android:layout_height="44dp" android:layout_columnWeight="1" android:layout_margin="3dp" android:backgroundTint="@color/handset_btn" android:text="1" android:textSize="18sp" />
+                <Button android:id="@+id/key2" style="@style/Widget.MaterialComponents.Button" android:layout_width="0dp" android:layout_height="44dp" android:layout_columnWeight="1" android:layout_margin="3dp" android:backgroundTint="@color/handset_btn" android:text="2" android:textSize="18sp" />
+                <Button android:id="@+id/key3" style="@style/Widget.MaterialComponents.Button" android:layout_width="0dp" android:layout_height="44dp" android:layout_columnWeight="1" android:layout_margin="3dp" android:backgroundTint="@color/handset_btn" android:text="3" android:textSize="18sp" />
+
+                <Button android:id="@+id/key4" style="@style/Widget.MaterialComponents.Button" android:layout_width="0dp" android:layout_height="44dp" android:layout_columnWeight="1" android:layout_margin="3dp" android:backgroundTint="@color/handset_btn" android:text="4" android:textSize="18sp" />
+                <Button android:id="@+id/key5" style="@style/Widget.MaterialComponents.Button" android:layout_width="0dp" android:layout_height="44dp" android:layout_columnWeight="1" android:layout_margin="3dp" android:backgroundTint="@color/handset_btn" android:text="5" android:textSize="18sp" />
+                <Button android:id="@+id/key6" style="@style/Widget.MaterialComponents.Button" android:layout_width="0dp" android:layout_height="44dp" android:layout_columnWeight="1" android:layout_margin="3dp" android:backgroundTint="@color/handset_btn" android:text="6" android:textSize="18sp" />
+
+                <Button android:id="@+id/key7" style="@style/Widget.MaterialComponents.Button" android:layout_width="0dp" android:layout_height="44dp" android:layout_columnWeight="1" android:layout_margin="3dp" android:backgroundTint="@color/handset_btn" android:text="7" android:textSize="18sp" />
+                <Button android:id="@+id/key8" style="@style/Widget.MaterialComponents.Button" android:layout_width="0dp" android:layout_height="44dp" android:layout_columnWeight="1" android:layout_margin="3dp" android:backgroundTint="@color/handset_btn" android:text="8" android:textSize="18sp" />
+                <Button android:id="@+id/key9" style="@style/Widget.MaterialComponents.Button" android:layout_width="0dp" android:layout_height="44dp" android:layout_columnWeight="1" android:layout_margin="3dp" android:backgroundTint="@color/handset_btn" android:text="9" android:textSize="18sp" />
+
+                <Button android:id="@+id/keyClr" style="@style/Widget.MaterialComponents.Button" android:layout_width="0dp" android:layout_height="44dp" android:layout_columnWeight="1" android:layout_margin="3dp" android:backgroundTint="@color/handset_btn" android:text="CLR" android:textSize="11sp" />
+                <Button android:id="@+id/key0" style="@style/Widget.MaterialComponents.Button" android:layout_width="0dp" android:layout_height="44dp" android:layout_columnWeight="1" android:layout_margin="3dp" android:backgroundTint="@color/handset_btn" android:text="0" android:textSize="18sp" />
+                <Button android:id="@+id/keyGo" style="@style/Widget.MaterialComponents.Button" android:layout_width="0dp" android:layout_height="44dp" android:layout_columnWeight="1" android:layout_margin="3dp" android:backgroundTint="@color/handset_ok_btn" android:text="GO" android:textSize="11sp" android:textStyle="bold" />
+            </GridLayout>
+
+            <!-- Bottom Function Row -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="14dp"
+                android:orientation="horizontal">
+
+                <Button
+                    android:id="@+id/btnPause"
+                    style="@style/Widget.MaterialComponents.Button"
+                    android:layout_width="0dp"
+                    android:layout_height="40dp"
+                    android:layout_marginEnd="6dp"
+                    android:layout_weight="1"
+                    android:backgroundTint="@color/handset_btn"
+                    android:text="Ⅱ PAUSE"
+                    android:textColor="@color/text_primary"
+                    android:textSize="10sp" />
+
+                <Button
+                    android:id="@+id/btnLive"
+                    style="@style/Widget.MaterialComponents.Button"
+                    android:layout_width="0dp"
+                    android:layout_height="40dp"
+                    android:layout_weight="1"
+                    android:backgroundTint="@color/handset_btn"
+                    android:text="● LIVE TV"
+                    android:textColor="@color/retro_amber"
+                    android:textSize="10sp" />
+            </LinearLayout>
+
+        </LinearLayout>
+    </LinearLayout>
+</ScrollView>

@@ -5,6 +5,7 @@ import json
 import sqlite3
 import subprocess
 import threading
+import time
 
 _scan_lock = threading.Lock()
 import logging
@@ -12,6 +13,48 @@ import database
 import config
 
 log = logging.getLogger("retro-tv.scanner")
+
+
+def ssd_mounts():
+    return [os.path.join(category, "SSD") for category in
+            (config.TV_DIR, config.MOVIES_DIR, config.COMMERCIALS_DIR)]
+
+
+def ssd_storage_healthy():
+    """A stale ext4 mount can still look mounted after its USB disk disconnects."""
+    drive_mount = os.path.dirname(config.TRANSCODE_DIR)
+    try:
+        with open("/proc/mounts") as mounts_file:
+            options = {parts[1]: set(parts[3].split(","))
+                       for line in mounts_file if (parts := line.split()) and len(parts) >= 4}
+        if not os.path.ismount(drive_mount) or "shutdown" in options.get(drive_mount, set()):
+            return False
+        if any(not os.path.ismount(path) or "shutdown" in options.get(path, set())
+               for path in ssd_mounts()):
+            return False
+        with os.scandir(config.TRANSCODE_DIR) as entries:
+            next(entries, None)
+        return True
+    except OSError:
+        return False
+
+
+def wait_for_media_mounts(timeout=90, stop_event=None):
+    """Give the external SSD's bind mounts time to appear after user login."""
+    deadline = time.monotonic() + timeout
+    while True:
+        missing = [path for path in ssd_mounts() if not os.path.ismount(path)]
+        if not missing:
+            return True
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            log.warning("Media mounts still unavailable after %ss: %s", timeout, missing)
+            return False
+        if stop_event:
+            if stop_event.wait(min(1, remaining)):
+                return False
+        else:
+            time.sleep(min(1, remaining))
 
 SE_PATTERNS = [
     re.compile(r"[Ss](\d{1,2})[Ee](\d{1,3})"),           # S05E02
@@ -94,7 +137,8 @@ def _deprioritize():
 def ffprobe(path):
     try:
         out = subprocess.run(
-            ["ffprobe", "-v", "quiet", "-print_format", "json", "-show_format", "-show_streams", path],
+            ["ffprobe", "-v", "quiet", "-print_format", "json", "-show_entries",
+             "format=duration,bit_rate:stream=codec_type,codec_name,width,height,pix_fmt", path],
             capture_output=True, text=True, timeout=30, preexec_fn=_deprioritize)
         if out.returncode != 0:
             return {}
@@ -139,22 +183,21 @@ def probe_info(path):
     return info
 
 def needs_hw_transcode(info):
-    """True for the video class confirmed to corrupt the picture on the Pi 4's
-    zero-copy HEVC hardware decode path: all HEVC/H.265 content (both 8-bit and 10-bit).
-    mpv forces software decode for these files (see playback._hwdec_for), so any HEVC
-    file needs a background-transcoded 8-bit H.264 copy for reliable real-time playback."""
+    """HEVC needs an H.264 copy for smooth HDMI and browser playback on the Pi 4.
+
+    drm-copy shows a correct HDMI picture while the copy is being prepared, but
+    large HEVC files can still drop frames.
+    """
     vc = (info.get("vcodec") or "").lower()
     return vc in ("hevc", "h265")
 
 def _transcode_headroom_ok(source_size, reserved=0):
     """Guard against auto-queueing more transcode work than the disk can hold.
 
-    The transcoded copy lands alongside the original (never replacing it), on
-    config.TRANSCODE_DIR's filesystem (the media SSD, not the small root
-    filesystem). A library can still have more HEVC content than even
-    that has free. Require real headroom (accounting for already queued work and
-    a multiple of the source size, plus a fixed floor so we never run the disk to zero)
-    before auto-queueing; compat_warning() still surfaces the file either way.
+    The output is written to config.TRANSCODE_DIR on the media SSD. The original
+    stays in place until the output is validated, then it is removed. Require
+    headroom for the temporary overlap, already queued work, and a fixed floor;
+    compat_warning() still surfaces files that cannot be queued yet.
     """
     import shutil
     try:
@@ -173,7 +216,7 @@ def compat_warning(info, kind):
     cont = (info.get("container") or "").lower()
     br = info.get("bitrate", 0)
     if needs_hw_transcode(info):
-        warns.append("HEVC: Pi4 HW decoder corrupts output (blue/blank picture) -- auto-transcoding a Pi-safe copy")
+        warns.append("HEVC may drop frames on Pi 4; queued for an H.264 replacement when disk space and temperature allow")
     elif h >= 2000:
         warns.append("4K may stutter on Pi 4; prefer 1080p")
     if br and br > 20_000_000:
@@ -271,13 +314,16 @@ def _full_scan(light=False):
                 # iterating, and writing back the stale snapshot value would clobber that.
                 live_status = con.execute("SELECT transcode_status FROM media_files WHERE id=?", (prev["id"],)).fetchone()
                 prev_status = live_status["transcode_status"] if live_status else ""
-                should_queue = hw_risk and (not unchanged or prev_status == "") and _transcode_headroom_ok(st.st_size, reserved=reserved_transcode_bytes)
+                should_queue = (hw_risk and prev_status != "running"
+                                and (prev_status != "done" or not unchanged)
+                                and (not unchanged or prev_status == "")
+                                and _transcode_headroom_ok(st.st_size, reserved=reserved_transcode_bytes))
                 if should_queue:
                     new_status = "pending"
                     if prev_status != "pending":
                         reserved_transcode_bytes += st.st_size * 2
                 elif not hw_risk:
-                    new_status = ""
+                    new_status = "done" if prev_status == "done" else ""
                 else:
                     new_status = prev_status
                 con.execute("""UPDATE media_files SET kind=?,size=?,mtime=?,duration=?,container=?,
@@ -331,18 +377,29 @@ def _full_scan(light=False):
             con.commit()
         finally:
             con.close()
-    # remove missing files (keep schedule history intact; mark schedules referencing them)
+    # An SSD can be absent or late to mount during startup. Never treat every
+    # file below its bind mount as deleted merely because the mount is missing.
+    missing_ssd_roots = ([] if ssd_storage_healthy() else ssd_mounts())
+    if missing_ssd_roots:
+        log.warning("Media mounts unavailable; preserving indexed files under %s", missing_ssd_roots)
+    # remove files that are truly gone from accessible media roots
     con = database.connect()
     try:
         for p, row in existing.items():
-            if p not in found and os.path.exists(p) is False:
-                # only delete if file truly gone
-                if not os.path.exists(p):
-                    mid = row["id"]
-                    con.execute("DELETE FROM episodes WHERE media_id=?", (mid,))
-                    con.execute("DELETE FROM movies WHERE media_id=?", (mid,))
-                    con.execute("DELETE FROM commercials WHERE media_id=?", (mid,))
-                    con.execute("DELETE FROM media_files WHERE id=?", (mid,))
+            if p in found or os.path.exists(p):
+                continue
+            if any(p.startswith(root + os.sep) for root in missing_ssd_roots):
+                continue
+            mid = row["id"]
+            # The converter may have moved this row to its validated replacement
+            # since the snapshot above. Do not delete that live record.
+            live = con.execute("SELECT path FROM media_files WHERE id=?", (mid,)).fetchone()
+            if not live or live["path"] != p:
+                continue
+            con.execute("DELETE FROM episodes WHERE media_id=?", (mid,))
+            con.execute("DELETE FROM movies WHERE media_id=?", (mid,))
+            con.execute("DELETE FROM commercials WHERE media_id=?", (mid,))
+            con.execute("DELETE FROM media_files WHERE id=?", (mid,))
         con.commit()
     finally:
         con.close()

@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Retro TV · Phone Transcoder</title>
+<style>
+  *{box-sizing:border-box}body{margin:0;min-height:100vh;background:#050d13;color:#eef4f1;font:18px system-ui,sans-serif;padding:28px 24px}
+  h1{font-size:29px;margin:0 0 7px;color:#ffd166}h2{font-size:22px;margin:0 0 12px}p{margin:8px 0;line-height:1.4}
+  .eyebrow{font-size:12px;letter-spacing:2px;text-transform:uppercase;color:#8da9b5}.card{background:#10212c;border:1px solid #29404c;border-radius:14px;padding:20px;margin:18px 0}
+  .status{font-size:24px;font-weight:700}.good{color:#73e0a1}.warm{color:#ffd166}.bad{color:#f08c8c}
+  .track{height:18px;background:#263a44;border-radius:20px;overflow:hidden;margin:20px 0 10px}.fill{height:100%;background:#73e0a1;transition:width .5s}
+  .small{font-size:15px;color:#a9bdc6}.title{font-size:20px;overflow-wrap:anywhere}
+</style></head><body>
+<div class="eyebrow">Retro TV · ADB worker</div><h1>Phone Transcoder</h1>
+<div class="card"><div id="connection" class="status">Connecting…</div><p id="temperature" class="small"></p></div>
+<div class="card"><div id="job" class="status">Checking queue…</div><p id="title" class="title"></p>
+<div class="track"><div id="fill" class="fill" style="width:0%"></div></div><p id="progress" class="small"></p></div>
+<div class="card small"><span id="completed">0</span> shows completed on this phone · <span id="queued">0</span> waiting</div>
+<script>
+async function update(){
+  try{
+    const response=await fetch('/api/transcode/status',{cache:'no-store'});
+    if(!response.ok)throw new Error('status unavailable');
+    const data=await response.json(), phone=data.phone||{}, running=data.running, resume=data.resume;
+    const connection=document.getElementById('connection');
+    connection.textContent=phone.connected?(phone.ready?'Connected · ready':'Connected · cooling'):'Phone disconnected';
+    connection.className='status '+(phone.ready?'good':phone.connected?'warm':'bad');
+    document.getElementById('temperature').textContent=(phone.model||'Android phone')+
+      (phone.temperature_c==null?'':' · battery '+Number(phone.temperature_c).toFixed(1)+'°C')+
+      (phone.thermal_status==null?'':' · Android thermal status '+phone.thermal_status)+
+      (phone.battery_throttle_enabled?' · battery pause at '+phone.pause_at_c+'°C':' · battery pause off');
+    document.getElementById('completed').textContent=data.phone_completed||0;
+    document.getElementById('queued').textContent=(data.pending||[]).length;
+    const job=document.getElementById('job');
+    job.textContent=data.ssd_ready===false?'Media SSD unavailable · conversion paused':
+      running?(running.worker==='phone'?'Transcoding on this phone':'Pi is transcoding'):
+      phone.ready?'Waiting for next job':'Paused for cooling';
+    job.className='status '+(data.ssd_ready===false?'bad':running&&running.worker==='phone'?'good':'warm');
+    document.getElementById('title').textContent=running?.title||resume?.title||'';
+    const percent=running?.percent||resume?.percent||0;
+    document.getElementById('fill').style.width=percent+'%';
+    document.getElementById('progress').textContent=running?(running.percent==null?'Sending show to phone…':
+      percent.toFixed(1)+'% converted · Pi show converter idle while phone works'):
+      resume?percent.toFixed(1)+'% saved across '+resume.completed_sections+' sections · resumes after cooling':
+      data.ssd_ready===false?'Waiting for SSD recovery':'';
+  }catch(error){
+    document.getElementById('connection').textContent='Connection to Retro TV lost';
+    document.getElementById('connection').className='status bad';
+  }
+}
+update();setInterval(update,3000);
+</script></body></html>

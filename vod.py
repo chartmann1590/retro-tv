@@ -13,6 +13,12 @@ log = logging.getLogger("retro-tv.vod")
 _catalog_cache = {"data": None, "ts": 0}
 CACHE_TTL = 30  # seconds
 
+
+def episode_code(season, episode):
+    if season is None or episode is None:
+        return ""
+    return f"S{season:02d}E{episode:02d}"
+
 def art_proxy_url(url):
     """Wrap remote art URLs with local /api/art proxy for caching and referrer immunity."""
     if not url:
@@ -110,7 +116,8 @@ def get_recently_added(con, limit=24):
         d["raw_artwork"] = d.get("artwork") or ""
         d["artwork"] = art_proxy_url(d.get("artwork"))
         if d["kind"] == "episode":
-            d["subtitle"] = f"{d['show_name']} • S{d.get('season', 1):02d}E{d.get('episode', 1):02d}"
+            code = episode_code(d.get("season"), d.get("episode"))
+            d["subtitle"] = f"{d['show_name']} • {code}" if code else d["show_name"]
         else:
             d["subtitle"] = f"{d.get('year') or ''} • {d.get('genre') or 'Movie'}".strip(" •")
         out.append(d)
@@ -205,6 +212,8 @@ def get_catalog():
             "featured": featured,
             "total_movies": len(all_movies),
             "total_shows": len(all_shows),
+            "movies": all_movies,
+            "shows": all_shows,
             "categories": categories,
         }
         _catalog_cache["data"] = catalog
@@ -305,10 +314,11 @@ def get_media_item(media_id):
             ep = con.execute("SELECT * FROM episodes WHERE media_id=?", (media_id,)).fetchone()
             if ep:
                 ep = dict(ep)
+                code = episode_code(ep.get("season"), ep.get("episode"))
                 return {
                     "media_id": media_id,
                     "kind": "episode",
-                    "title": f"{ep['show_name']} S{ep.get('season', 1):02d}E{ep.get('episode', 1):02d}",
+                    "title": f"{ep['show_name']} {code}" if code else ep["show_name"],
                     "subtitle": ep.get("title") or "",
                     "show_name": ep["show_name"],
                     "season": ep.get("season"),

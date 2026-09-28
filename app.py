@@ -8,7 +8,7 @@ import threading
 import time
 from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
-from flask import Flask, jsonify, request, Response, render_template, send_file, send_from_directory, abort, redirect, url_for
+from flask import Flask, jsonify, request, Response, render_template, send_file, send_from_directory, abort, redirect, url_for, stream_with_context
 
 import config
 import database
@@ -56,13 +56,17 @@ def fmt_range(s, e):
 
 # ---------- background jobs ----------
 _bg_stop = threading.Event()
+_initial_scan_done = threading.Event()
 
 def bg_loop():
     # One worker owns startup and maintenance; never scan/generate twice at boot.
     # Launch playback before lowering this thread's priority: mpv inherits it.
+    scanner.wait_for_media_mounts(stop_event=_bg_stop)
     try:
-        scheduler.ensure_schedules()
-        playback.restore_last()
+        result = playback.restore_last()
+        if not result.get("ok"):
+            scheduler.ensure_schedules()
+            playback.restore_last()
     except Exception:
         log.exception("Startup playback failed")
     try:
@@ -70,11 +74,14 @@ def bg_loop():
             os.nice(10)
     except Exception:
         pass
-    last_schedule = time.monotonic()
+    last_schedule = 0
     last_backup = last_schedule
     while not _bg_stop.is_set():
         try:
-            scanner.full_scan(light=True)
+            try:
+                scanner.full_scan(light=True)
+            finally:
+                _initial_scan_done.set()
             from metadata import enrich_shows, enrich_episodes, enrich_movies
             enrich_shows()
             enrich_episodes()
@@ -168,6 +175,14 @@ def remote_page():
     channels = scheduler.get_channels()
     return render_template("remote.html", channels=channels)
 
+@app.route("/showcase")
+def showcase_page():
+    return send_file(os.path.join(config.BASE_DIR, "docs", "index.html"))
+
+@app.route("/screenshots/<path:filename>")
+def screenshots_static(filename):
+    return send_from_directory(os.path.join(config.BASE_DIR, "screenshots"), filename)
+
 # ---------- media streaming ----------
 def range_response(path, mime):
     # Werkzeug handles suffix ranges, invalid ranges, HEAD, and conditional reads.
@@ -180,6 +195,30 @@ MIME = {".mp4": "video/mp4", ".m4v": "video/mp4", ".mov": "video/quicktime",
         ".mkv": "video/x-matroska", ".avi": "video/x-msvideo", ".webm": "video/webm",
         ".ts": "video/mp2t", ".mpg": "video/mpeg", ".mpeg": "video/mpeg"}
 
+
+def browser_fragment_response(path, start):
+    import subprocess
+    command = streaming.browser_stream_command(path, start)
+    proc = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL)
+
+    def chunks():
+        try:
+            while data := proc.stdout.read1(64 * 1024):
+                yield data
+        finally:
+            proc.stdout.close()
+            if proc.poll() is None:
+                proc.terminate()
+            try:
+                proc.wait(timeout=2)
+            except subprocess.TimeoutExpired:
+                proc.kill()
+                proc.wait()
+
+    response = Response(stream_with_context(chunks()), mimetype="video/mp4")
+    response.headers["Cache-Control"] = "no-store"
+    return response
+
 @app.route("/stream/live/<int:ch>")
 def stream_live(ch):
     """Direct file for channel with Range support. Player seeks to offset via API."""
@@ -188,6 +227,12 @@ def stream_live(ch):
     entry, offset, path, dur = streaming.resolve_live(ch)
     if not path:
         return jsonify({"error": "No media currently (off-air or missing file)", "entry": entry}), 404
+    if request.args.get("fragment") == "1":
+        try:
+            start = max(0, float(request.args.get("start", offset)))
+        except (TypeError, ValueError):
+            start = offset
+        return browser_fragment_response(path, start)
     vc, ac, cont = streaming.ffprobe_codecs(path)
     # remux on demand if requested or needed and client wants mp4
     if request.args.get("remux") == "1" or (streaming.needs_remux(path, vc, ac, cont) and request.args.get("direct") != "1"):
@@ -201,11 +246,18 @@ def stream_live(ch):
 def stream_file(media_id):
     con = database.connect()
     try:
-        r = con.execute("SELECT path, vcodec, acodec, container FROM media_files WHERE id=?", (media_id,)).fetchone()
+        r = con.execute("SELECT path, vcodec, acodec, container, transcode_status, transcode_path FROM media_files WHERE id=?", (media_id,)).fetchone()
     finally:
         con.close()
     if not r or not r["path"] or not os.path.exists(r["path"]):
         abort(404)
+    path = transcode.playable_path(dict(r))
+    if request.args.get("fragment") == "1":
+        try:
+            start = max(0, float(request.args.get("start", 0)))
+        except (TypeError, ValueError):
+            start = 0
+        return browser_fragment_response(path, start)
     if request.args.get("remux") == "1" or (streaming.needs_remux(r["path"], r["vcodec"], r["acodec"], r["container"]) and request.args.get("direct") != "1"):
         out = streaming.remux_to_mp4(r["path"])
         if out:
@@ -247,7 +299,14 @@ def api_guide():
         hours, start = 4, 0
     if not start:
         start = datetime.now(TZ).timestamp()
-    return jsonify({"ok": True, "start": start, "hours": hours, "server_time": time.time(), "current_channel": playback._current["channel"], "guide": scheduler.guide_data(start, hours)})
+    guide_list = scheduler.guide_data(start, hours)
+    for ch in guide_list:
+        for entry in ch.get("entries", []):
+            if not entry.get("start_fmt"):
+                entry["start_fmt"] = fmt_time(entry["start_ts"])
+            if not entry.get("end_fmt"):
+                entry["end_fmt"] = fmt_time(entry["end_ts"])
+    return jsonify({"ok": True, "start": start, "hours": hours, "server_time": time.time(), "current_channel": playback._current["channel"], "guide": guide_list})
 
 @app.route("/api/reminders", methods=["GET", "POST"])
 def api_reminders():
@@ -409,10 +468,29 @@ def api_library():
 @app.route("/api/transcode/status")
 def api_transcode_status():
     status = transcode.current_status()
+    con = database.connect()
+    try:
+        titles = {}
+        for row in con.execute("""SELECT m.id, e.show_name, e.season, e.episode,
+                e.title AS episode_title, mo.title AS movie_title
+                FROM media_files m LEFT JOIN episodes e ON e.media_id=m.id
+                LEFT JOIN movies mo ON mo.media_id=m.id
+                WHERE m.transcode_status IN ('running','pending')"""):
+            code = vod.episode_code(row["season"], row["episode"])
+            titles[row["id"]] = (" ".join(part for part in (row["show_name"], code) if part)
+                                 or row["movie_title"] or row["episode_title"])
+    finally:
+        con.close()
     for item in ([status["running"]] if status["running"] else []) + status["pending"]:
-        info = vod.get_media_item(item["media_id"])
-        item["title"] = (info or {}).get("title") or os.path.basename(item["path"])
+        item["title"] = titles.get(item["media_id"]) or os.path.basename(item["path"])
+    if status["resume"]:
+        item = status["resume"]
+        item["title"] = titles.get(item["media_id"]) or "Show in progress"
     return jsonify({"ok": True, **status})
+
+@app.route("/phone-transcode")
+def phone_transcode_screen():
+    return render_template("phone_transcode.html")
 
 @app.route("/api/scan", methods=["POST"])
 def api_scan():
@@ -504,6 +582,26 @@ def api_tune():
 @app.route("/api/vod/art")
 def api_art():
     url = request.args.get("url")
+    media_id = request.args.get("media_id")
+    show_name = request.args.get("show")
+    if not url and media_id:
+        con = database.connect()
+        try:
+            row = con.execute("SELECT artwork FROM movies WHERE media_id=?", (media_id,)).fetchone()
+            if not row or not row["artwork"]:
+                row = con.execute("SELECT artwork FROM episodes WHERE media_id=?", (media_id,)).fetchone()
+            if row and row["artwork"]:
+                url = row["artwork"]
+        finally:
+            con.close()
+    if not url and show_name:
+        con = database.connect()
+        try:
+            row = con.execute("SELECT poster FROM shows WHERE name=?", (show_name,)).fetchone()
+            if row and row["poster"]:
+                url = row["poster"]
+        finally:
+            con.close()
     if not url:
         return "Missing url", 400
     import metadata
@@ -846,6 +944,102 @@ def api_remote_save():
     remote_mod.set_mapping(d["action"], d["code"])
     return jsonify({"ok": True})
 
+@app.route("/api/server/identity")
+def api_server_identity():
+    return jsonify({
+        "app": "retro-tv",
+        "name": "Retro TV",
+        "version": "1.0.0",
+        "port": config.PORT,
+        "paired_required": True,
+        "server_time": time.time(),
+        "timezone": config.TIMEZONE,
+        "features": ["epg", "vod", "remote", "stream"]
+    })
+
+@app.route("/api/pair/generate", methods=["POST"])
+def api_pair_generate():
+    import random
+    code = f"{random.randint(100000, 999999)}"
+    database.create_pair_code(code, expires_sec=600)
+    return jsonify({"ok": True, "code": code, "expires_in": 600})
+
+@app.route("/api/pair/verify", methods=["POST"])
+def api_pair_verify():
+    d = request.get_json(silent=True) or {}
+    code = str(d.get("code", "")).strip()
+    device_name = d.get("device_name", "Android Companion")
+    if not code:
+        return jsonify({"ok": False, "error": "Pairing code required"}), 400
+    token = database.verify_and_consume_pair_code(code, device_name=device_name)
+    if not token:
+        return jsonify({"ok": False, "error": "Invalid or expired pairing code"}), 400
+    return jsonify({
+        "ok": True,
+        "token": token,
+        "server_name": "Retro TV",
+        "message": "Device paired successfully"
+    })
+
+@app.route("/api/pair/status")
+def api_pair_status():
+    auth = request.headers.get("Authorization", "")
+    token = auth.removeprefix("Bearer ").strip() if auth.startswith("Bearer ") else request.headers.get("X-Device-Token", "").strip()
+    if not token:
+        token = request.args.get("token", "")
+    is_paired = database.is_device_paired(token)
+    return jsonify({"ok": is_paired, "paired": is_paired})
+
+def _is_request_authorized():
+    auth = request.headers.get("Authorization", "")
+    token = auth.removeprefix("Bearer ").strip() if auth.startswith("Bearer ") else request.headers.get("X-Device-Token", "").strip()
+    if token and database.is_device_paired(token):
+        return True, token
+    if request.remote_addr in ("127.0.0.1", "::1"):
+        return True, None
+    return False, None
+
+@app.route("/api/pair/devices")
+def api_pair_devices():
+    authed, _ = _is_request_authorized()
+    if not authed:
+        return jsonify({"ok": False, "error": "Unauthorized"}), 401
+    devices = database.list_paired_devices()
+    return jsonify({"ok": True, "devices": devices})
+
+@app.route("/api/pair/revoke", methods=["POST"])
+def api_pair_revoke():
+    authed, caller_token = _is_request_authorized()
+    if not authed:
+        return jsonify({"ok": False, "error": "Unauthorized"}), 401
+    d = request.get_json(silent=True) or {}
+    device_id = d.get("device_id")
+    target_token = d.get("token")
+    if device_id is not None:
+        ok = database.revoke_paired_device(device_id)
+        return jsonify({"ok": ok})
+    if target_token:
+        if caller_token and caller_token != target_token:
+            return jsonify({"ok": False, "error": "Forbidden"}), 403
+        ok = database.revoke_paired_device(target_token)
+        return jsonify({"ok": ok})
+    if caller_token:
+        ok = database.revoke_paired_device(caller_token)
+        return jsonify({"ok": ok})
+    return jsonify({"ok": False, "error": "device_id or token required"}), 400
+
+@app.route("/download/companion.apk")
+@app.route("/download/app")
+def download_companion_apk():
+    paths = [
+        os.path.join(config.BASE_DIR, "dist", "app-debug.apk"),
+        os.path.join(config.BASE_DIR, "android", "app", "build", "outputs", "apk", "debug", "app-debug.apk"),
+    ]
+    for p in paths:
+        if os.path.isfile(p):
+            return send_file(p, as_attachment=True, download_name="retro-tv-companion.apk", mimetype="application/vnd.android.package-archive")
+    return redirect("https://github.com/chartmann1590/retro-tv/releases/download/v1.0.0-companion/app-debug.apk", code=302)
+
 @app.route("/api/settings")
 def api_settings():
     con = database.connect()
@@ -951,9 +1145,14 @@ def init():
     database.init_db()
     import usbremote
     usbremote.start()
+    import discovery
+    discovery.start()
     playback.start_monitor()
     threading.Thread(target=bg_loop, daemon=True).start()
-    threading.Thread(target=livecontent.run_loop, daemon=True).start()
+    def livecontent_after_scan():
+        _initial_scan_done.wait()
+        livecontent.run_loop()
+    threading.Thread(target=livecontent_after_scan, daemon=True).start()
     threading.Thread(target=reminders.run_loop, daemon=True).start()
     threading.Thread(target=transcode.run_loop, daemon=True).start()
 
@@ -961,5 +1160,5 @@ def init():
 if __name__ == "__main__":
     init()
     from waitress import serve
-    serve(app, host=config.HOST, port=config.PORT, threads=6,
-          connection_limit=32, channel_timeout=30, send_bytes=65536)
+    serve(app, host=config.HOST, port=config.PORT, threads=12,
+          connection_limit=64, channel_timeout=30, send_bytes=65536)

@@ -1,0 +1,17 @@
+<resources xmlns:tools="http://schemas.android.com/tools">
+    <style name="Theme.RetroTv" parent="Theme.MaterialComponents.DayNight.NoActionBar">
+        <item name="colorPrimary">@color/retro_amber</item>
+        <item name="colorPrimaryVariant">@color/retro_amber_glow</item>
+        <item name="colorOnPrimary">@color/retro_bg</item>
+
+        <item name="colorSecondary">@color/retro_green</item>
+        <item name="colorSecondaryVariant">@color/retro_blue</item>
+        <item name="colorOnSecondary">@color/retro_bg</item>
+
+        <item name="android:statusBarColor">@color/retro_bg</item>
+        <item name="android:navigationBarColor">@color/retro_bg</item>
+        <item name="android:windowBackground">@color/retro_bg</item>
+        <item name="android:textColorPrimary">@color/text_primary</item>
+        <item name="android:textColorSecondary">@color/text_secondary</item>
+    </style>
+</resources>

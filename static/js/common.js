@@ -75,3 +75,19 @@ async function reminderTuneNow(){
   try{await tvApi('/api/tune',{channel:ch});notify(`Tuned to CH ${ch}`);}catch(e){notify(e.message);}
 }
 checkReminders();setInterval(()=>{if(!document.hidden)checkReminders();},15000);
+
+function checkMobilePrompt(){
+  if(sessionStorage.getItem('retroTvMobilePromptDismissed')==='1')return;
+  const isMobile=/Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent)||
+                 (window.matchMedia&&window.matchMedia('(max-width: 768px)').matches&&('ontouchstart' in window||navigator.maxTouchPoints>0));
+  if(isMobile){
+    const prompt=document.getElementById('mobileAppPrompt');
+    if(prompt)prompt.style.display='flex';
+  }
+}
+function dismissMobilePrompt(){
+  const prompt=document.getElementById('mobileAppPrompt');
+  if(prompt)prompt.style.display='none';
+  sessionStorage.setItem('retroTvMobilePromptDismissed','1');
+}
+window.addEventListener('DOMContentLoaded',checkMobilePrompt);

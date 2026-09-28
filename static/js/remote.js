@@ -383,6 +383,78 @@ async function sendTvSportsNav(action,query){
   }
 }
 
+let pairExpiryTimer = null;
+let pairExpiresAt = 0;
+
+function togglePairModal(){
+  const p = document.getElementById('rpair');
+  if(!p) return;
+  p.hidden = !p.hidden;
+  if(!p.hidden){
+    generateNewPairCode();
+    refreshPairedDevices();
+  } else {
+    clearInterval(pairExpiryTimer);
+  }
+}
+
+async function generateNewPairCode(){
+  const codeEl = document.getElementById('pairCodeDisplay');
+  const cdEl = document.getElementById('pairCountdown');
+  if(codeEl) codeEl.textContent = '...';
+  try{
+    const r = await tvApi('/api/pair/generate', {});
+    if(r.ok && r.code){
+      if(codeEl) codeEl.textContent = r.code;
+      pairExpiresAt = Date.now() + (r.expires_in * 1000);
+      clearInterval(pairExpiryTimer);
+      updatePairCountdown();
+      pairExpiryTimer = setInterval(updatePairCountdown, 1000);
+    }
+  }catch(e){
+    if(codeEl) codeEl.textContent = 'ERROR';
+    notify('Failed to generate pair code: ' + e.message);
+  }
+}
+
+function updatePairCountdown(){
+  const cdEl = document.getElementById('pairCountdown');
+  if(!cdEl) return;
+  const rem = Math.max(0, Math.floor((pairExpiresAt - Date.now()) / 1000));
+  const mins = Math.floor(rem / 60);
+  const secs = rem % 60;
+  cdEl.textContent = rem > 0 ? `Code expires in ${mins}:${String(secs).padStart(2, '0')}` : 'Code expired. Tap New Code.';
+}
+
+async function refreshPairedDevices(){
+  const listEl = document.getElementById('pairedDevicesList');
+  if(!listEl) return;
+  try{
+    const r = await tvApi('/api/pair/devices');
+    const devs = r.devices || [];
+    if(!devs.length){
+      listEl.innerHTML = '<p class="hint" style="font-size:11px">No companion devices paired yet.</p>';
+      return;
+    }
+    listEl.innerHTML = '<b style="font-size:11px">Paired Devices:</b>' + devs.map(d => `
+      <div style="display:flex;justify-content:space-between;align-items:center;padding:4px 0;border-bottom:1px solid #233040;font-size:11px">
+        <span><b>${esc(d.device_name)}</b></span>
+        <button class="ghost" style="padding:2px 8px;font-size:9px" onclick="revokePairedDevice('${esc(d.device_id)}')">REVOKE</button>
+      </div>
+    `).join('');
+  }catch(e){}
+}
+
+async function revokePairedDevice(deviceId){
+  try{
+    await tvApi('/api/pair/revoke', {device_id: deviceId});
+    notify('Device revoked');
+    refreshPairedDevices();
+  }catch(e){
+    notify('Failed to revoke: ' + e.message);
+  }
+}
+
 function fitRemote(){
   const layout=document.querySelector('.remote-layout'), handset=document.querySelector('.remote-handset');
   if(!layout||!handset)return;
