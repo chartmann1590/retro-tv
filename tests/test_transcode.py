@@ -381,6 +381,26 @@ class TranscodeReplacementTests(unittest.TestCase):
             self.assertIsNone(result["resume"]["percent"])
             partial.assert_not_called()
 
+    def test_auto_mode_shows_pending_phone_jobs(self):
+        with tempfile.TemporaryDirectory() as root, \
+             patch.object(config, "DB_PATH", os.path.join(root, "test.db")):
+            database.init_db()
+            con = database.connect()
+            try:
+                saved = con.execute("""INSERT INTO media_files(path,kind,transcode_status,transcode_worker)
+                    VALUES(?,?,?,?)""", ("saved.mkv", "episode", "pending", "phone")).lastrowid
+                con.commit()
+            finally:
+                con.close()
+            database.set_setting("transcode_worker", "auto")
+            with patch.object(scanner, "ssd_storage_healthy", return_value=False), \
+                 patch.object(phone_transcode, "status", return_value={"connected": True}), \
+                 patch.object(phone_transcode, "partial_status") as partial:
+                result = transcode.current_status()
+            self.assertEqual(result["resume"]["media_id"], saved)
+            self.assertIsNone(result["resume"]["percent"])
+            partial.assert_not_called()
+
     def test_phone_and_pi_cannot_encode_at_once(self):
         with tempfile.TemporaryDirectory() as root, patch.object(config, "DATA_DIR", root):
             with open(os.path.join(root, "transcode.lock"), "a+") as lock_file:

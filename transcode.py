@@ -148,7 +148,7 @@ def current_status():
                               "duration": running["duration"], "worker": worker,
                               **(progress or {})}
     result["pending"] = [{"media_id": r["id"], "path": r["path"], "duration": r["duration"]} for r in pending]
-    phone_jobs = [item for item in pending if mode == "phone"
+    phone_jobs = [item for item in pending if mode in ("phone", "auto")
                   and (item["transcode_worker"] == "phone"
                        or (item["transcode_error"] or "").startswith("phone:"))]
     if result["ssd_ready"]:
