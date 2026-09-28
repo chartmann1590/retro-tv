@@ -24,6 +24,7 @@ async function update(){
     connection.textContent=phone.connected?(phone.ready?'Connected · ready':'Connected · cooling'):'Phone disconnected';
     connection.className='status '+(phone.ready?'good':phone.connected?'warm':'bad');
     document.getElementById('temperature').textContent=(phone.model||'Android phone')+
+      (phone.battery_level==null?'':' · battery '+phone.battery_level+'%')+
       (phone.temperature_c==null?'':' · battery '+Number(phone.temperature_c).toFixed(1)+'°C')+
       (phone.thermal_status==null?'':' · Android thermal status '+phone.thermal_status)+
       (phone.battery_throttle_enabled?' · battery pause at '+phone.pause_at_c+'°C':' · battery pause off');
@@ -31,8 +32,10 @@ async function update(){
     document.getElementById('queued').textContent=(data.pending||[]).length;
     const job=document.getElementById('job');
     job.textContent=data.ssd_ready===false?'Media SSD unavailable · conversion paused':
-      running?(running.worker==='phone'?'Transcoding on this phone':'Pi is transcoding'):
-      phone.ready?'Waiting for next job':'Paused for cooling';
+      running?(running.worker==='phone'?'Transcoding on this phone':'Another worker is transcoding'):
+      data.worker_mode==='off'?'Show conversion paused':
+      data.worker_mode==='phone'&&phone.ready?'Waiting for next job':
+      phone.ready?'Phone ready':'Paused for cooling';
     job.className='status '+(data.ssd_ready===false?'bad':running&&running.worker==='phone'?'good':'warm');
     document.getElementById('title').textContent=running?.title||resume?.title||'';
     const percent=running?.percent||resume?.percent||0;

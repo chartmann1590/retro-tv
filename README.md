@@ -301,9 +301,12 @@ adequately cooled for sustained playback.
 
 An ADB-connected Android arm64 phone can handle the background queue at 720p
 instead of loading the Pi. Install the pinned phone binary with
-`bash scripts/install_phone_transcoder.sh`, then leave USB debugging connected.
-The phone and Pi never convert shows at the same time. The battery temperature
-is shown for monitoring. The Admin Settings page can enable a 46.5°C battery
+`bash scripts/install_phone_transcoder.sh`, then enter the phone's Wi-Fi ADB
+address in Admin → Settings and select **Phone (Wi-Fi or USB)**. The phone must
+authorize the Pi for ADB; Android Wireless Debugging may require one-time
+pairing. A USB-connected phone can use the same setting with the address blank.
+The phone and Pi never convert shows at the same time. The battery level and
+temperature are shown for monitoring. The Admin Settings page can enable a 46.5°C battery
 pause; it is off by default. Phone work always pauses when Android reports
 moderate thermal stress and resumes from completed sections afterward. `/admin` shows the worker,
 temperature, and progress; the phone displays the same status at
@@ -318,6 +321,29 @@ the SSD. Any check needing manual repair leaves the drive unmounted. The
 worker then requeues files incorrectly marked missing during the outage and
 resumes saved phone sections. A powered USB hub or separate SSD supply is
 still needed if the Pi reports USB over-current.
+
+### Offloading show conversion
+
+The background converter is **off by default** so an unplugged phone cannot
+silently move hundreds of CPU-heavy HEVC jobs onto the Pi. `/admin` reports
+whether the USB cable is attached and which worker is selected. To use another
+computer or an SSH-accessible VM, install FFmpeg and rsync there, set up
+passwordless SSH from the Pi, and add these lines to `.env`:
+
+```text
+RETRO_TV_TRANSCODE_WORKER=cloud
+RETRO_TV_CLOUD_HOST=user@host-or-address
+RETRO_TV_CLOUD_DIR=/path/with/room/for/one/source-and-output
+```
+
+Restart Retro TV after changing `.env`. The worker uploads one source over SSH,
+encodes H.264 on the other machine, downloads it, checks the result with
+`ffprobe`, and only then replaces the original. Transfers can resume after a
+network interruption. `cloud` mode never uses the phone or Pi encoder. `auto`
+uses the phone only while USB is attached and ready, otherwise the SSH machine if configured, and pauses
+when neither is available. `phone` waits for the phone; `pi` is the only mode
+that runs the background encoder on the Pi. The SSH host can also be a laptop
+or desktop on the local network, avoiding cloud accounts and upload limits.
 
 ## Important: exactly one instance
 

@@ -21,6 +21,7 @@ import reminders
 import remote as remote_mod
 import vod
 import transcode
+import phone_transcode
 
 TZ = ZoneInfo(config.TIMEZONE)
 os.makedirs(config.LOGS_DIR, exist_ok=True)
@@ -487,6 +488,37 @@ def api_transcode_status():
         item = status["resume"]
         item["title"] = titles.get(item["media_id"]) or "Show in progress"
     return jsonify({"ok": True, **status})
+
+@app.route("/api/transcode/config", methods=["GET", "POST"])
+def api_transcode_config():
+    if request.method == "GET":
+        return jsonify({"ok": True, "worker": transcode.worker_mode(),
+                        "phone_address": phone_transcode.adb_address()})
+    data = request.get_json(silent=True) or {}
+    mode = str(data.get("worker", "")).strip().lower()
+    if mode not in ("off", "phone", "auto", "cloud", "pi"):
+        return jsonify({"ok": False, "error": "Choose a valid conversion worker"}), 400
+    try:
+        address = phone_transcode.normalize_adb_address(data.get("phone_address", ""))
+    except ValueError as exc:
+        return jsonify({"ok": False, "error": str(exc)}), 400
+    database.set_setting("phone_adb_address", address)
+    database.set_setting("transcode_worker", mode)
+    phone_transcode.reset_connection_state()
+    phone = phone_transcode.status() if mode in ("phone", "auto") else None
+    screen_opened = False
+    if phone and phone["connected"]:
+        screen_opened = phone_transcode.ensure_status_screen(force=True)
+    return jsonify({"ok": True, "worker": mode, "phone_address": phone_transcode.adb_address(),
+                    "phone": phone, "screen_opened": screen_opened})
+
+@app.route("/api/transcode/phone/test", methods=["POST"])
+def api_transcode_phone_test():
+    phone_transcode.reset_connection_state()
+    phone = phone_transcode.status()
+    screen_opened = phone_transcode.ensure_status_screen(force=True) if phone["connected"] else False
+    return jsonify({"ok": phone["ready"] and screen_opened, "phone": phone,
+                    "screen_opened": screen_opened})
 
 @app.route("/phone-transcode")
 def phone_transcode_screen():

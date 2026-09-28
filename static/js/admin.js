@@ -37,8 +37,16 @@ async function loadTranscodeStatus(){
   const parts=[];
   if(s.ssd_ready===false)parts.push('<div class="warn" style="margin-bottom:14px">Media SSD unavailable; show conversion is paused. Check the USB power and SSD mount.</div>');
   const p=s.phone||{};
-  const phoneState=!p.connected?'Disconnected':!p.installed?'Connected · transcoder missing':
-    p.ready?'Connected · ready':'Connected · cooling before next job';
+  const mode=s.worker_mode||'off';
+  const cloudReady=!!s.cloud_configured;
+  const queueState=mode==='off'?'Paused by configuration':mode==='cloud'?
+    (cloudReady?'Cloud VM selected':'Cloud VM address missing; queue paused'):mode==='auto'?
+    (p.ready&&p.usb_connected?'Phone selected':cloudReady?'Phone unavailable; cloud VM selected':'Phone unavailable; queue paused'):
+    mode==='phone'?(p.ready?'Phone selected':'Phone unavailable; queue paused'):'Pi selected';
+  const phoneState=!p.connected?'ADB unavailable':!p.installed?'ADB reachable · transcoder missing':
+    p.ready?'ADB reachable · ready':'ADB reachable · cooling before next job';
+  const usbState=p.usb_connected?'USB attached':'USB unplugged';
+  const phoneBattery=p.battery_level==null?'':` · ${Number(p.battery_level)}% battery`;
   const phoneTemp=p.temperature_c==null?'':` · ${Number(p.temperature_c).toFixed(1)}°C`;
   const batteryPause=p.battery_throttle_enabled?'ON':'OFF';
   const ssdState=s.ssd_ready===true?
@@ -46,7 +54,7 @@ async function loadTranscodeStatus(){
     '<span class="chip" style="background:#3a1d1d;color:var(--bad)">Unavailable</span>';
   parts.push(`<div class="panel" style="margin-bottom:14px"><div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap">
     <div><b>Media SSD:</b> ${ssdState}</div>
-    <div><b>Phone transcoder:</b> ${esc(p.model||'Android phone')} · ${phoneState}${phoneTemp}</div>
+    <div><b>Conversion:</b> ${esc(queueState)}<br><b>Phone:</b> ${esc(p.model||'Android phone')} · ${phoneState} · ${usbState}${phoneBattery}${phoneTemp}</div>
     <button class="ghost" style="margin:0 0 0 auto;white-space:nowrap" onclick="togglePhoneBatteryThrottle()" aria-label="Toggle phone battery temperature pause">Battery pause: ${batteryPause}</button>
   </div></div>`);
   if(s.running){
@@ -54,7 +62,7 @@ async function loadTranscodeStatus(){
     const phase=r.worker==='phone'&&r.percent==null?'Sending source to phone · ':'';
     parts.push(`<div class="panel" style="margin-bottom:14px">
       <div style="display:flex;justify-content:space-between;gap:12px;margin-bottom:8px">
-        <b>⚙ ${r.worker==='phone'?'Phone transcoding (Pi show converter idle)':'Pi transcoding'}:</b> ${esc(r.title)}
+        <b>⚙ ${r.worker==='phone'?'Phone transcoding':r.worker==='cloud'?'Cloud transcoding':'Pi transcoding'}:</b> ${esc(r.title)}
         <span class="hint">${phase}${r.speed?r.speed+'x speed · ':''}ETA ${fmtEta(r.eta_sec)}</span>
       </div>
       <div class="progress"><div style="width:${r.percent||0}%"></div></div>
@@ -76,7 +84,7 @@ async function loadTranscodeStatus(){
   }
   el.innerHTML=parts.join('');
 }
-loadDash();loadCh();loadLib();loadRem();loadHdmi();loadSys();loadSets();renderSrcRows([]);loadTranscodeStatus();
+loadDash();loadCh();loadLib();loadRem();loadHdmi();loadSys();loadSets();loadPhoneTranscodeSettings();renderSrcRows([]);loadTranscodeStatus();
 setInterval(loadTranscodeStatus,5000);
 async function loadDash(){
   const s=await jget('/api/system');
@@ -219,7 +227,11 @@ async function restartPb(){const r=await jpost('/api/restart-playback',{});alert
 async function toggleCC(){const s=await jget('/api/captions');await jpost('/api/captions',{enabled:s.cc!=='1'});loadHdmi();}
 async function loadSys(){const s=await jget('/api/system');document.getElementById('sys').innerHTML=`<pre>${JSON.stringify({system_health:s.system_health,playback_health:s.playback_health,disk:s.disk,mpv:s.mpv,sessions:s.sessions},null,2)}</pre>`;
   document.getElementById('streams').innerHTML=(s.sessions||[]).map(x=>`<div>${esc(x.id)} ch${x.channel}</div>`).join('')||'no browser sessions';}
-async function loadSets(){const r=await jget('/api/settings');document.getElementById('phoneBatteryThrottle').value=r.settings.phone_battery_throttle_enabled||'0';document.getElementById('sets').innerHTML=Object.entries(r.settings).filter(([k])=>k!=='phone_battery_throttle_enabled').map(([k,v])=>`<div class="kv"><label>${k}</label><input id="set-${k}" value="${esc(v)}"></div>`).join('');}
+async function loadSets(){const r=await jget('/api/settings');document.getElementById('phoneBatteryThrottle').value=r.settings.phone_battery_throttle_enabled||'0';document.getElementById('sets').innerHTML=Object.entries(r.settings).filter(([k])=>!['phone_battery_throttle_enabled','transcode_worker','phone_adb_address'].includes(k)).map(([k,v])=>`<div class="kv"><label>${k}</label><input id="set-${k}" value="${esc(v)}"></div>`).join('');}
+async function loadPhoneTranscodeSettings(){const r=await jget('/api/transcode/config');if(!r.ok)return;document.getElementById('phoneAdbAddress').value=r.phone_address||'';document.getElementById('transcodeWorker').value=r.worker||'off';}
+function showPhoneTranscodeResult(r){const p=r.phone||{};const msg=document.getElementById('phoneTranscodeMessage');msg.textContent=!p.connected?'Phone unreachable over ADB. Check its address, Wi-Fi debugging, and pairing.':!p.installed?'Phone connected; FFmpeg is not installed on it.':!p.ready?'Phone connected; waiting for Android to cool.':r.screen_opened===false?'Phone connected; could not open the status screen.':'Phone connected and ready. The status screen is open on the phone.';}
+async function savePhoneTranscodeSettings(){const r=await jpost('/api/transcode/config',{phone_address:document.getElementById('phoneAdbAddress').value,worker:document.getElementById('transcodeWorker').value});if(!r.ok){document.getElementById('phoneTranscodeMessage').textContent=r.error||'Could not save phone settings';return;}document.getElementById('phoneAdbAddress').value=r.phone_address||'';if(r.phone)showPhoneTranscodeResult(r);else document.getElementById('phoneTranscodeMessage').textContent='Conversion worker saved.';loadTranscodeStatus();}
+async function testPhoneTranscodeConnection(){const r=await jpost('/api/transcode/phone/test',{});showPhoneTranscodeResult(r);loadTranscodeStatus();}
 async function saveSets(){const o={phone_battery_throttle_enabled:document.getElementById('phoneBatteryThrottle').value};document.querySelectorAll('#sets input').forEach(i=>o[i.id.slice(4)]=i.value);const r=await jpost('/api/settings',o);if(r.ok){loadTranscodeStatus();alert('Saved');}else alert(r.error||'Save failed');}
 async function togglePhoneBatteryThrottle(){const s=await jget('/api/transcode/status');const enabled=!s.phone.battery_throttle_enabled;const r=await jpost('/api/settings',{phone_battery_throttle_enabled:enabled?'1':'0'});if(r.ok){loadTranscodeStatus();loadSets();}else alert(r.error||'Save failed');}
 async function loadLogs(){const r=await jget('/api/logs');document.getElementById('logs').textContent=(r.lines||[]).join('');}

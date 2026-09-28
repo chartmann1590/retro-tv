@@ -43,6 +43,14 @@
 <div class="tab" id="t-sys"><h2>SYSTEM</h2><div id="sys"></div>
 <button class="ghost" onclick="alert('Run scripts/install.sh with sudo to reboot host; user service cannot reboot.')">REBOOT PI</button></div>
 <div class="tab" id="t-set"><h2>SETTINGS</h2>
+<h3>PHONE SHOW CONVERSION</h3>
+<div class="kv"><label for="phoneAdbAddress">Phone Wi-Fi ADB address</label>
+<input id="phoneAdbAddress" type="text" inputmode="decimal" placeholder="192.168.1.50:5555" autocomplete="off">
+<label for="transcodeWorker">Conversion worker</label>
+<select id="transcodeWorker"><option value="off">Paused</option><option value="phone">Phone (Wi-Fi or USB)</option><option value="auto">Phone on USB, then remote computer</option><option value="cloud">Remote computer only</option><option value="pi">Pi (CPU intensive)</option></select></div>
+<p class="hint">Enable ADB over Wi-Fi on the phone and enter its LAN address. The Pi must already be authorized by Android; Android Wireless Debugging may require one-time pairing. Leave the address blank to use a USB-connected phone.</p>
+<div class="btnrow"><button onclick="savePhoneTranscodeSettings()">SAVE PHONE WORKER</button><button class="ghost" onclick="testPhoneTranscodeConnection()">TEST & OPEN PHONE SCREEN</button></div>
+<p id="phoneTranscodeMessage" class="hint" aria-live="polite"></p>
 <div class="kv"><label for="phoneBatteryThrottle">Phone battery temperature pause</label>
 <select id="phoneBatteryThrottle"><option value="0">Off — let the phone run</option><option value="1">On — pause at 46.5°C</option></select></div>
 <p class="hint">Android's own moderate thermal-status pause stays active in both modes.</p>
@@ -50,4 +58,4 @@
 <div class="tab" id="t-logs"><h2>LOGS</h2><button class="ghost" onclick="loadLogs()">REFRESH</button><pre class="logs" id="logs"></pre></div>
 </div>
 {% endblock %}
-{% block js %}<script src="/static/js/admin.js?v=13"></script>{% endblock %}
+{% block js %}<script src="/static/js/admin.js?v=15"></script>{% endblock %}
