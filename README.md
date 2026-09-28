@@ -213,7 +213,8 @@ cp .env.example .env
 # In .env:
 ARENAPULSE_URL=http://10.0.0.110:3000
 ```
-If `.env` is omitted, Retro-TV uses that same server by default.
+If `.env` is omitted, set `ARENAPULSE_URL` in the service environment; sports
+requests are disabled until the address is configured.
 
 ### XING WEI USB remote
 
