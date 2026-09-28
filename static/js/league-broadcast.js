@@ -169,6 +169,7 @@ async function leagueRefresh(league) {
     const response = await fetch('/api/sports/scores');
     if (!response.ok) throw new Error('Scores unavailable');
     const data = await response.json();
+    if (data._unavailable) throw new Error('Scores unavailable');
     const selected = leagueGames[leagueGameIndex];
     leagueGames = (data.games || []).filter(game => game.league === league).sort((a, b) => {
       const rank = game => game.status?.isLive ? 0 : game.status?.isScheduled ? 1 : 2;
