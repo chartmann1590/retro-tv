@@ -438,7 +438,7 @@ def run_loop(stop_event=None):
         try:
             mode = worker_mode()
             if mode not in ("auto", "phone", "pi", "cloud"):
-                stop_event.wait(5)
+                stop_event.wait(30)
                 continue
             if mode in ("auto", "phone"):
                 phone_transcode.ensure_status_screen()
