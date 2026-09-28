@@ -90,7 +90,7 @@ class Controller:
             self.learn_until = time.monotonic() + 30 if action else 0
             self.digits = ''
 
-    def key(self, key, value, now=None):
+    def key(self, key, value, now=None, source=None):
         import playback
         import tvvod
         now = time.monotonic() if now is None else now
@@ -116,22 +116,22 @@ class Controller:
             self.caps = not self.caps
             return
         action = self.mappings.get(key, KEY_ACTIONS.get(key))
-        if self.search is not None and not tvvod.is_visible():
-            self.search = None
-            playback.osd_message('', 1)
-        if self.search is not None:
-            if value == 2 and key != 'KEY_BACKSPACE':
+        if tvvod.is_searching():
+            if value == 2 and action not in REPEAT_ACTIONS:
                 return
-            if key in ('KEY_ENTER', 'KEY_KPENTER', 'KEY_OK'):
-                query, self.search = self.search, None
-                playback.osd_message('', 1)
-                tvvod.nav('search', query=query)
+            if key in ('KEY_SEARCH', 'KEY_FIND', 'KEY_KPENTER') or \
+                    (key == 'KEY_ENTER' and source and source.endswith('-event-kbd')):
+                tvvod.nav('search_submit')
+            elif key == 'KEY_BACKSPACE':
+                tvvod.nav('search_backspace')
             elif key in ('KEY_ESC', 'KEY_BACK'):
-                self.search = None
-                playback.osd_message('', 1)
+                tvvod.nav('search_cancel')
+            elif action in ('UP', 'DOWN', 'LEFT', 'RIGHT', 'OK'):
+                tvvod.nav('select' if action == 'OK' else action.lower())
             else:
-                self.search = self.search[:-1] if key == 'KEY_BACKSPACE' else (self.search + key_text(key, bool(self.shifts), self.caps))[:100]
-                self.search_prompt()
+                letter = key_text(key, bool(self.shifts), self.caps)
+                if letter:
+                    tvvod.nav('search_text', query=letter)
             return
         if value == 2:
             if action not in REPEAT_ACTIONS or now - self.last_repeat < .15:
@@ -146,10 +146,6 @@ class Controller:
         if self.digits and now >= self.digit_until:
             channel, self.digits = int(self.digits), ''
             self.tune(channel)
-
-    def search_prompt(self):
-        import playback
-        playback.osd_message('Search titles: ' + self.search + '_\nType on the keyboard, then OK. Back cancels.', 300000)
 
     def tune(self, channel):
         import playback
@@ -193,8 +189,7 @@ class Controller:
             if not tvvod.is_visible():
                 if not tvvod.open_vod().get('ok'):
                     return
-            self.search = ''
-            self.search_prompt()
+            tvvod.nav('search_open')
         elif action in ('UP', 'DOWN', 'LEFT', 'RIGHT', 'OK', 'BACK') and tvvod.is_visible():
             tvvod.nav('select' if action == 'OK' else action.lower())
         elif action in ('UP', 'DOWN', 'LEFT', 'RIGHT', 'OK', 'BACK') and tvsports.is_visible():
@@ -340,7 +335,8 @@ def listen(controller, stop_event):
                         key = ecodes.KEY.get(event.code, '')
                         key = next((name for name in key if name in KEY_ACTIONS), key[-1]) if isinstance(key, (tuple, list)) else key
                         try:
-                            controller.key(key, event.value)
+                            path = next(path for path, opened in devices.items() if opened is device)
+                            controller.key(key, event.value, source=path)
                         except Exception:
                             log.exception('USB remote action failed: %s', key)
             try:

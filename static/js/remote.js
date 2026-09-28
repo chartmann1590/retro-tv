@@ -292,13 +292,16 @@ function updateVodLcd(st){
   if(!st)return;
   document.getElementById('ncCh').textContent='OD';
   document.getElementById('ncLive').textContent='ON DEMAND';
-  if(st.mode==='show'){
+  if(st.mode==='search'){
+    document.getElementById('ncTitle').textContent='Search On Demand';
+    document.getElementById('ncSub').textContent=st.query||'Choose letters on TV';
+  }else if(st.mode==='show'){
     document.getElementById('ncTitle').textContent=st.title||st.show_name||'Episode';
     document.getElementById('ncSub').textContent=`${st.show_name} S${st.season} • Press OK`;
   }else{
     document.getElementById('ncTitle').textContent=st.title||'On Demand';
     const cat=st.category?`${st.category} • `:''
-    const prompt=st.kind==='show'?'Press OK for Episodes':'Press OK to Play';
+    const prompt=st.search_focused?'Press OK to Search':st.kind==='show'?'Press OK for Episodes':'Press OK to Play';
     document.getElementById('ncSub').textContent=cat+prompt;
   }
 }
