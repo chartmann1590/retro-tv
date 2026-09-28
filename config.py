@@ -108,7 +108,7 @@ NEWS_RSS_URL = os.environ.get("NEWS_RSS_URL", "https://wnyt.com/feed/")
 NEWS_ARTICLE_COUNT = 5
 
 # ArenaPulse Sports API & Dedicated Sports Channel (https://github.com/chartmann1590/sports-dashboard)
-ARENAPULSE_URL = os.environ.get("ARENAPULSE_URL", "http://localhost:3000").rstrip("/")
+ARENAPULSE_URL = os.environ.get("ARENAPULSE_URL", "http://10.0.0.110:3000").rstrip("/")
 SPORTS_SHOW = "Retro Sports"
 SPORTS_CHANNEL_NAME = "Retro Sports"
 SPORTS_CHANNEL_NUMBER = 38

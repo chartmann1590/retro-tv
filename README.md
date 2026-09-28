@@ -200,14 +200,8 @@ card loop refreshed every five minutes; a newly generated card appears when the
 current scheduled segment ends. Channels remain available during the offseason
 with a standby screen. A missing ArenaPulse or TTS service leaves the last
 generated broadcast playable until the next successful refresh.
-Run it with Docker on the same machine or anywhere on your local network:
-
-```bash
-git clone https://github.com/chartmann1590/sports-dashboard.git
-cd sports-dashboard
-docker compose --profile tts up -d
-```
-*(Running with `--profile tts` enables the local Kokoro neural TTS announcer sidecar).*
+This TV uses the existing ArenaPulse server at `http://10.0.0.110:3000` for
+both sports data and commentary TTS.
 
 To configure Retro-TV, copy `.env.example` to `.env` and set `ARENAPULSE_URL`:
 
@@ -217,9 +211,9 @@ cp .env.example .env
 
 ```bash
 # In .env:
-ARENAPULSE_URL=http://<sports-server-address>:3000
+ARENAPULSE_URL=http://10.0.0.110:3000
 ```
-If `.env` is omitted, Retro-TV defaults to `http://localhost:3000`.
+If `.env` is omitted, Retro-TV uses that same server by default.
 
 ### XING WEI USB remote
 

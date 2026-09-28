@@ -61,7 +61,7 @@ def _post_binary(url, payload, timeout=25):
 
 
 def get_base_url():
-    return getattr(config, "ARENAPULSE_URL", "http://localhost:3000").rstrip("/")
+    return getattr(config, "ARENAPULSE_URL", "http://10.0.0.110:3000").rstrip("/")
 
 
 def get_leagues():

@@ -1,6 +1,7 @@
 """On-TV game picker and persistent ArenaPulse league game selection."""
 import json
 import logging
+import os
 import socket
 import threading
 from datetime import datetime
@@ -24,6 +25,10 @@ _league = None
 _items = []
 _index = 0
 _pending_id = None
+_pending_channel = None
+_request_id = 0
+_request_status = "idle"
+_request_error = ""
 
 
 def _send(command):
@@ -135,6 +140,9 @@ def get_status():
         selected = _items[_index] if _visible and _items and _index < len(_items) else None
         return {"visible": _visible, "loading": _loading, "channel": channel, "league": league,
                 "pinned_game_id": livesports.pinned_game(channel) if league else "",
+                "request_id": _request_id, "request_status": _request_status,
+                "request_error": _request_error, "request_channel": _pending_channel,
+                "request_game_id": _pending_id,
                 "selected_game_id": selected.get("id") if selected else None,
                 "selected_title": _game_label(selected) if selected else "", "total": len(_items),
                 "index": _index, "error": _error}
@@ -178,32 +186,53 @@ def close_picker():
         return {"ok": _render(), "visible": False}
 
 
-def _prepare(channel, expected_pin, initial_channel, force_tune):
-    global _visible, _loading, _error
+def _prepare(channel, expected_pin, initial_channel, force_tune, request_id, previous_pin):
+    global _visible, _loading, _error, _request_status, _request_error
     try:
-        ok = livesports.refresh_selected_channel(channel)
+        league = livesports.league_for_channel(channel)
+        loop_path = os.path.join(config.LIVE_CONTENT_DIR, "sports", "leagues", league, "loop.mp4")
+        already_prepared = bool(expected_pin and previous_pin == expected_pin and os.path.isfile(loop_path))
+        ok = already_prepared or livesports.refresh_selected_channel(channel)
         if not ok:
             raise RuntimeError("The selected game could not be prepared")
         if livesports.pinned_game(channel) != expected_pin:
             return
         with _lock:
+            if request_id != _request_id:
+                return
+        current = playback._current.get("channel")
+        if current == channel or (force_tune and current == initial_channel):
+            result = playback.tune(channel, reason="game")
+            if not result.get("ok"):
+                raise RuntimeError(result.get("error") or "TV could not tune to this game")
+        elif force_tune:
+            raise RuntimeError("TV channel changed while the game was preparing")
+        with _lock:
+            if request_id != _request_id:
+                return
             _visible = False
             _loading = False
             _error = ""
+            _request_status = "ready"
+            _request_error = ""
             _render()
-        if playback._current.get("channel") == channel or (force_tune and playback._current.get("channel") == initial_channel):
-            playback.tune(channel, reason="game")
-    except Exception:
+    except Exception as exc:
         log.exception("Selected game preparation failed")
         with _lock:
+            if request_id != _request_id:
+                return
+            if livesports.pinned_game(channel) == expected_pin:
+                livesports.set_pinned_game(channel, previous_pin)
             _loading = False
-            _error = "Could not prepare this game. Press BACK and try again."
+            _error = str(exc) or "Could not prepare this game"
+            _request_status = "failed"
+            _request_error = _error
             if _visible:
                 _render()
 
 
 def pin_game(channel, game_id, force_tune=False):
-    global _visible, _loading, _pending_id, _error
+    global _visible, _loading, _pending_id, _pending_channel, _request_id, _request_status, _request_error, _error
     league = livesports.league_for_channel(channel)
     if not league:
         return {"ok": False, "error": "This is not a league channel"}
@@ -215,14 +244,20 @@ def pin_game(channel, game_id, force_tune=False):
     if not game:
         return {"ok": False, "error": "Game is no longer available"}
     initial_channel = playback._current.get("channel")
+    previous_pin = livesports.pinned_game(channel)
     livesports.set_pinned_game(channel, game_id)
     with _lock:
+        _request_id += 1
         _pending_id = str(game_id)
+        _pending_channel = channel
+        _request_status = "preparing"
+        _request_error = ""
         _loading = True
         _error = ""
         if _visible:
             _render()
-    threading.Thread(target=_prepare, args=(channel, str(game_id), initial_channel, force_tune),
+    threading.Thread(target=_prepare, args=(channel, str(game_id), initial_channel, force_tune,
+                                            _request_id, previous_pin),
                      daemon=True, name="sports-game-lock").start()
     return {"ok": True, "game": _game_label(game), "status": "preparing", **get_status()}
 
@@ -230,14 +265,21 @@ def pin_game(channel, game_id, force_tune=False):
 def unpin_game(channel):
     if not livesports.league_for_channel(channel):
         return {"ok": False, "error": "This is not a league channel"}
+    previous_pin = livesports.pinned_game(channel)
     livesports.set_pinned_game(channel, "")
-    return pin_rotation(channel)
+    return pin_rotation(channel, previous_pin)
 
 
-def pin_rotation(channel):
+def pin_rotation(channel, previous_pin=""):
     global _visible, _loading, _error, _channel, _league, _items
+    global _pending_id, _pending_channel, _request_id, _request_status, _request_error
     initial_channel = playback._current.get("channel")
     with _lock:
+        _request_id += 1
+        _pending_id = ""
+        _pending_channel = channel
+        _request_status = "preparing"
+        _request_error = ""
         _channel = channel
         _league = livesports.league_for_channel(channel)
         _items = []
@@ -245,7 +287,8 @@ def pin_rotation(channel):
         _loading = True
         _error = ""
         _render()
-    threading.Thread(target=_prepare, args=(channel, "", initial_channel, False),
+    threading.Thread(target=_prepare, args=(channel, "", initial_channel, False,
+                                            _request_id, previous_pin),
                      daemon=True, name="sports-game-rotation").start()
     return {"ok": True, "status": "preparing", **get_status()}
 

@@ -192,6 +192,35 @@ class LeagueChannelTests(unittest.TestCase):
             worker.assert_called_once()
             tvgames.close_picker()
 
+    def test_game_selection_reports_tune_completion_or_failure(self):
+        import playback
+        import tvgames
+        channel = livesports.ensure_league_channels([{"id": "nfl", "name": "NFL"}])[0]["number"]
+        game = {"id": "one", "league": "nfl", "status": {"isLive": True}}
+        with patch("tvgames.sports.get_all_scores", return_value={"games": [game]}), \
+             patch("tvgames.threading.Thread") as worker, \
+             patch("tvgames._send", return_value=True), \
+             patch.object(playback, "_current", {"channel": channel}):
+            selected = tvgames.pin_game(channel, "one", force_tune=True)
+            self.assertEqual(selected["request_status"], "preparing")
+            args = worker.call_args.kwargs["args"]
+            with patch("tvgames.livesports.refresh_selected_channel", return_value=True), \
+                 patch("tvgames.playback.tune", return_value={"ok": True}) as tune:
+                tvgames._prepare(*args)
+            tune.assert_called_once_with(channel, reason="game")
+            self.assertEqual(tvgames.get_status()["request_status"], "ready")
+
+            selected = tvgames.pin_game(channel, "one", force_tune=True)
+            args = worker.call_args.kwargs["args"]
+            with patch("tvgames.livesports.refresh_selected_channel", return_value=False), \
+                 patch("tvgames.playback.tune") as tune:
+                tvgames._prepare(*args)
+            tune.assert_not_called()
+            status = tvgames.get_status()
+            self.assertEqual(status["request_id"], selected["request_id"])
+            self.assertEqual(status["request_status"], "failed")
+            self.assertIn("could not be prepared", status["request_error"])
+
     def test_cards_stay_on_screen_for_twenty_to_thirty_seconds(self):
         with patch("livesports.scanner.probe_info", return_value={"duration": 4.0}), \
              patch("livesports.subprocess.run") as run:

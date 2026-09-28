@@ -97,9 +97,10 @@ def _render_card_png(body_html, out_png, extra_css=""):
     try:
         subprocess.run(
             ["chromium", "--headless=new", "--disable-gpu", "--no-sandbox",
+             "--disable-dev-shm-usage", "--disable-extensions", "--no-first-run",
              f"--screenshot={out_png}", f"--window-size={CARD_W},{CARD_H}",
-             "--virtual-time-budget=2000", "file://" + tmp_html],
-            check=True, capture_output=True, timeout=30, preexec_fn=_deprioritized)
+             "--virtual-time-budget=500", "file://" + tmp_html],
+            check=True, capture_output=True, timeout=60, preexec_fn=_deprioritized)
     finally:
         if os.path.exists(tmp_html):
             try:
