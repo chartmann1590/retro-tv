@@ -2,6 +2,7 @@
 import logging
 import json
 import fcntl
+import errno
 import math
 import os
 import shutil
@@ -207,6 +208,26 @@ def _validated_output(path, source_duration):
         return None
 
 
+def _install_validated_output(tmp_path, final_path, source_duration):
+    """Replace through the destination mount when a bind mount blocks rename."""
+    try:
+        os.replace(tmp_path, final_path)
+        return
+    except OSError as exc:
+        if exc.errno != errno.EXDEV:
+            raise
+    staged_path = final_path + ".tmp"
+    try:
+        shutil.copyfile(tmp_path, staged_path)
+        if not _validated_output(staged_path, source_duration):
+            raise OSError("copied conversion failed validation")
+        os.replace(staged_path, final_path)
+        os.remove(tmp_path)
+    finally:
+        if os.path.exists(staged_path):
+            os.remove(staged_path)
+
+
 def _encode(src_path, out_path, source_duration, media_id):
     """Software-decode (avoids the same buggy hevc_v4l2m2m HW decoder), downscale
     to 1080p max, drop to 8-bit, and hardware-encode back to H.264 -- the exact
@@ -330,21 +351,7 @@ def _run_one_unlocked(media_id, src_path, source_duration, use_phone=False, use_
             import scanner
             with scanner._scan_lock:
                 original = con.execute("SELECT * FROM media_files WHERE id=?", (media_id,)).fetchone()
-                if os.stat(tmp_path).st_dev == os.stat(os.path.dirname(final_path)).st_dev:
-                    os.replace(tmp_path, final_path)
-                else:
-                    # A non-SSD source may live on a different filesystem.
-                    # Copy beside it and validate before the atomic rename.
-                    staged_path = final_path + ".tmp"
-                    try:
-                        shutil.copyfile(tmp_path, staged_path)
-                        if not _validated_output(staged_path, source_duration):
-                            raise OSError("copied conversion failed validation")
-                        os.replace(staged_path, final_path)
-                        os.remove(tmp_path)
-                    finally:
-                        if os.path.exists(staged_path):
-                            os.remove(staged_path)
+                _install_validated_output(tmp_path, final_path, source_duration)
                 final_stat = os.stat(final_path)
                 con.execute("""UPDATE media_files SET path=?, size=?, mtime=?, duration=?,
                     container='mkv', vcodec='h264', acodec=?, width=?, height=?, bitrate=?,

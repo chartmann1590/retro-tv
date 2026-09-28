@@ -1,6 +1,7 @@
 """Safe source replacement: venv/bin/python -m unittest tests.test_transcode -v."""
 import os
 import fcntl
+import errno
 import json
 import subprocess
 import tempfile
@@ -16,6 +17,29 @@ import transcode
 
 
 class TranscodeReplacementTests(unittest.TestCase):
+    def test_bind_mount_rename_falls_back_to_validated_copy(self):
+        with tempfile.TemporaryDirectory() as root:
+            tmp_path = os.path.join(root, "converted.mkv.tmp")
+            final_path = os.path.join(root, "show.mkv")
+            with open(tmp_path, "wb") as output:
+                output.write(b"verified h264")
+            with open(final_path, "wb") as output:
+                output.write(b"original hevc")
+            real_replace = os.replace
+
+            def replace(source, destination):
+                if source == tmp_path:
+                    raise OSError(errno.EXDEV, "Invalid cross-device link")
+                return real_replace(source, destination)
+
+            with patch.object(transcode.os, "replace", side_effect=replace), \
+                 patch.object(transcode, "_validated_output", return_value={"vcodec": "h264"}) as validate:
+                transcode._install_validated_output(tmp_path, final_path, 20)
+            validate.assert_called_once_with(final_path + ".tmp", 20)
+            with open(final_path, "rb") as replacement:
+                self.assertEqual(replacement.read(), b"verified h264")
+            self.assertFalse(os.path.exists(tmp_path))
+
     def test_battery_state_reads_level_and_temperature_together(self):
         output = "Current Battery Service state:\n  level: 78\n  temperature: 437\n"
         with patch.object(phone_transcode, "_adb", return_value=subprocess.CompletedProcess(
