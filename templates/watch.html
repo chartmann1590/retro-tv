@@ -20,5 +20,5 @@
 </div>
 {% endblock %}
 {% block js %}<script src="/static/js/player.js?v=6"></script>
-{% if sports_league %}<script src="/static/js/league-broadcast.js?v=3"></script>{% endif %}
+{% if sports_league %}<script src="/static/js/league-broadcast.js?v=4"></script>{% endif %}
 <script>initPlayer({{current|tojson}}, {{offset or 0}}, true, {{vod|tojson if vod else 'null'}});{% if sports_league %}initLeagueBroadcast({{sports_league|tojson}}, {{config_timezone|tojson}}, {{current|tojson}});{% endif %}</script>{% endblock %}
