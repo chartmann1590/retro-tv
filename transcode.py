@@ -2,6 +2,7 @@
 import logging
 import json
 import fcntl
+import errno
 import math
 import os
 import shutil
@@ -11,6 +12,7 @@ import threading
 import time
 
 import config
+import cloud_transcode
 import database
 import phone_transcode
 
@@ -19,6 +21,23 @@ log = logging.getLogger("retro-tv.transcode")
 TRANSCODE_DIR = config.TRANSCODE_DIR
 THERMAL_PAUSE_C = 80
 THERMAL_RESUME_C = 74
+
+
+def selected_worker(mode, phone_ready, cloud_configured):
+    """An unavailable phone can only hand off to a configured remote worker."""
+    if mode == "pi":
+        return "pi"
+    if mode == "phone":
+        return "phone" if phone_ready else None
+    if mode == "cloud":
+        return "cloud" if cloud_configured else None
+    if mode == "auto":
+        return "phone" if phone_ready else "cloud" if cloud_configured else None
+    return None
+
+
+def worker_mode():
+    return database.get_setting("transcode_worker", config.TRANSCODE_WORKER)
 
 
 def _cpu_temp_c():
@@ -116,7 +135,10 @@ def current_status():
     finally:
         con.close()
     import scanner
+    mode = worker_mode()
     result = {"running": None, "pending": [], "phone": phone_transcode.status(),
+              "worker_mode": mode,
+              "cloud_configured": bool(config.CLOUD_TRANSCODE_HOST),
               "ssd_ready": scanner.ssd_storage_healthy(),
               "phone_completed": done_phone, "resume": None}
     if running:
@@ -126,8 +148,9 @@ def current_status():
                               "duration": running["duration"], "worker": worker,
                               **(progress or {})}
     result["pending"] = [{"media_id": r["id"], "path": r["path"], "duration": r["duration"]} for r in pending]
-    phone_jobs = [item for item in pending if item["transcode_worker"] == "phone"
-                  or (item["transcode_error"] or "").startswith("phone:")]
+    phone_jobs = [item for item in pending if mode in ("phone", "auto")
+                  and (item["transcode_worker"] == "phone"
+                       or (item["transcode_error"] or "").startswith("phone:"))]
     if result["ssd_ready"]:
         for item in phone_jobs:
             partial = phone_transcode.partial_status(item["id"], item["duration"])
@@ -185,6 +208,26 @@ def _validated_output(path, source_duration):
         return None
 
 
+def _install_validated_output(tmp_path, final_path, source_duration):
+    """Replace through the destination mount when a bind mount blocks rename."""
+    try:
+        os.replace(tmp_path, final_path)
+        return
+    except OSError as exc:
+        if exc.errno != errno.EXDEV:
+            raise
+    staged_path = final_path + ".tmp"
+    try:
+        shutil.copyfile(tmp_path, staged_path)
+        if not _validated_output(staged_path, source_duration):
+            raise OSError("copied conversion failed validation")
+        os.replace(staged_path, final_path)
+        os.remove(tmp_path)
+    finally:
+        if os.path.exists(staged_path):
+            os.remove(staged_path)
+
+
 def _encode(src_path, out_path, source_duration, media_id):
     """Software-decode (avoids the same buggy hevc_v4l2m2m HW decoder), downscale
     to 1080p max, drop to 8-bit, and hardware-encode back to H.264 -- the exact
@@ -239,8 +282,8 @@ def _encode(src_path, out_path, source_duration, media_id):
     return False, last_err
 
 
-def run_one(media_id, src_path, source_duration, use_phone=False):
-    """Serialize Pi and phone jobs even if two app processes are started."""
+def run_one(media_id, src_path, source_duration, use_phone=False, use_cloud=False):
+    """Serialize all encoder jobs even if two app processes are started."""
     os.makedirs(config.DATA_DIR, exist_ok=True)
     with open(os.path.join(config.DATA_DIR, "transcode.lock"), "a+") as lock_file:
         try:
@@ -249,13 +292,13 @@ def run_one(media_id, src_path, source_duration, use_phone=False):
             log.info("Another transcoding worker is already active")
             return False
         try:
-            _run_one_unlocked(media_id, src_path, source_duration, use_phone)
+            _run_one_unlocked(media_id, src_path, source_duration, use_phone, use_cloud)
             return True
         finally:
             fcntl.flock(lock_file, fcntl.LOCK_UN)
 
 
-def _run_one_unlocked(media_id, src_path, source_duration, use_phone=False):
+def _run_one_unlocked(media_id, src_path, source_duration, use_phone=False, use_cloud=False):
     os.makedirs(TRANSCODE_DIR, exist_ok=True)
     tmp_path = os.path.join(TRANSCODE_DIR, f"{media_id}.mkv.tmp")
     # Keep completed media in the scanned library. An MKV can be atomically
@@ -279,15 +322,17 @@ def _run_one_unlocked(media_id, src_path, source_duration, use_phone=False):
     con = database.connect()
     try:
         con.execute("""UPDATE media_files SET duration=?, transcode_status='running',
-            transcode_worker=? WHERE id=?""", (source_duration, "phone" if use_phone else "pi", media_id))
+            transcode_worker=? WHERE id=?""", (source_duration, "cloud" if use_cloud else "phone" if use_phone else "pi", media_id))
         con.commit()
     finally:
         con.close()
     log.info("Transcode starting on %s: media_id=%s %r",
-             "phone" if use_phone else "Pi", media_id, src_path)
+             "cloud" if use_cloud else "phone" if use_phone else "Pi", media_id, src_path)
     t0 = time.monotonic()
     try:
-        if use_phone:
+        if use_cloud:
+            ok, err = cloud_transcode.encode(src_path, tmp_path, media_id, source_duration)
+        elif use_phone:
             ok, err = phone_transcode.encode(src_path, tmp_path, media_id, source_duration)
         else:
             ok, err = _encode(src_path, tmp_path, source_duration, media_id)
@@ -306,21 +351,7 @@ def _run_one_unlocked(media_id, src_path, source_duration, use_phone=False):
             import scanner
             with scanner._scan_lock:
                 original = con.execute("SELECT * FROM media_files WHERE id=?", (media_id,)).fetchone()
-                if os.stat(tmp_path).st_dev == os.stat(os.path.dirname(final_path)).st_dev:
-                    os.replace(tmp_path, final_path)
-                else:
-                    # A non-SSD source may live on a different filesystem.
-                    # Copy beside it and validate before the atomic rename.
-                    staged_path = final_path + ".tmp"
-                    try:
-                        shutil.copyfile(tmp_path, staged_path)
-                        if not _validated_output(staged_path, source_duration):
-                            raise OSError("copied conversion failed validation")
-                        os.replace(staged_path, final_path)
-                        os.remove(tmp_path)
-                    finally:
-                        if os.path.exists(staged_path):
-                            os.remove(staged_path)
+                _install_validated_output(tmp_path, final_path, source_duration)
                 final_stat = os.stat(final_path)
                 con.execute("""UPDATE media_files SET path=?, size=?, mtime=?, duration=?,
                     container='mkv', vcodec='h264', acodec=?, width=?, height=?, bitrate=?,
@@ -352,16 +383,20 @@ def _run_one_unlocked(media_id, src_path, source_duration, use_phone=False):
                 else:
                     log.info("Transcode replaced source: media_id=%s in %.0fs -> %s",
                              media_id, time.monotonic() - t0, final_path)
-                if use_phone and converted:
+                if converted:
+                    # Auto mode may have tried both workers for this show.
+                    # Release scratch files from each after the replacement is safe.
                     phone_transcode.finish(media_id)
+                    cloud_transcode.finish(media_id)
         else:
             for p in (tmp_path,):
                 try:
                     os.remove(p)
                 except OSError:
                     pass
-            status = "pending" if use_phone else "failed"
-            error = (("phone: " if use_phone else "") + (err or "output validation failed"))[-2000:]
+            status = "pending" if (use_phone or use_cloud) else "failed"
+            error = (("cloud: " if use_cloud else "phone: " if use_phone else "") +
+                     (err or "output validation failed"))[-2000:]
             if use_phone and ok:
                 phone_transcode.reset(media_id)
             con.execute("UPDATE media_files SET transcode_status=?, transcode_error=? WHERE id=?",
@@ -401,7 +436,12 @@ def run_loop(stop_event=None):
     missing_rechecked = False
     while not stop_event.is_set():
         try:
-            phone_transcode.ensure_status_screen()
+            mode = worker_mode()
+            if mode not in ("auto", "phone", "pi", "cloud"):
+                stop_event.wait(30)
+                continue
+            if mode in ("auto", "phone"):
+                phone_transcode.ensure_status_screen()
             import scanner
             if not scanner.ssd_storage_healthy():
                 missing_rechecked = False
@@ -426,18 +466,16 @@ def run_loop(stop_event=None):
             finally:
                 con.close()
             if job and os.path.isfile(job["path"]):
-                phone_state = phone_transcode.status()
-                # Keep a saved phone job on the phone while Android cools. A
-                # temporary thermal pause must not restart it on the Pi.
-                if ((os.environ.get("RETRO_TV_ADB_SERIAL") and not phone_state["ready"])
-                        or (phone_state["connected"] and phone_state["installed"] and not phone_state["ready"])
-                        or (not phone_state["ready"] and
-                            phone_transcode.partial_status(job["id"], job["duration"]))):
+                phone_state = phone_transcode.status() if mode in ("auto", "phone") else {"ready": False}
+                phone_ready = phone_state["ready"] and (mode == "phone" or phone_state.get("usb_connected", False))
+                worker = selected_worker(mode, phone_ready, bool(config.CLOUD_TRANSCODE_HOST))
+                if worker is None:
                     stop_event.wait(30)
                     continue
-                use_phone = phone_state["ready"]
+                use_phone = worker == "phone"
+                use_cloud = worker == "cloud"
                 temp = _cpu_temp_c()
-                if not use_phone and temp is not None and temp >= THERMAL_PAUSE_C:
+                if mode == "pi" and temp is not None and temp >= THERMAL_PAUSE_C:
                     stop_event.wait(30)
                     continue
                 src_size = os.path.getsize(job["path"])
@@ -445,9 +483,10 @@ def run_loop(stop_event=None):
                     log.warning("Insufficient disk headroom to transcode media_id=%s (%r); waiting for free space", job["id"], job["path"])
                     stop_event.wait(120)
                     continue
-                if not run_one(job["id"], job["path"], job["duration"], use_phone=use_phone):
+                if not run_one(job["id"], job["path"], job["duration"],
+                               use_phone=use_phone, use_cloud=use_cloud):
                     stop_event.wait(30)
-                if use_phone:
+                if use_phone or use_cloud:
                     stop_event.wait(30)
                 continue
             elif job:

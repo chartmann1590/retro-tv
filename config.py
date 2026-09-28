@@ -40,6 +40,11 @@ COMMERCIALS_DIR = os.path.join(MEDIA_ROOT, "Commercials")
 # external drive as the media library (already bind-mounted into MEDIA_ROOT
 # for TVShows/Movies/Commercials) rather than the small root filesystem.
 TRANSCODE_DIR = "/mnt/media-ssd/transcoded"
+# Background show conversion is opt-in. Admin Settings owns the worker mode.
+# Cloud mode uses an SSH-accessible computer; it never falls back to the Pi.
+TRANSCODE_WORKER = "off"
+CLOUD_TRANSCODE_HOST = os.environ.get("RETRO_TV_CLOUD_HOST", "")
+CLOUD_TRANSCODE_DIR = os.environ.get("RETRO_TV_CLOUD_DIR", "/tmp/retro-tv-transcode")
 
 TIMEZONE = "America/New_York"
 HOST = "0.0.0.0"
@@ -75,6 +80,8 @@ DEFAULT_SETTINGS = {
     "gotify_url": "",
     "gotify_token": "",
     "phone_battery_throttle_enabled": "0",
+    "transcode_worker": TRANSCODE_WORKER,
+    "phone_adb_address": "",
 }
 
 # Optional mpv audio-device override; otherwise discover the HDMI sink.

@@ -1,6 +1,7 @@
 """Run queued HEVC conversions on the ADB-connected Android phone."""
 import logging
 import json
+import ipaddress
 import math
 import os
 import re
@@ -25,20 +26,60 @@ _status_cache = (0.0, None)
 _screen_opened = False
 
 
+def normalize_adb_address(value):
+    """Accept an IPv4 address with an optional ADB TCP port."""
+    value = str(value or "").strip()
+    if not value:
+        return ""
+    parts = value.split(":")
+    if len(parts) > 2:
+        raise ValueError("Enter an IPv4 address, optionally followed by :port")
+    try:
+        ipaddress.IPv4Address(parts[0])
+        port = int(parts[1]) if len(parts) == 2 else 5555
+    except ValueError as exc:
+        raise ValueError("Enter a valid phone IPv4 address and port") from exc
+    if not 1 <= port <= 65535:
+        raise ValueError("ADB port must be between 1 and 65535")
+    return f"{parts[0]}:{port}"
+
+
+def adb_address():
+    """Admin setting overrides the optional service environment default."""
+    return database.get_setting("phone_adb_address", "").strip() or os.environ.get("RETRO_TV_ADB_SERIAL", "")
+
+
+def reset_connection_state():
+    global _status_cache, _screen_opened
+    with _status_lock:
+        _status_cache = (0.0, None)
+        _screen_opened = False
+
+
 def _adb(*args, timeout=15, **kwargs):
-    serial = os.environ.get("RETRO_TV_ADB_SERIAL")
+    serial = adb_address()
     cmd = ["adb"] + (["-s", serial] if serial else []) + list(args)
     return subprocess.run(cmd, timeout=timeout, **kwargs)
 
 
-def battery_temp_c():
+def _battery_state():
+    """Read battery temperature and charge from one Android query."""
     try:
         result = _adb("shell", "dumpsys", "battery", timeout=8,
                       capture_output=True, text=True)
-        match = re.search(r"^\s*temperature:\s*(\d+)", result.stdout, re.MULTILINE)
-        return int(match.group(1)) / 10 if result.returncode == 0 and match else None
+        if result.returncode:
+            return None, None
+        temperature = re.search(r"^\s*temperature:\s*(\d+)", result.stdout, re.MULTILINE)
+        level = re.search(r"^\s*level:\s*(\d+)", result.stdout, re.MULTILINE)
+        charge = int(level.group(1)) if level else None
+        return (int(temperature.group(1)) / 10 if temperature else None,
+                charge if charge is not None and 0 <= charge <= 100 else None)
     except (OSError, subprocess.TimeoutExpired):
-        return None
+        return None, None
+
+
+def battery_temp_c():
+    return _battery_state()[0]
 
 
 def thermal_status():
@@ -71,12 +112,19 @@ def status():
                 and _status_cache[1]["battery_throttle_enabled"] == battery_enabled):
             return dict(_status_cache[1])
     result = {"connected": False, "installed": False, "ready": False,
-              "model": "", "temperature_c": None, "thermal_status": None,
+              "usb_connected": False,
+              "model": "", "temperature_c": None, "battery_level": None,
+              "thermal_status": None,
               "battery_throttle_enabled": battery_enabled,
               "pause_at_c": BATTERY_PAUSE_C if battery_enabled else None}
     try:
+        devices = subprocess.run(["adb", "devices", "-l"], timeout=5,
+                                 capture_output=True, text=True)
+        if devices.returncode == 0:
+            result["usb_connected"] = any(" device " in line and " usb:" in line
+                                          for line in devices.stdout.splitlines())
         state = _adb("get-state", timeout=5, capture_output=True, text=True)
-        serial = os.environ.get("RETRO_TV_ADB_SERIAL", "")
+        serial = adb_address()
         if (state.returncode != 0 or state.stdout.strip() != "device") and ":" in serial:
             subprocess.run(["adb", "connect", serial], timeout=8,
                            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
@@ -89,7 +137,7 @@ def status():
             model = _adb("shell", "getprop", "ro.product.model", timeout=5,
                          capture_output=True, text=True)
             result["model"] = model.stdout.strip() if model.returncode == 0 else "Android phone"
-            result["temperature_c"] = battery_temp_c()
+            result["temperature_c"], result["battery_level"] = _battery_state()
             result["thermal_status"] = thermal_status()
             result["ready"] = (result["installed"] and result["thermal_status"] is not None
                                and result["thermal_status"] < 2
@@ -108,11 +156,11 @@ def available():
     return status()["ready"]
 
 
-def ensure_status_screen():
-    """Keep a low-load status page reachable on the physical phone via USB."""
+def ensure_status_screen(force=False):
+    """Open the live progress page on the phone through USB or Wi-Fi ADB."""
     global _screen_opened
-    if _screen_opened or not status()["connected"]:
-        return
+    if (_screen_opened and not force) or not status()["connected"]:
+        return _screen_opened
     try:
         for _ in range(10):
             try:
@@ -124,13 +172,19 @@ def ensure_status_screen():
             return
         _adb("reverse", "tcp:5000", "tcp:5000", timeout=10, check=True,
              stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-        _adb("shell", "am", "start", "-a", "android.intent.action.VIEW", "-d",
-             "http://127.0.0.1:5000/phone-transcode", "-p", "com.android.chrome",
-             timeout=10, check=True, stdout=subprocess.DEVNULL,
-             stderr=subprocess.DEVNULL)
+        _adb("shell", "input", "keyevent", "KEYCODE_WAKEUP", timeout=10,
+             stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        opened = _adb("shell", "am", "start", "-a", "android.intent.action.VIEW", "-d",
+                      "http://127.0.0.1:5000/phone-transcode", "-p", "com.android.chrome",
+                      timeout=10, capture_output=True, text=True)
+        if opened.returncode:
+            _adb("shell", "am", "start", "-a", "android.intent.action.VIEW", "-d",
+                 "http://127.0.0.1:5000/phone-transcode", timeout=10, check=True,
+                 stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         _screen_opened = True
     except (OSError, subprocess.SubprocessError):
         log.warning("Could not open phone transcoding status screen")
+    return _screen_opened
 
 
 def progress_text(media_id):
@@ -313,7 +367,7 @@ def encode(src_path, out_path, media_id, source_duration):
                 command += ["-vf", "scale=1280:-2"]
             command += ["-c:v", "h264_mediacodec", "-b:v", "4M", "-c:a", "copy",
                         "-f", "matroska", "-progress", remote_progress, "-nostats", remote_out]
-            serial = os.environ.get("RETRO_TV_ADB_SERIAL")
+            serial = adb_address()
             process = subprocess.Popen(["adb"] + (["-s", serial] if serial else []) + command,
                                        stdout=subprocess.DEVNULL, stderr=subprocess.PIPE,
                                        text=True)
