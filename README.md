@@ -328,15 +328,17 @@ The background converter is **off by default** so an unplugged phone cannot
 silently move hundreds of CPU-heavy HEVC jobs onto the Pi. `/admin` reports
 whether the USB cable is attached and which worker is selected. To use another
 computer or an SSH-accessible VM, install FFmpeg and rsync there, set up
-passwordless SSH from the Pi, and add these lines to `.env`:
+passwordless SSH from the Pi, and add these lines to `.env`. The Pi also needs
+rsync; `scripts/install.sh` installs it when run as root.
 
 ```text
-RETRO_TV_TRANSCODE_WORKER=cloud
 RETRO_TV_CLOUD_HOST=user@host-or-address
 RETRO_TV_CLOUD_DIR=/path/with/room/for/one/source-and-output
 ```
 
-Restart Retro TV after changing `.env`. The worker uploads one source over SSH,
+Restart Retro TV after changing `.env`, then select **Remote computer only** in
+Admin → Settings. Admin Settings is the source of truth for worker selection.
+The worker uploads one source over SSH,
 encodes H.264 on the other machine, downloads it, checks the result with
 `ffprobe`, and only then replaces the original. Transfers can resume after a
 network interruption. `cloud` mode never uses the phone or Pi encoder. `auto`

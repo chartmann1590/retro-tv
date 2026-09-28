@@ -217,8 +217,12 @@ class TranscodeReplacementTests(unittest.TestCase):
                            "height": 720, "bitrate": 1000, "size": 13, "mtime": 1}
                 with patch.object(transcode, "_ffprobe_duration", return_value=10), \
                      patch.object(transcode, "_encode", side_effect=encode), \
-                     patch.object(transcode, "_validated_output", return_value=details):
+                     patch.object(transcode, "_validated_output", return_value=details), \
+                     patch.object(phone_transcode, "finish") as finish_phone, \
+                     patch.object(cloud_transcode, "finish") as finish_cloud:
                     transcode.run_one(media_id, source, 10)
+                    finish_phone.assert_called_once_with(media_id)
+                    finish_cloud.assert_called_once_with(media_id)
 
                 con = database.connect()
                 try:

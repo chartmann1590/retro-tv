@@ -40,9 +40,9 @@ COMMERCIALS_DIR = os.path.join(MEDIA_ROOT, "Commercials")
 # external drive as the media library (already bind-mounted into MEDIA_ROOT
 # for TVShows/Movies/Commercials) rather than the small root filesystem.
 TRANSCODE_DIR = "/mnt/media-ssd/transcoded"
-# Background show conversion is opt-in. Cloud mode uses an SSH-accessible VM;
-# it never falls back to encoding on the Pi when the VM is unavailable.
-TRANSCODE_WORKER = os.environ.get("RETRO_TV_TRANSCODE_WORKER", "off").lower()
+# Background show conversion is opt-in. Admin Settings owns the worker mode.
+# Cloud mode uses an SSH-accessible computer; it never falls back to the Pi.
+TRANSCODE_WORKER = "off"
 CLOUD_TRANSCODE_HOST = os.environ.get("RETRO_TV_CLOUD_HOST", "")
 CLOUD_TRANSCODE_DIR = os.environ.get("RETRO_TV_CLOUD_DIR", "/tmp/retro-tv-transcode")
 

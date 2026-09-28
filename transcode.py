@@ -383,9 +383,10 @@ def _run_one_unlocked(media_id, src_path, source_duration, use_phone=False, use_
                 else:
                     log.info("Transcode replaced source: media_id=%s in %.0fs -> %s",
                              media_id, time.monotonic() - t0, final_path)
-                if use_phone and converted:
+                if converted:
+                    # Auto mode may have tried both workers for this show.
+                    # Release scratch files from each after the replacement is safe.
                     phone_transcode.finish(media_id)
-                if use_cloud and converted:
                     cloud_transcode.finish(media_id)
         else:
             for p in (tmp_path,):

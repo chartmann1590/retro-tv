@@ -15,10 +15,10 @@ echo "src=$SRC user=$USER_NAME"
 echo "[1/8] Debian packages (needs root; skipped if not root)..."
 if [ "$(id -u)" -eq 0 ]; then
   apt-get update
-  apt-get install -y mpv ffmpeg python3-venv python3-pip curl chromium evtest
+  apt-get install -y mpv ffmpeg rsync python3-venv python3-pip curl chromium evtest
 else
   echo "  not root: skipping apt. mpv user-local build at $SRC/mpv-local will be used."
-  echo "  to install system mpv later: sudo apt-get install -y mpv ffmpeg"
+  echo "  to install system packages later: sudo apt-get install -y mpv ffmpeg rsync"
 fi
 
 echo "[2/8] Directories..."
