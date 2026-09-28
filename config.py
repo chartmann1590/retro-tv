@@ -115,13 +115,13 @@ NEWS_RSS_URL = os.environ.get("NEWS_RSS_URL", "https://wnyt.com/feed/")
 NEWS_ARTICLE_COUNT = 5
 
 # ArenaPulse Sports API & Dedicated Sports Channel (https://github.com/chartmann1590/sports-dashboard)
-ARENAPULSE_URL = os.environ.get("ARENAPULSE_URL", "http://localhost:3000").rstrip("/")
+ARENAPULSE_URL = os.environ.get("ARENAPULSE_URL", "").rstrip("/")
 SPORTS_SHOW = "Retro Sports"
 SPORTS_CHANNEL_NAME = "Retro Sports"
 SPORTS_CHANNEL_NUMBER = 38
 TTS_VOICE_SPORTS = os.environ.get("TTS_VOICE_SPORTS", "am_michael")
 TTS_VOICE_SPORTS_NEWS = os.environ.get("TTS_VOICE_SPORTS_NEWS", "af_nicole")
-SPORTS_REFRESH_SEC = 15 * 60
+SPORTS_REFRESH_SEC = 5 * 60
 
 # Reminders (reminders.py): user sets one for a specific upcoming airing (from the
 # guide or a search result); a background loop fires it this many seconds before

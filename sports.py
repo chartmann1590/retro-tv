@@ -61,7 +61,7 @@ def _post_binary(url, payload, timeout=25):
 
 
 def get_base_url():
-    return getattr(config, "ARENAPULSE_URL", "http://localhost:3000").rstrip("/")
+    return getattr(config, "ARENAPULSE_URL", "").rstrip("/")
 
 
 def get_leagues():
@@ -84,7 +84,8 @@ def get_all_scores(force_refresh=False):
         return _get_json(url, ttl=30)
     except Exception as e:
         log.warning("get_all_scores failed: %s", e)
-        return {"stats": {"totalGames": 0, "liveTotal": 0, "upcomingTotal": 0, "finalTotal": 0}, "leagues": [], "games": []}
+        return {"stats": {"totalGames": 0, "liveTotal": 0, "upcomingTotal": 0, "finalTotal": 0},
+                "leagues": [], "games": [], "_unavailable": True}
 
 
 def get_league_scores(league, sport=None, date=None):
@@ -624,6 +625,78 @@ def generate_field_svg(sport, home_team, away_team, situation=None, play=None, s
 # TTS SCRIPT GENERATORS
 # =========================================================================
 
+def play_event_type(play, sport=None):
+    """Name a scoring moment using ArenaPulse play text and sport-specific flags."""
+    text = (play.get("text") or "").strip().lower()
+    kind = (play.get("type") or "").lower()
+    sport = (sport or "").lower()
+    if "touchdown" in kind or "touchdown" in text:
+        return "TOUCHDOWN"
+    if "field goal" in kind and play.get("scoringPlay"):
+        return "FIELD GOAL"
+    if text.startswith("goal!") or (sport in ("soccer", "hockey") and "goal" in kind and play.get("scoringPlay")):
+        return "GOAL"
+    if "home run" in kind or "home run" in text:
+        return "HOME RUN"
+    if play.get("scoringPlay"):
+        return "SCORE" if sport not in ("hockey", "soccer") else "GOAL"
+    return None
+
+
+def build_game_recap(game, detail=None):
+    """Build a short final-score recap from ArenaPulse game and play data."""
+    detail = detail or {}
+    home = game.get("homeTeam") or {}
+    away = game.get("awayTeam") or {}
+    home_name = home.get("shortDisplayName") or home.get("displayName") or "Home"
+    away_name = away.get("shortDisplayName") or away.get("displayName") or "Away"
+    home_score = home.get("score", 0)
+    away_score = away.get("score", 0)
+    try:
+        home_points, away_points = float(home_score), float(away_score)
+    except (TypeError, ValueError):
+        home_points = away_points = 0
+    if home_points > away_points:
+        headline = f"{home_name} take the win"
+        result = f"{home_name} beat {away_name} {home_score}–{away_score}."
+    elif away_points > home_points:
+        headline = f"{away_name} take the win"
+        result = f"{away_name} beat {home_name} {away_score}–{home_score}."
+    else:
+        headline = "Honors even"
+        result = f"{away_name} and {home_name} finish level at {away_score}–{home_score}."
+    plays = detail.get("visualPlays") or []
+    highlights = []
+    seen = set()
+    for play in plays:
+        event = play_event_type(play, game.get("sport"))
+        description = (play.get("text") or "").strip()
+        if event and description and description not in seen:
+            seen.add(description)
+            highlights.append({"label": event, "clock": play.get("clock") or "",
+                               "text": description[:210]})
+    highlights = highlights[-3:]
+    if not highlights:
+        for play in reversed(plays):
+            description = (play.get("text") or "").strip()
+            if description and not description.upper().startswith(("END GAME", "MATCH ENDS")):
+                highlights = [{"label": "KEY PLAY", "clock": play.get("clock") or "",
+                               "text": description[:210]}]
+                break
+    leader = None
+    for group in game.get("leaders") or []:
+        for item in group.get("leaders") or []:
+            athlete = item.get("athlete") or {}
+            if athlete.get("name") and item.get("displayValue"):
+                leader = {"name": athlete["name"], "stat": item["displayValue"],
+                          "category": group.get("displayName") or "Game leader"}
+                break
+        if leader:
+            break
+    return {"headline": headline, "result": result, "highlights": highlights,
+            "leader": leader, "awayScore": away_score, "homeScore": home_score}
+
+
 def script_for_news(article):
     """Generate sportscaster narration script for a news headline."""
     headline = (article.get("headline") or "").strip()
@@ -654,8 +727,9 @@ def script_for_game(game, detail=None):
         clock = status.get("displayClock") or ""
         period = status.get("detail") or f"Period {status.get('period', 1)}"
         text = f"Live action in {league_name}: The {away_name} with {away_score}, and the {home_name} with {home_score}. {period} on the game clock."
-        if detail and detail.get("visualPlays"):
-            recent_play = detail["visualPlays"][-1]
+        plays = ((detail or {}).get("visualPlays") or (detail or {}).get("plays") or [])
+        if plays:
+            recent_play = plays[-1]
             p_text = recent_play.get("text")
             if p_text:
                 text += f" On the latest play: {p_text}"

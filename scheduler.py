@@ -256,18 +256,25 @@ def generate_day(channel, day_str, seed_extra=0):
         # slate: single all-day entry
         con = database.connect()
         try:
+            sports_source = con.execute("""SELECT 1 FROM channel_sources WHERE channel_number=?
+                AND source_type='show' AND source_value LIKE 'Retro Sports · %'""",
+                (channel["number"],)).fetchone()
+            title = channel["name"] if sports_source else "Off Air"
+            subtitle = "Connecting to ArenaPulse · Coverage begins shortly" if sports_source else "Add media via Samba"
+            description = ("Live scores, field view, and play-by-play are preparing."
+                           if sports_source else "Copy videos to /srv/media then Rescan.")
             if day_str == local_day():
                 cnt = con.execute("SELECT COUNT(*) c FROM schedule_entries WHERE channel_number=? AND day=?", (channel["number"], day_str)).fetchone()["c"]
                 if cnt == 0:
                     con.execute("""INSERT INTO schedule_entries(channel_number,start_ts,end_ts,kind,media_id,title,subtitle,description,day)
                         VALUES(?,?,?,?,?,?,?,?,?)""", (channel["number"], start_ts, end_ts, "slate", None,
-                        "Off Air", "Add media via Samba", "Copy videos to /srv/media/TVShows, Movies or Commercials, then Rescan.", day_str))
+                        title, subtitle, description, day_str))
                     con.commit()
                     return 1
                 return cnt
             con.execute("""INSERT INTO schedule_entries(channel_number,start_ts,end_ts,kind,media_id,title,subtitle,description,day)
                 VALUES(?,?,?,?,?,?,?,?,?)""", (channel["number"], start_ts, end_ts, "slate", None,
-                "Off Air", "Add media via Samba", "Copy videos to /srv/media then Rescan.", day_str))
+                title, subtitle, description, day_str))
             con.commit()
             return 1
         finally:
@@ -366,7 +373,10 @@ def generate_day(channel, day_str, seed_extra=0):
         if kind == "episode":
             title = obj.get("show_name") or "TV"
             sub = obj.get("title") or ""
-            if obj.get("season") and obj.get("episode"):
+            if title.startswith("Retro Sports · "):
+                title = channel["name"]
+                sub = "Scores · Field View · Play-by-Play"
+            elif obj.get("season") and obj.get("episode"):
                 sub = f"S{obj['season']:02d}E{obj['episode']:02d} - {sub}" if sub else f"S{obj['season']:02d}E{obj['episode']:02d}"
             desc = obj.get("description") or ""
             rows.append((channel["number"], s, e, "episode", mid, title, sub, desc or "", day_str))
@@ -526,12 +536,26 @@ def guide_data(start_ts=None, hours=4):
     try:
         out = []
         for ch in channels:
+            sports_source = con.execute("""SELECT 1 FROM channel_sources WHERE channel_number=?
+                AND source_type='show' AND source_value LIKE 'Retro Sports · %'""",
+                (ch["number"],)).fetchone()
             rows = [dict(r) for r in con.execute("""SELECT se.*, COALESCE(e.artwork, mo.artwork, '') AS artwork
                 FROM schedule_entries se
                 LEFT JOIN episodes e ON e.media_id = se.media_id
                 LEFT JOIN movies mo ON mo.media_id = se.media_id
                 WHERE se.channel_number=? AND se.end_ts>? AND se.start_ts<? ORDER BY se.start_ts""",
                 (ch["number"], start_ts, end_ts))]
+            if sports_source:
+                merged = []
+                for row in rows:
+                    row["title"] = ch["name"]
+                    row["subtitle"] = ("Connecting to ArenaPulse · Coverage begins shortly" if row["kind"] == "slate"
+                                       else "Scores · Field View · Play-by-Play")
+                    if merged and merged[-1]["kind"] == row["kind"] and row["start_ts"] <= merged[-1]["end_ts"] + 1:
+                        merged[-1]["end_ts"] = max(merged[-1]["end_ts"], row["end_ts"])
+                    else:
+                        merged.append(row)
+                rows = merged
             out.append({"channel": ch, "entries": rows})
         return out
     finally:

@@ -61,16 +61,16 @@ class UsbRemoteTests(unittest.TestCase):
 
     def test_full_keyboard_search_does_not_trigger_shortcuts(self):
         with patch.object(tvvod, 'is_visible', return_value=True), \
-             patch.object(tvvod, 'nav') as nav, patch.object(playback, 'osd_message'), \
-             patch.object(playback, 'set_mute') as mute:
+             patch.object(tvvod, 'is_searching', side_effect=lambda: nav.call_count > 0), \
+             patch.object(tvvod, 'nav') as nav, patch.object(playback, 'set_mute') as mute:
             self.controller.key('KEY_SEARCH', 1)
             for key in ('KEY_M', 'KEY_A', 'KEY_T', 'KEY_R', 'KEY_I', 'KEY_X'):
                 self.controller.key(key, 1)
-            self.assertEqual(self.controller.search, 'matrix')
-            self.controller.key('KEY_ENTER', 1)
-            nav.assert_called_once_with('search', query='matrix')
+            self.controller.key('KEY_ENTER', 1, source='/dev/input/by-id/usb-XING_WEI_2.4G_USB_USB_Composite_Device-if02-event-kbd')
+            self.assertEqual(nav.call_args_list[0].args, ('search_open',))
+            self.assertEqual([call.kwargs['query'] for call in nav.call_args_list[1:-1]], list('matrix'))
+            self.assertEqual(nav.call_args_list[-1].args, ('search_submit',))
             mute.assert_not_called()
-            self.assertIsNone(self.controller.search)
         self.assertEqual(usbremote.key_text('KEY_1', True), '!')
         self.assertEqual(usbremote.key_text('KEY_A', caps=True), 'A')
         self.assertEqual(usbremote.key_text('KEY_A', True, True), 'a')
@@ -86,6 +86,33 @@ class UsbRemoteTests(unittest.TestCase):
              patch.object(tvguide, 'navigate') as nav:
             self.controller.key('KEY_RIGHT', 1)
             nav.assert_called_once_with('right')
+
+    def test_selectable_vod_search_uses_dpad_and_shared_results(self):
+        catalog = {'categories': [{'id': 'movies', 'title': 'Movies', 'items': [
+            {'kind': 'movie', 'title': 'The Matrix', 'media_id': 7}]}]}
+        with patch.object(tvvod, '_send', return_value={'error': 'success'}), \
+             patch.object(tvvod, '_clear_bitmap_overlays'), \
+             patch.object(playback, 'mpv_alive', return_value=True), \
+             patch.object(tvvod.vod, 'get_catalog', return_value=catalog), \
+             patch.object(tvvod.vod, 'search_vod', return_value={
+                 'movies': [{'kind': 'movie', 'title': 'The Matrix', 'media_id': 7}],
+                 'shows': [], 'episodes': []}) as search:
+            self.assertTrue(tvvod.open_vod()['ok'])
+            self.controller.key('KEY_UP', 1)
+            self.assertTrue(tvvod.get_status()['search_focused'])
+            self.controller.key('KEY_ENTER', 1)
+            self.assertEqual(tvvod.get_status()['mode'], 'search')
+            self.controller.key('KEY_ENTER', 1, source='/dev/input/by-id/usb-XING_WEI_2.4G_USB_USB_Composite_Device-event-if03')
+            self.assertEqual(tvvod.get_status()['query'], 'A')
+            self.controller.key('KEY_BACKSPACE', 1)
+            self.controller.key('KEY_M', 1)
+            self.controller.key('KEY_A', 1)
+            self.controller.key('KEY_T', 1)
+            self.controller.key('KEY_SEARCH', 1)
+            search.assert_called_once_with('mat')
+            self.assertEqual(tvvod.get_status()['title'], 'The Matrix')
+            self.assertIn('SEARCH:', tvvod.get_status()['category'])
+            tvvod.close_vod()
 
     def test_transport_and_volume_share_existing_receiver_state(self):
         database.set_state('volume', 80)
@@ -140,7 +167,7 @@ class UsbRemoteTests(unittest.TestCase):
         open_device.assert_called_once_with(paths[0])
         device.grab.assert_called_once()
         device.close.assert_called_once()
-        key.assert_called_once_with('KEY_MUTE', 1)
+        key.assert_called_once_with('KEY_MUTE', 1, source=paths[0])
         self.assertEqual(self.controller.devices, [])
 
     def test_guide_native_selection_and_phone_api_share_state(self):

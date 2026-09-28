@@ -144,7 +144,9 @@ def watch(ch=None):
         except Exception:
             ch = channels[0]["number"]
     entry, offset, path, dur = streaming.resolve_live(ch)
-    return render_template("watch.html", channels=channels, current=ch, entry=entry, offset=int(offset or 0))
+    import livesports
+    return render_template("watch.html", channels=channels, current=ch, entry=entry,
+                           offset=int(offset or 0), sports_league=livesports.league_for_channel(ch))
 
 @app.route("/vod")
 def vod_page():
@@ -605,6 +607,11 @@ def api_tune():
             tvsports.close_sports()
         except Exception:
             pass
+        try:
+            import tvgames
+            tvgames.close_picker()
+        except Exception:
+            pass
     if res.get("entry"):
         e = res["entry"]
         res["entry_fmt"] = fmt_range(e["start_ts"], e["end_ts"]) if e.get("start_ts") else ""
@@ -749,7 +756,12 @@ def api_sports_scores():
 def api_sports_game(league, game_id):
     import sports
     sport = request.args.get("sport")
-    return jsonify(sports.get_game_detail(league, game_id, sport=sport))
+    detail = sports.get_game_detail(league, game_id, sport=sport)
+    game = next((item for item in sports.get_all_scores().get("games", [])
+                 if item.get("league") == league and str(item.get("id")) == game_id), None)
+    if game and (game.get("status") or {}).get("isFinal"):
+        detail = {**detail, "recap": sports.build_game_recap(game, detail)}
+    return jsonify(detail)
 
 @app.route("/api/sports/field/<sport>/<league>/<game_id>")
 def api_sports_field(sport, league, game_id):
@@ -833,6 +845,42 @@ def api_tv_sports_status():
     import tvsports
     return jsonify(tvsports.get_status())
 
+
+@app.route("/api/tv-games", methods=["POST"])
+def api_tv_games():
+    import tvgames
+    data = request.get_json(silent=True) or {}
+    action = data.get("action", "open")
+    try:
+        channel = int(data["channel"]) if data.get("channel") is not None else playback._current.get("channel")
+    except (TypeError, ValueError):
+        return jsonify({"ok": False, "error": "Invalid channel"}), 400
+    if action == "open":
+        result = tvgames.open_picker(channel)
+    elif action == "close":
+        result = tvgames.close_picker()
+    elif action == "pin":
+        result = tvgames.pin_game(channel, data.get("game_id"), force_tune=True)
+    elif action == "unpin":
+        result = tvgames.unpin_game(channel)
+    else:
+        return jsonify({"ok": False, "error": "Invalid action"}), 400
+    return jsonify(result), 200 if result.get("ok") else 400
+
+
+@app.route("/api/tv-games/nav", methods=["POST"])
+def api_tv_games_nav():
+    import tvgames
+    action = (request.get_json(silent=True) or {}).get("action", "select")
+    result = tvgames.navigate(action)
+    return jsonify(result), 200 if result.get("ok") else 400
+
+
+@app.route("/api/tv-games/status")
+def api_tv_games_status():
+    import tvgames
+    return jsonify(tvgames.get_status())
+
 @app.route("/api/weather")
 def api_weather():
     import livecontent
@@ -851,7 +899,9 @@ def api_hdmi():
     import tvguide
     import tvvod
     import tvsports
-    st.update(tv_guide=tvguide.get_status(), tv_vod=tvvod.get_status(), tv_sports=tvsports.get_status())
+    import tvgames
+    st.update(tv_guide=tvguide.get_status(), tv_vod=tvvod.get_status(),
+              tv_sports=tvsports.get_status(), tv_games=tvgames.get_status())
     is_vod = st.get("is_vod", False)
     vod_info = st.get("vod_info")
     if is_vod:
@@ -1175,6 +1225,8 @@ def api_restart_playback():
 
 def init():
     database.init_db()
+    import tvcountdown
+    threading.Thread(target=tvcountdown.run_loop, daemon=True).start()
     import usbremote
     usbremote.start()
     import discovery

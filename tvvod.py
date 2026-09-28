@@ -2,8 +2,8 @@
 
 The TV display is driven by mpv over HDMI. This module draws the interactive
 Retro-styled Netflix / VOD menu (categories, carousels, spotlight banner, and
-season/episode selectors) directly as an mpv ASS OSD overlay. The mobile/web
-remote acts as the physical remote control sending D-pad and navigation commands.
+season/episode selectors) directly as an mpv ASS OSD overlay. The USB air mouse
+and mobile/web remote send D-pad and navigation commands.
 """
 import json
 import logging
@@ -37,7 +37,7 @@ def _clear_bitmap_overlays():
     _send(["overlay-remove", SHOW_OVERLAY_ID])
 
 
-_mode = "browse"        # "browse" or "show"
+_mode = "browse"        # "browse", "show", or "search"
 _categories = []
 _cat_idx = 0
 _item_idx = 0
@@ -48,6 +48,10 @@ _ep_idx = 0
 
 _search_query = ""
 _search_results = None
+_search_focus = False
+_search_row = 0
+_search_col = 0
+SEARCH_KEYS = ("ABCDEFGHIJ", "KLMNOPQRST", "UVWXYZ0123", "456789 -←✓")
 
 
 def _send(command):
@@ -86,10 +90,17 @@ def is_visible():
     return _visible
 
 
+def is_searching():
+    return _visible and _mode == "search"
+
+
 def get_status():
     with _lock:
         if not _visible:
             return {"visible": False}
+        if _mode == "search":
+            return {"visible": True, "mode": "search", "query": _search_query,
+                    "key": SEARCH_KEYS[_search_row][_search_col], "title": "Search On Demand"}
         if _mode == "show" and _show_data:
             show = _show_data.get("show", {})
             seasons = show.get("seasons", [])
@@ -118,6 +129,8 @@ def get_status():
             "kind": item.get("kind", "") if item else "",
             "media_id": item.get("media_id") if item else None,
             "show_id": item.get("id") if (item and item.get("kind") == "show") else None,
+            "search_focused": _search_focus,
+            "search_query": _search_query,
         }
 
 
@@ -133,8 +146,13 @@ def open_vod():
         tvsports.close_sports()
     except Exception:
         pass
+    try:
+        import tvgames
+        tvgames.close_picker()
+    except Exception:
+        pass
 
-    global _visible, _mode, _categories, _cat_idx, _item_idx, _show_data, _season_idx, _ep_idx, _search_query
+    global _visible, _mode, _categories, _cat_idx, _item_idx, _show_data, _season_idx, _ep_idx, _search_query, _search_focus
     with _lock:
         if not playback.mpv_alive():
             playback.restore_last()
@@ -148,6 +166,7 @@ def open_vod():
         _season_idx = 0
         _ep_idx = 0
         _search_query = ""
+        _search_focus = False
 
         ok = render()
         _visible = ok
@@ -168,15 +187,49 @@ def close_vod():
 
 
 def nav(action, query=None):
-    global _cat_idx, _item_idx, _mode, _show_data, _season_idx, _ep_idx, _search_query, _categories
+    global _cat_idx, _item_idx, _mode, _show_data, _season_idx, _ep_idx, _search_query, _categories, _search_focus, _search_row, _search_col
     with _lock:
         if not _visible:
             return open_vod()
 
         action = (action or "").lower()
 
-        if action == "search":
-            _search_query = (query or "").strip()
+        if action == "search_open":
+            _mode = "search"
+            _search_focus = True
+            _search_row = _search_col = 0
+            render()
+            return get_status()
+
+        if _mode == "search" and action not in ("search", "search_submit"):
+            if action in ("back", "last", "search_cancel"):
+                _mode = "browse"
+            elif action == "search_text":
+                _search_query = (_search_query + (query or ""))[:100]
+            elif action == "search_backspace":
+                _search_query = _search_query[:-1]
+            elif action == "up":
+                _search_row = max(0, _search_row - 1)
+            elif action == "down":
+                _search_row = min(len(SEARCH_KEYS) - 1, _search_row + 1)
+            elif action == "left":
+                _search_col = max(0, _search_col - 1)
+            elif action == "right":
+                _search_col = min(len(SEARCH_KEYS[_search_row]) - 1, _search_col + 1)
+            elif action in ("select", "ok"):
+                key = SEARCH_KEYS[_search_row][_search_col]
+                if key == "✓":
+                    action = "search_submit"
+                elif key == "←":
+                    _search_query = _search_query[:-1]
+                else:
+                    _search_query = (_search_query + key)[:100]
+            if action != "search_submit":
+                render()
+                return get_status()
+
+        if action in ("search", "search_submit"):
+            _search_query = (query if action == "search" else _search_query or "").strip()
             if _search_query:
                 results = vod.search_vod(_search_query)
                 combined = []
@@ -203,6 +256,8 @@ def nav(action, query=None):
                 _categories = catalog.get("categories", [])
                 _cat_idx = 0
                 _item_idx = 0
+                _mode = "browse"
+            _search_focus = False
             render()
             return get_status()
 
@@ -216,8 +271,12 @@ def nav(action, query=None):
                     next_cat = _categories[_cat_idx]
                     next_items = next_cat.get("items", [])
                     _item_idx = max(0, min(_item_idx, len(next_items) - 1))
+                else:
+                    _search_focus = True
             elif action == "down":
-                if _cat_idx < len(_categories) - 1:
+                if _search_focus:
+                    _search_focus = False
+                elif _cat_idx < len(_categories) - 1:
                     _cat_idx += 1
                     next_cat = _categories[_cat_idx]
                     next_items = next_cat.get("items", [])
@@ -229,6 +288,11 @@ def nav(action, query=None):
                 if _item_idx < len(items) - 1:
                     _item_idx += 1
             elif action in ("select", "ok"):
+                if _search_focus:
+                    _mode = "search"
+                    _search_row = _search_col = 0
+                    render()
+                    return get_status()
                 item = items[_item_idx] if _item_idx < len(items) else None
                 if item:
                     if item.get("kind") == "show":
@@ -315,6 +379,12 @@ def render():
         text(168, 30, "FLIX", 30, "F8CB63", bold=True)
         text(248, 36, "/   ON DEMAND ENTERTAINMENT", 18, "A2B4C7")
 
+        if _mode == "browse":
+            box(523, 27, 452, 40, "F8CB63" if _search_focus else "35435A")
+            box(526, 30, 446, 34, "172338")
+            label = f"⌕  {_search_query or 'SEARCH MOVIES & SHOWS'}"
+            text(540, 35, label, 18, "F8CB63" if _search_focus else "C5D1DE", clip=(538, 30, 960, 65), bold=_search_focus)
+
         # Clock & Mode Badge
         text(1000, 36, clock_str(), 20, "F8CB63")
         box(1110, 32, 110, 28, "8A1E1E")
@@ -322,8 +392,10 @@ def render():
 
         if _mode == "browse":
             _render_browse(ass, box, text)
-        else:
+        elif _mode == "show":
             _render_show(ass, box, text)
+        else:
+            _render_search(ass, box, text)
 
         result = _send(["osd-overlay", VOD_OVERLAY_ID, "ass-events", "\n".join(ass), 1280, 720])
         _visible = result.get("error") == "success"
@@ -474,7 +546,29 @@ def _render_browse(ass, box, text):
 
     # Bottom Hint Bar (y: 640..694)
     box(40, 640, 1200, 54, "121824")
-    text(56, 656, "▲ / ▼ CATEGORY   •   ◀ / ▶ BROWSE   •   OK SELECT / PLAY   •   PRESS 'LIVE TV' TO RETURN TO CABLE", 16, "F8CB63", bold=True)
+    text(56, 656, "▲ TO SEARCH   •   ▲ / ▼ CATEGORY   •   ◀ / ▶ BROWSE   •   OK SELECT   •   LIVE TV EXIT", 16, "F8CB63", bold=True)
+
+
+def _render_search(ass, box, text):
+    _clear_bitmap_overlays()
+    box(90, 105, 1100, 510, "152337")
+    box(90, 105, 1100, 5, "F8CB63")
+    text(125, 130, "SEARCH MOVIES & SHOWS", 30, "FFFFFF", bold=True)
+    box(125, 190, 1030, 62, "F8CB63")
+    box(129, 194, 1022, 54, "081626")
+    text(148, 205, (_search_query or "TYPE WITH THE AIR MOUSE") + "_", 27,
+         "FFFFFF" if _search_query else "8E9EAF", clip=(144, 198, 1138, 248))
+    for row, keys in enumerate(SEARCH_KEYS):
+        for col, key in enumerate(keys):
+            x, y = 130 + col * 102, 290 + row * 68
+            selected = row == _search_row and col == _search_col
+            box(x, y, 90, 54, "F8CB63" if selected else "283C56")
+            box(x + 3, y + 3, 84, 48, "17304B" if selected else "172338")
+            text(x + 30, y + 10, key if key != " " else "␣", 27,
+                 "FFFFFF" if selected else "D5E2EE", bold=selected)
+    text(125, 580, "OK TYPE  •  ← DELETE  •  ✓ SEARCH  •  BACK CANCEL", 19, "F8CB63", bold=True)
+    box(40, 640, 1200, 54, "121824")
+    text(56, 656, "AIR MOUSE: D-PAD TO CHOOSE LETTERS, OK TO TYPE   •   KEYBOARD TYPING ALSO WORKS", 16, "F8CB63", bold=True)
 
 
 def _render_show(ass, box, text):
