@@ -10,6 +10,66 @@ let leagueAudio = null;
 let leagueLoading = false;
 let leagueSelectedGame = null;
 let leagueTimezone = 'America/New_York';
+let leagueObservedPlay = '';
+let leagueEventTimer = null;
+
+function leagueScoringType(play, sport) {
+  const text = String(play?.text || '').trim().toLowerCase();
+  const kind = String(play?.type || '').toLowerCase();
+  if (kind.includes('touchdown') || text.includes('touchdown')) return 'TOUCHDOWN';
+  if (kind.includes('field goal') && play?.scoringPlay) return 'FIELD GOAL';
+  if (text.startsWith('goal!') || (['soccer', 'hockey'].includes(sport) && kind.includes('goal') && play?.scoringPlay)) return 'GOAL';
+  if (kind.includes('home run') || text.includes('home run')) return 'HOME RUN';
+  if (play?.scoringPlay) return sport === 'soccer' || sport === 'hockey' ? 'GOAL' : 'SCORE';
+  return '';
+}
+
+function leagueClearEvent() {
+  clearTimeout(leagueEventTimer);
+  document.getElementById('leagueEvent').hidden = true;
+  document.getElementById('leagueBroadcast').classList.remove('celebrating');
+}
+
+function leagueCelebrate(play, sport) {
+  const type = leagueScoringType(play, sport);
+  if (!type) return;
+  leagueClearEvent();
+  leagueText('leagueEventType', type);
+  leagueText('leagueEventKicker', '● LIVE SCORING PLAY');
+  leagueText('leagueEventText', play.text || 'The score has changed.');
+  document.getElementById('leagueEvent').hidden = false;
+  document.getElementById('leagueBroadcast').classList.add('celebrating');
+  leagueEventTimer = setTimeout(leagueClearEvent, 5200);
+}
+
+function leagueShowRecap(recap) {
+  const panel = document.getElementById('leagueRecap');
+  panel.hidden = !recap;
+  if (!recap) return;
+  leagueText('leagueRecapHeadline', recap.headline);
+  leagueText('leagueRecapResult', recap.result);
+  const highlights = document.getElementById('leagueRecapHighlights');
+  highlights.className = 'league-recap-highlights';
+  highlights.replaceChildren();
+  for (const play of recap.highlights || []) {
+    const row = document.createElement('div');
+    row.className = 'league-recap-highlight';
+    const label = document.createElement('b');
+    label.textContent = `${play.label} ${play.clock || ''}`;
+    const description = play.text || '';
+    const short = description.length > 125 ? `${description.slice(0, 122).trimEnd()}…` : description;
+    row.append(label, document.createTextNode(short));
+    highlights.append(row);
+  }
+  const leader = document.getElementById('leagueRecapLeader');
+  leader.className = 'league-recap-leader';
+  leader.replaceChildren();
+  if (recap.leader) {
+    const name = document.createElement('b');
+    name.textContent = recap.leader.name;
+    leader.append(`${recap.leader.category}: `, name, ` · ${recap.leader.stat}`);
+  }
+}
 
 function updateLeagueCountdown() {
   const game = leagueSelectedGame;
@@ -74,10 +134,13 @@ async function leagueRenderGame() {
   const game = leagueGames[leagueGameIndex];
   leagueSelectedGame = game || null;
   if (!game) {
+    leagueClearEvent();
+    leagueShowRecap(null);
     leagueCurrentKey = '';
     leagueLatestPlay = '';
     leagueNewestKey = '';
     leagueSpokenPlay = '';
+    leagueObservedPlay = '';
     if (leagueAudio) leagueAudio.pause();
     leagueText('leagueAwayName', 'AWAY');
     leagueText('leagueHomeName', 'HOME');
@@ -118,10 +181,13 @@ async function leagueRenderGame() {
   leagueText('leagueVenue', (game.venue || {}).name || '');
   document.getElementById('leagueLive').classList.toggle('on', !!status.isLive);
   if (key !== leagueCurrentKey) {
+    leagueClearEvent();
+    leagueShowRecap(null);
     leagueCurrentKey = key;
     leagueLatestPlay = '';
     leagueNewestKey = '';
     leagueSpokenPlay = '';
+    leagueObservedPlay = '';
   }
   try {
     const route = `${encodeURIComponent(game.league)}/${encodeURIComponent(game.id)}`;
@@ -134,6 +200,8 @@ async function leagueRenderGame() {
     const field = await fieldResponse.json();
     if (key !== leagueCurrentKey) return;
     document.getElementById('leagueField').innerHTML = field.svg || '<span>Field view unavailable</span>';
+    leagueShowRecap(status.isFinal ? detail.recap || null : null);
+    if (status.isFinal) leagueClearEvent();
     const plays = detail.visualPlays || detail.plays || [];
     leagueText('leaguePlayCount', `${plays.length} PLAYS`);
     const list = document.getElementById('leaguePlayList');
@@ -151,10 +219,18 @@ async function leagueRenderGame() {
     }
     const newest = plays.at(-1);
     const playKey = newest ? leaguePlayKey(newest) : '';
-    leagueLatestPlay = newest && newest.text || '';
-    leagueNewestKey = playKey;
-    if (status.isLive && leagueSpeechEnabled && playKey && playKey !== leagueSpokenPlay) {
-      leagueSpokenPlay = playKey;
+    const previousIndex = leagueObservedPlay ? plays.findIndex(play => leaguePlayKey(play) === leagueObservedPlay) : -1;
+    const newPlays = previousIndex >= 0 ? plays.slice(previousIndex + 1) : newest ? [newest] : [];
+    const scorePlay = status.isLive ? [...newPlays].reverse().find(play => leagueScoringType(play, game.sport)) : null;
+    if (scorePlay) leagueCelebrate(scorePlay, game.sport);
+    leagueObservedPlay = playKey;
+    const recapText = detail.recap ? `${detail.recap.result} ${(detail.recap.highlights || [])[0]?.text || ''}`.trim() : '';
+    leagueLatestPlay = status.isFinal ? recapText : newest && newest.text || '';
+    leagueNewestKey = status.isFinal ? `recap:${key}` : scorePlay ? leaguePlayKey(scorePlay) : playKey;
+    leagueText('leagueSpeak', leagueSpeechEnabled ? '🔊 ANNOUNCER ON' : status.isFinal ? '🔊 READ RECAP' : '🔊 READ PLAYS');
+    if ((status.isLive || status.isFinal) && leagueSpeechEnabled && leagueNewestKey && leagueNewestKey !== leagueSpokenPlay) {
+      leagueSpokenPlay = leagueNewestKey;
+      if (scorePlay) leagueLatestPlay = scorePlay.text || leagueLatestPlay;
       leagueSpeak(leagueLatestPlay);
     }
   } catch (error) {
@@ -201,7 +277,7 @@ function initLeagueBroadcast(league, timezone) {
   document.getElementById('leagueNext').addEventListener('click', () => switchGame(1));
   document.getElementById('leagueSpeak').addEventListener('click', () => {
     leagueSpeechEnabled = !leagueSpeechEnabled;
-    leagueText('leagueSpeak', leagueSpeechEnabled ? '🔊 ANNOUNCER ON' : '🔇 READ PLAYS');
+    leagueText('leagueSpeak', leagueSpeechEnabled ? '🔊 ANNOUNCER ON' : leagueSelectedGame?.status?.isFinal ? '🔊 READ RECAP' : '🔊 READ PLAYS');
     if (leagueSpeechEnabled && leagueLatestPlay) {
       leagueSpokenPlay = leagueNewestKey;
       leagueSpeak(leagueLatestPlay);

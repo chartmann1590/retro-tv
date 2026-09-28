@@ -719,7 +719,12 @@ def api_sports_scores():
 def api_sports_game(league, game_id):
     import sports
     sport = request.args.get("sport")
-    return jsonify(sports.get_game_detail(league, game_id, sport=sport))
+    detail = sports.get_game_detail(league, game_id, sport=sport)
+    game = next((item for item in sports.get_all_scores().get("games", [])
+                 if item.get("league") == league and str(item.get("id")) == game_id), None)
+    if game and (game.get("status") or {}).get("isFinal"):
+        detail = {**detail, "recap": sports.build_game_recap(game, detail)}
+    return jsonify(detail)
 
 @app.route("/api/sports/field/<sport>/<league>/<game_id>")
 def api_sports_field(sport, league, game_id):

@@ -14,6 +14,7 @@ import math
 import os
 import re
 import subprocess
+import textwrap
 import threading
 import time
 import wave
@@ -518,6 +519,35 @@ def _build_game_cards(games, out_dir):
                        f"{status.get('shortDetail') or status.get('detail') or 'Game coverage'}")[:130],
             "html": body
         })
+        if is_final:
+            recap = sports.build_game_recap(g, detail)
+            highlights = "".join(
+                f'<div style="display:flex;gap:16px;padding:10px 15px;background:#142b46;border-left:4px solid {COLORS["hi"]};font-size:18px;line-height:1.3">'
+                f'<strong style="min-width:125px;color:{COLORS["hi"]}">{html.escape(item["label"])} {html.escape(str(item["clock"]))}</strong>'
+                f'<span>{html.escape(textwrap.shorten(item["text"], width=135, placeholder="…"))}</span></div>'
+                for item in recap["highlights"])
+            leader = recap.get("leader")
+            leader_line = (f'{html.escape(leader["category"])}: <strong>{html.escape(leader["name"])}</strong> · '
+                           f'{html.escape(leader["stat"])}' if leader else "Final score and decisive moments")
+            recap_body = f"""
+            <div class="top-bar"><div class="brand"><span class="brand-logo">RETRO<span>SPORTS</span></span>
+              <span class="badge-tag">FINAL RECAP</span></div><span class="clock">{html.escape(league_name)}</span></div>
+            <div style="height:172px;display:flex;align-items:center;justify-content:space-between;padding:16px 55px;background:#0b1d32;border-bottom:3px solid {COLORS['hi']}">
+              <div style="display:flex;align-items:center;gap:14px;width:42%">{away_logo_html.replace('48px', '80px')}
+                <strong style="font-size:28px">{html.escape(away.get('shortDisplayName') or away.get('displayName') or 'Away')}</strong></div>
+              <div style="font-size:64px;font-weight:900;color:{COLORS['hi']};white-space:nowrap">{html.escape(str(recap['awayScore']))} – {html.escape(str(recap['homeScore']))}</div>
+              <div style="display:flex;align-items:center;justify-content:flex-end;gap:14px;width:42%;text-align:right">
+                <strong style="font-size:28px">{html.escape(home.get('shortDisplayName') or home.get('displayName') or 'Home')}</strong>{home_logo_html.replace('48px', '80px')}</div>
+            </div>
+            <div style="padding:22px 55px 0;font-size:40px;font-weight:900;color:white">{html.escape(recap['headline'])}</div>
+            <div style="padding:8px 55px 18px;font-size:21px;color:#c7d7e7">{html.escape(recap['result'])}</div>
+            <div style="padding:0 55px;display:flex;flex-direction:column;gap:7px">{highlights}</div>
+            <div style="position:absolute;bottom:55px;left:55px;color:#b5cbe1;font-size:18px">{leader_line}</div>
+            <div class="ticker-bar"><span class="ticker-lead">GAME RECAP</span><span>FINAL · ARENAPULSE PLAY-BY-PLAY</span></div>
+            """
+            cards.append({"name": f"Recap_{i}", "voice": voice, "html": recap_body,
+                          "narration": recap["result"] + " " + (recap["highlights"][-1]["text"] if recap["highlights"] else ""),
+                          "speech": recap["result"][:130]})
     return cards
 
 
@@ -635,7 +665,8 @@ def refresh_sports_channel():
         live = [g for g in league_games if (g.get("status") or {}).get("isLive")]
         upcoming = [g for g in league_games if (g.get("status") or {}).get("isScheduled")]
         final = [g for g in league_games if (g.get("status") or {}).get("isFinal")]
-        featured = (live + upcoming + final)[:2]
+        # Keep the HDMI field card and live lower third on the same matchup.
+        featured = live[:1] if live else (upcoming + final)[:2]
         league_dir = os.path.join(out_dir, "leagues", league_id)
         loop_path = os.path.join(league_dir, "loop.mp4")
         signature = json.dumps(featured, sort_keys=True, default=str)

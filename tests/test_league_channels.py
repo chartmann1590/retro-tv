@@ -9,6 +9,7 @@ import config
 import database
 import livesports
 import scheduler
+import sports
 import tvcountdown
 from app import app
 
@@ -102,6 +103,59 @@ class LeagueChannelTests(unittest.TestCase):
             tts.assert_called_once()
             self.assertEqual(loop.call_args.args[2], 600)
             self.assertEqual(upsert.call_args.kwargs["airing_seconds"], 300)
+
+    def test_scoring_moment_only_animates_new_plays(self):
+        game = {"sport": "football", "awayTeam": {"score": 7}, "homeTeam": {"score": 0}}
+        play = {"id": "touchdown", "text": "Rushing TOUCHDOWN", "type": "Rushing Touchdown",
+                "scoringPlay": True}
+        detail = {"visualPlays": [{"id": "old", "text": "Run"}, play]}
+        event, score, newest = tvcountdown.scoring_moment(game, detail, (0, 0), "old")
+        self.assertEqual(event["type"], "TOUCHDOWN")
+        self.assertEqual((score, newest), ((7, 0), "touchdown"))
+        self.assertIsNone(tvcountdown.scoring_moment(game, detail, score, newest)[0])
+        self.assertEqual(sports.play_event_type({"text": "Goal! Liverpool score", "scoringPlay": False}, "soccer"), "GOAL")
+        self.assertIsNone(sports.play_event_type({"text": "Shot saved in front of goal", "scoringPlay": False}, "soccer"))
+        self.assertEqual(sports.play_event_type({"type": "Field Goal Good", "scoringPlay": True}, "football"), "FIELD GOAL")
+
+    def test_final_recap_uses_score_highlights_and_leader(self):
+        game = {"id": "final", "league": "nfl", "sport": "football",
+                "status": {"isFinal": True},
+                "awayTeam": {"displayName": "Eagles", "score": 21},
+                "homeTeam": {"displayName": "Bears", "score": 14},
+                "leaders": [{"displayName": "Rushing Leader", "leaders": [
+                    {"athlete": {"name": "Alex Runner"}, "displayValue": "120 YDS"}]}]}
+        detail = {"visualPlays": [
+            {"id": "1", "text": "Alex Runner 2 Yd Rush TOUCHDOWN", "type": "Rushing Touchdown",
+             "clock": "2:33", "scoringPlay": True},
+            {"id": "2", "text": "END GAME", "scoringPlay": False}]}
+        recap = sports.build_game_recap(game, detail)
+        self.assertIn("Eagles", recap["headline"])
+        self.assertIn("21–14", recap["result"])
+        self.assertEqual(recap["highlights"][0]["label"], "TOUCHDOWN")
+        self.assertEqual(recap["leader"]["name"], "Alex Runner")
+        with patch("livesports.sports.get_game_detail", return_value=detail), \
+             patch("livesports.sports.generate_field_svg", return_value="<svg>FIELD</svg>"):
+            cards = livesports._build_game_cards([game], self.temp.name)
+        self.assertEqual(len(cards), 2)
+        self.assertIn("FINAL RECAP", cards[1]["html"])
+        self.assertIn("TOUCHDOWN", cards[1]["html"])
+        with patch("sports.get_game_detail", return_value=detail), \
+             patch("sports.get_all_scores", return_value={"games": [game]}):
+            response = app.test_client().get("/api/sports/game/nfl/final?sport=football")
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json["recap"]["leader"]["name"], "Alex Runner")
+
+    def test_hdmi_live_field_tracks_one_featured_game(self):
+        games = [{"id": "one", "league": "nfl", "status": {"isLive": True}},
+                 {"id": "two", "league": "nfl", "status": {"isLive": True}}]
+        with patch("livesports.sports.get_all_scores", return_value={"games": games}), \
+             patch("livesports.sports.get_leagues", return_value=[{"id": "nfl", "name": "NFL"}]), \
+             patch("livesports._refresh_center", return_value=600), \
+             patch("livesports._build_game_cards", return_value=[{"html": "card"}]) as build, \
+             patch("livesports._render_channel_cards"), \
+             patch("livesports.scheduler.ensure_schedules"):
+            livesports.refresh_sports_channel()
+        self.assertEqual([game["id"] for game in build.call_args.args[0]], ["one"])
 
     def test_scores_outage_preserves_existing_broadcasts(self):
         with patch("livesports.sports.get_all_scores", return_value={"games": [], "_unavailable": True}), \
