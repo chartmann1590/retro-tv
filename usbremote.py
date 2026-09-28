@@ -156,8 +156,10 @@ class Controller:
         import tvguide
         import tvvod
         import tvsports
+        import tvgames
         tvvod.close_vod()
         tvsports.close_sports()
+        tvgames.close_picker()
         tvguide.close()
         result = playback.tune(channel, reason='api')
         if not result.get('ok'):
@@ -170,6 +172,8 @@ class Controller:
         import tvguide
         import tvvod
         import tvsports
+        import tvgames
+        import livesports
         now = time.monotonic() if now is None else now
         if action.isdigit():
             self.digits = (self.digits + action)[-3:]
@@ -195,8 +199,15 @@ class Controller:
             tvvod.nav('select' if action == 'OK' else action.lower())
         elif action in ('UP', 'DOWN', 'LEFT', 'RIGHT', 'OK', 'BACK') and tvsports.is_visible():
             tvsports.nav('select' if action == 'OK' else action.lower())
+        elif action in ('UP', 'DOWN', 'LEFT', 'RIGHT', 'OK', 'BACK') and tvgames.is_visible():
+            tvgames.navigate('select' if action == 'OK' else action.lower())
         elif action in ('UP', 'DOWN', 'LEFT', 'RIGHT', 'OK', 'BACK') and tvguide.is_visible():
             tvguide.navigate(action.lower())
+        elif action == 'OK' and livesports.league_for_channel(playback._current.get('channel')):
+            tvgames.open_picker()
+        elif action == 'BACK' and livesports.league_for_channel(playback._current.get('channel')) \
+                and livesports.pinned_game(playback._current.get('channel')):
+            tvgames.unpin_game(playback._current['channel'])
         elif action == 'SPORTS':
             tvvod.close_vod()
             tvguide.close()

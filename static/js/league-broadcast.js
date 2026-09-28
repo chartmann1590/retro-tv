@@ -12,6 +12,7 @@ let leagueSelectedGame = null;
 let leagueTimezone = 'America/New_York';
 let leagueObservedPlay = '';
 let leagueEventTimer = null;
+let leagueTvChannel = null;
 
 function leagueScoringType(play, sport) {
   const text = String(play?.text || '').trim().toLowerCase();
@@ -39,7 +40,7 @@ function leagueCelebrate(play, sport) {
   leagueText('leagueEventText', play.text || 'The score has changed.');
   document.getElementById('leagueEvent').hidden = false;
   document.getElementById('leagueBroadcast').classList.add('celebrating');
-  leagueEventTimer = setTimeout(leagueClearEvent, 5200);
+  leagueEventTimer = setTimeout(leagueClearEvent, 15000);
 }
 
 function leagueShowRecap(recap) {
@@ -134,6 +135,7 @@ async function leagueRenderGame() {
   const game = leagueGames[leagueGameIndex];
   leagueSelectedGame = game || null;
   if (!game) {
+    document.getElementById('leagueWatchTv').disabled = true;
     leagueClearEvent();
     leagueShowRecap(null);
     leagueCurrentKey = '';
@@ -162,6 +164,8 @@ async function leagueRenderGame() {
     return;
   }
   const key = `${game.league}:${game.id}`;
+  document.getElementById('leagueWatchTv').disabled = false;
+  leagueText('leagueWatchTv', '▶ WATCH GAME ON TV');
   const away = game.awayTeam || {};
   const home = game.homeTeam || {};
   const status = game.status || {};
@@ -263,8 +267,9 @@ async function leagueRefresh(league) {
   }
 }
 
-function initLeagueBroadcast(league, timezone) {
+function initLeagueBroadcast(league, timezone, channel) {
   leagueTimezone = timezone || leagueTimezone;
+  leagueTvChannel = channel;
   const video = document.getElementById('v');
   video.muted = true;
   document.getElementById('watchMute').textContent = 'UNMUTE';
@@ -282,6 +287,24 @@ function initLeagueBroadcast(league, timezone) {
       leagueSpokenPlay = leagueNewestKey;
       leagueSpeak(leagueLatestPlay);
     } else if (leagueAudio) leagueAudio.pause();
+  });
+  document.getElementById('leagueWatchTv').addEventListener('click', async () => {
+    const game = leagueSelectedGame;
+    if (!game || leagueTvChannel == null) return;
+    leagueText('leagueWatchTv', 'PREPARING TV…');
+    try {
+      const response = await fetch('/api/tv-games', {
+        method: 'POST', headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({action: 'pin', channel: leagueTvChannel, game_id: game.id})
+      });
+      const result = await response.json();
+      if (!response.ok || !result.ok) throw new Error(result.error || 'Game selection failed');
+      leagueText('leagueUpdated', `${game.awayTeam?.abbreviation || 'AWAY'} @ ${game.homeTeam?.abbreviation || 'HOME'} selected for TV`);
+      leagueText('leagueWatchTv', '✓ GAME SELECTED');
+    } catch (error) {
+      leagueText('leagueUpdated', error.message);
+      leagueText('leagueWatchTv', '▶ WATCH GAME ON TV');
+    }
   });
   document.addEventListener('visibilitychange', () => {if (!document.hidden) leagueRefresh(league);});
   leagueRefresh(league);

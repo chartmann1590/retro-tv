@@ -575,6 +575,11 @@ def api_tune():
             tvsports.close_sports()
         except Exception:
             pass
+        try:
+            import tvgames
+            tvgames.close_picker()
+        except Exception:
+            pass
     if res.get("entry"):
         e = res["entry"]
         res["entry_fmt"] = fmt_range(e["start_ts"], e["end_ts"]) if e.get("start_ts") else ""
@@ -808,6 +813,42 @@ def api_tv_sports_status():
     import tvsports
     return jsonify(tvsports.get_status())
 
+
+@app.route("/api/tv-games", methods=["POST"])
+def api_tv_games():
+    import tvgames
+    data = request.get_json(silent=True) or {}
+    action = data.get("action", "open")
+    try:
+        channel = int(data["channel"]) if data.get("channel") is not None else playback._current.get("channel")
+    except (TypeError, ValueError):
+        return jsonify({"ok": False, "error": "Invalid channel"}), 400
+    if action == "open":
+        result = tvgames.open_picker(channel)
+    elif action == "close":
+        result = tvgames.close_picker()
+    elif action == "pin":
+        result = tvgames.pin_game(channel, data.get("game_id"), force_tune=True)
+    elif action == "unpin":
+        result = tvgames.unpin_game(channel)
+    else:
+        return jsonify({"ok": False, "error": "Invalid action"}), 400
+    return jsonify(result), 200 if result.get("ok") else 400
+
+
+@app.route("/api/tv-games/nav", methods=["POST"])
+def api_tv_games_nav():
+    import tvgames
+    action = (request.get_json(silent=True) or {}).get("action", "select")
+    result = tvgames.navigate(action)
+    return jsonify(result), 200 if result.get("ok") else 400
+
+
+@app.route("/api/tv-games/status")
+def api_tv_games_status():
+    import tvgames
+    return jsonify(tvgames.get_status())
+
 @app.route("/api/weather")
 def api_weather():
     import livecontent
@@ -826,7 +867,9 @@ def api_hdmi():
     import tvguide
     import tvvod
     import tvsports
-    st.update(tv_guide=tvguide.get_status(), tv_vod=tvvod.get_status(), tv_sports=tvsports.get_status())
+    import tvgames
+    st.update(tv_guide=tvguide.get_status(), tv_vod=tvvod.get_status(),
+              tv_sports=tvsports.get_status(), tv_games=tvgames.get_status())
     is_vod = st.get("is_vod", False)
     vod_info = st.get("vod_info")
     if is_vod:

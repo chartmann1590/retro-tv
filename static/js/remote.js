@@ -1,6 +1,6 @@
 let CUR_CH=null, PREV_CH=null, digits='', digitT, VOL=80, MUTED=false, CC=false, CHANNELS=[], commandQueue=Promise.resolve();
 let guideOpen=false, gT0=0, gData=[], gSel={r:0,c:0}, favOnly=false, SEARCH_RESULTS=[], searchT;
-let vodOpen=false, IS_VOD_PLAYING=false, sportsOpen=false;
+let vodOpen=false, IS_VOD_PLAYING=false, sportsOpen=false, gamesOpen=false, gameLeague=null;
 function command(action){commandQueue=commandQueue.then(action).catch(e=>notify(e.message));return commandQueue;}
 async function initRemote(){
   document.getElementById('digits').innerHTML=[1,2,3,4,5,6,7,8,9,'CLR',0,'GO'].map(d=>`<button class="${typeof d==='number'?'number-key':'ghost'}" onclick="digit('${d}')" aria-label="${d==='CLR'?'Clear channel number':d==='GO'?'Tune entered channel':'Digit '+d}">${d}</button>`).join('');
@@ -11,7 +11,12 @@ async function refreshNow(){
   try{
     const h=await tvApi('/api/hdmi');
     document.getElementById('connection').textContent='● CONNECTED';
-    vodOpen=!!h.tv_vod?.visible;guideOpen=!!h.tv_guide?.visible;sportsOpen=!!h.tv_sports?.visible;
+    vodOpen=!!h.tv_vod?.visible;guideOpen=!!h.tv_guide?.visible;sportsOpen=!!h.tv_sports?.visible;gamesOpen=!!h.tv_games?.visible;
+    gameLeague=h.tv_games?.league||null;
+    const gameControls=document.getElementById('gameControls');
+    gameControls.hidden=!gameLeague;
+    document.getElementById('gamesButton').textContent=gamesOpen?'CLOSE GAMES':'PICK A GAME';
+    document.getElementById('unpinGameButton').hidden=!h.tv_games?.pinned_game_id;
     IS_VOD_PLAYING=!!h.is_vod;
     if(!h.is_vod){CUR_CH=h.channel;PREV_CH=h.prev_channel;}
     document.body.classList.toggle('vod-mode',vodOpen);
@@ -21,6 +26,7 @@ async function refreshNow(){
     const sb=document.getElementById('sportsButton');if(sb)sb.textContent=sportsOpen?'EXIT SPORTS':'SPORTS';
     setGuideButtonLabel(guideOpen?'EXIT GUIDE':'GUIDE');
     showVol(h);
+    if(gamesOpen){updateGamesLcd(h.tv_games);return;}
     if(sportsOpen){updateSportsLcd(h.tv_sports);return;}
     if(vodOpen){updateVodLcd(h.tv_vod);return;}
     if(guideOpen){
@@ -71,6 +77,7 @@ function prevCh(){
   return command(async()=>{
     if(vodOpen){await sendTvVodNav('back');return;}
     if(sportsOpen){await sendTvSportsNav('back');return;}
+    if(gamesOpen){await sendTvGamesNav('back');return;}
     if(PREV_CH!=null)return tuneNow(PREV_CH);
     notify('No previous channel yet.');
   });
@@ -197,11 +204,11 @@ async function closeGuideNow(){
   }catch(e){}
   await refreshNow();
 }
-function dpadUp(){return command(async()=>{await refreshNow();if(vodOpen)await sendTvVodNav('up');else if(sportsOpen)await sendTvSportsNav('up');else if(guideOpen)await moveGuideCh(-1);else await chStepNow(1);});}
-function dpadDown(){return command(async()=>{await refreshNow();if(vodOpen)await sendTvVodNav('down');else if(sportsOpen)await sendTvSportsNav('down');else if(guideOpen)await moveGuideCh(1);else await chStepNow(-1);});}
-function dpadLeft(){return command(async()=>{await refreshNow();if(vodOpen)await sendTvVodNav('left');else if(sportsOpen)await sendTvSportsNav('left');else if(guideOpen)await moveGuideCell(-1);});}
-function dpadRight(){return command(async()=>{await refreshNow();if(vodOpen)await sendTvVodNav('right');else if(sportsOpen)await sendTvSportsNav('right');else if(guideOpen)await moveGuideCell(1);});}
-function dpadOk(){return command(async()=>{await refreshNow();if(vodOpen)await sendTvVodNav('select');else if(sportsOpen)await sendTvSportsNav('select');else if(guideOpen)await selectGuideNow();});}
+function dpadUp(){return command(async()=>{await refreshNow();if(gamesOpen)await sendTvGamesNav('up');else if(vodOpen)await sendTvVodNav('up');else if(sportsOpen)await sendTvSportsNav('up');else if(guideOpen)await moveGuideCh(-1);else await chStepNow(1);});}
+function dpadDown(){return command(async()=>{await refreshNow();if(gamesOpen)await sendTvGamesNav('down');else if(vodOpen)await sendTvVodNav('down');else if(sportsOpen)await sendTvSportsNav('down');else if(guideOpen)await moveGuideCh(1);else await chStepNow(-1);});}
+function dpadLeft(){return command(async()=>{await refreshNow();if(gamesOpen)await sendTvGamesNav('left');else if(vodOpen)await sendTvVodNav('left');else if(sportsOpen)await sendTvSportsNav('left');else if(guideOpen)await moveGuideCell(-1);});}
+function dpadRight(){return command(async()=>{await refreshNow();if(gamesOpen)await sendTvGamesNav('right');else if(vodOpen)await sendTvVodNav('right');else if(sportsOpen)await sendTvSportsNav('right');else if(guideOpen)await moveGuideCell(1);});}
+function dpadOk(){return command(async()=>{await refreshNow();if(gamesOpen)await sendTvGamesNav('ok');else if(vodOpen)await sendTvVodNav('select');else if(sportsOpen)await sendTvSportsNav('select');else if(guideOpen)await selectGuideNow();else if(gameLeague)await openGamesNow();});}
 async function chStepNow(d){if(!CHANNELS.length)await refreshChs();const n=CHANNELS.map(c=>c.number);if(!n.length)return;const i=n.indexOf(CUR_CH);await tuneNow(n[i<0?0:(i+d+n.length)%n.length]);}
 async function sendGuideNav(action){
   const result=await tvApi('/api/tv-guide/nav',{action});
@@ -211,6 +218,31 @@ async function sendGuideNav(action){
 async function moveGuideCh(d){await sendGuideNav(d<0?'up':'down');}
 async function moveGuideCell(d){await sendGuideNav(d<0?'left':'right');}
 async function selectGuideNow(){await sendGuideNav('ok');}
+
+function updateGamesLcd(st){
+  document.getElementById('ncCh').textContent=String(st.channel??'--').padStart(2,'0');
+  document.getElementById('ncTitle').textContent=st.loading?'Preparing selected game…':st.selected_title||'Pick a game';
+  document.getElementById('ncSub').textContent=st.loading?'Field, plays, and narration are loading':`Game ${st.total?st.index+1:0} of ${st.total||0} · Press OK to watch`;
+  document.getElementById('ncLive').textContent='GAMES';
+}
+async function openGamesNow(){
+  const res=await tvApi('/api/tv-games',{action:'open'});
+  if(!res.ok)throw Error(res.error||'Could not open game picker');
+  await refreshNow();
+  notify('Choose a game on the TV and press OK to keep watching it.');
+}
+function toggleGames(){return command(async()=>{await refreshNow();if(gamesOpen)await tvApi('/api/tv-games',{action:'close'});else await openGamesNow();await refreshNow();});}
+async function sendTvGamesNav(action){
+  const res=await tvApi('/api/tv-games/nav',{action});
+  if(!res.ok)throw Error(res.error||'Game picker is unavailable');
+  await refreshNow();
+  if(res.status==='preparing')notify('Preparing your game on TV…');
+}
+function unpinGame(){return command(async()=>{
+  const res=await tvApi('/api/tv-games',{action:'unpin',channel:CUR_CH});
+  if(!res.ok)throw Error(res.error||'Could not resume game rotation');
+  await refreshNow();notify('Returning this channel to game rotation.');
+});}
 
 // ---- On-Demand (VOD) On-TV Control ----
 function toggleVod(){

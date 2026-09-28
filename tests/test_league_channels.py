@@ -48,8 +48,9 @@ class LeagueChannelTests(unittest.TestCase):
         page = app.test_client().get(f"/watch/{first[0]['number']}")
         self.assertEqual(page.status_code, 200)
         self.assertIn(b"league-broadcast.js", page.data)
-        self.assertIn(b"initLeagueBroadcast(\"nfl\", \"America/New_York\")", page.data)
+        self.assertIn(f'initLeagueBroadcast("nfl", "America/New_York", {first[0]["number"]})'.encode(), page.data)
         self.assertIn(b"leagueCountdown", page.data)
+        self.assertIn(b"leagueWatchTv", page.data)
 
     def test_upcoming_start_time_and_countdown(self):
         game = {"date": "2026-09-29T00:15Z", "status": {"isScheduled": True}}
@@ -156,6 +157,50 @@ class LeagueChannelTests(unittest.TestCase):
              patch("livesports.scheduler.ensure_schedules"):
             livesports.refresh_sports_channel()
         self.assertEqual([game["id"] for game in build.call_args.args[0]], ["one"])
+
+    def test_pinned_game_stays_featured_when_other_games_are_live(self):
+        channel = livesports.ensure_league_channels([{"id": "nfl", "name": "NFL"}])[0]["number"]
+        games = [{"id": "one", "league": "nfl", "status": {"isLive": True}},
+                 {"id": "two", "league": "nfl", "status": {"isLive": True}}]
+        livesports.set_pinned_game(channel, "two")
+        self.assertEqual(livesports.pinned_game(channel), "two")
+        with patch("livesports._build_game_cards", return_value=[{"html": "card"}]) as build, \
+             patch("livesports._render_channel_cards"):
+            self.assertTrue(livesports._refresh_league_channel({"id": "nfl", "name": "NFL"}, games,
+                                                                 300, self.temp.name, force=True))
+        self.assertEqual([game["id"] for game in build.call_args.args[0]], ["two"])
+
+    def test_game_picker_selects_and_persists_arena_game(self):
+        import tvgames
+        channel = livesports.ensure_league_channels([{"id": "nfl", "name": "NFL"}])[0]["number"]
+        games = [{"id": "one", "league": "nfl", "date": "2026-09-28T20:00Z",
+                  "status": {"isScheduled": True}, "awayTeam": {"abbreviation": "A"},
+                  "homeTeam": {"abbreviation": "B"}},
+                 {"id": "two", "league": "nfl", "date": "2026-09-28T19:00Z",
+                  "status": {"isLive": True}, "awayTeam": {"abbreviation": "C"},
+                  "homeTeam": {"abbreviation": "D"}}]
+        with patch("tvgames.sports.get_all_scores", return_value={"games": games}), \
+             patch("tvgames._send", return_value=True), \
+             patch("tvguide.close"), patch("tvsports.close_sports"), patch("tvvod.close_vod"), \
+             patch("tvgames.threading.Thread") as worker:
+            opened = tvgames.open_picker(channel)
+            self.assertTrue(opened["ok"])
+            self.assertEqual(opened["selected_game_id"], "two")
+            result = tvgames.navigate("ok")
+            self.assertTrue(result["ok"])
+            self.assertEqual(livesports.pinned_game(channel), "two")
+            worker.assert_called_once()
+            tvgames.close_picker()
+
+    def test_cards_stay_on_screen_for_twenty_to_thirty_seconds(self):
+        with patch("livesports.scanner.probe_info", return_value={"duration": 4.0}), \
+             patch("livesports.subprocess.run") as run:
+            livesports._mux_card("card.png", "narration.wav", "card.mp4")
+            self.assertEqual(run.call_args.args[0][-2], "20.00")
+        with patch("livesports.scanner.probe_info", return_value={"duration": 27.0}), \
+             patch("livesports.subprocess.run") as run:
+            livesports._mux_card("card.png", "narration.wav", "card.mp4")
+            self.assertEqual(run.call_args.args[0][-2], "29.00")
 
     def test_scores_outage_preserves_existing_broadcasts(self):
         with patch("livesports.sports.get_all_scores", return_value={"games": [], "_unavailable": True}), \

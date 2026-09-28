@@ -42,6 +42,8 @@ COLORS = {
 }
 _last_center_refresh = 0
 _league_signatures = {}
+_league_render_locks = {}
+_league_render_lock = threading.Lock()
 
 
 def _deprioritized():
@@ -109,13 +111,13 @@ def _render_card_png(body_html, out_png, extra_css=""):
 def _mux_card(image_path, audio_path, out_mp4):
     """Muxes card image and narration audio into a hardware-friendly H.264 MP4."""
     probe = scanner.probe_info(audio_path)
-    duration = probe.get("duration") or 5.0
+    duration = min(30.0, max(20.0, (probe.get("duration") or 5.0) + 2.0))
     subprocess.run(
         ["ffmpeg", "-y", "-filter_threads", "1", "-threads", "1",
          "-framerate", "2", "-loop", "1", "-i", image_path, "-i", audio_path,
          "-c:v", "libx264", "-threads:v", "1", "-preset", "ultrafast", "-tune", "stillimage",
          "-profile:v", "main", "-bf", "0", "-r", "2", "-pix_fmt", "yuv420p",
-         "-c:a", "aac", "-b:a", "128k", "-t", f"{duration + 0.4:.2f}", out_mp4],
+         "-af", "apad", "-c:a", "aac", "-b:a", "128k", "-t", f"{duration:.2f}", out_mp4],
         check=True, capture_output=True, timeout=120, preexec_fn=_deprioritized)
 
 
@@ -286,6 +288,29 @@ def league_for_channel(channel_number):
         return row["source_value"].split(" · ", 1)[1] if row else None
     finally:
         con.close()
+
+
+def channel_for_league(league_id):
+    con = database.connect()
+    try:
+        row = con.execute("""SELECT channel_number FROM channel_sources WHERE source_type='show'
+            AND source_value=?""", (f"Retro Sports · {league_id}",)).fetchone()
+        return row["channel_number"] if row else None
+    finally:
+        con.close()
+
+
+def pinned_game(channel_number):
+    return database.get_state(f"sports_pin_{channel_number}", "")
+
+
+def set_pinned_game(channel_number, game_id):
+    database.set_state(f"sports_pin_{channel_number}", str(game_id or ""))
+
+
+def _league_lock(league_id):
+    with _league_render_lock:
+        return _league_render_locks.setdefault(league_id, threading.Lock())
 
 
 def _upsert_sports_episode(path, show_name, title, description, airing_seconds=None):
@@ -632,6 +657,53 @@ def _league_slate_card(league):
             "narration": f"{league.get('name') or 'Sports'} coverage. No games are scheduled right now."}
 
 
+def _refresh_league_channel(league, games, refresh_sec, out_dir, force=False):
+    league_id = league.get("id") or league.get("league")
+    if not league_id or not re.fullmatch(r"[a-z0-9.-]+", league_id):
+        return False
+    with _league_lock(league_id):
+        league_games = [game for game in games if game.get("league") == league_id]
+        channel = channel_for_league(league_id)
+        pin = pinned_game(channel) if channel is not None else ""
+        selected = next((game for game in league_games if str(game.get("id")) == pin), None) if pin else None
+        if pin and not selected:
+            log.warning("Pinned %s game %s is absent from ArenaPulse scores; retaining broadcast", league_id, pin)
+            return False
+        live = [game for game in league_games if (game.get("status") or {}).get("isLive")]
+        upcoming = [game for game in league_games if (game.get("status") or {}).get("isScheduled")]
+        final = [game for game in league_games if (game.get("status") or {}).get("isFinal")]
+        featured = [selected] if selected else live[:1] if live else (upcoming + final)[:2]
+        league_dir = os.path.join(out_dir, "leagues", league_id)
+        loop_path = os.path.join(league_dir, "loop.mp4")
+        signature = json.dumps(featured, sort_keys=True, default=str)
+        if not force and not live and _league_signatures.get(league_id) == signature and os.path.isfile(loop_path):
+            return True
+        os.makedirs(league_dir, exist_ok=True)
+        cards = _build_game_cards(featured, league_dir) if featured else [_league_slate_card(league)]
+        _render_channel_cards(cards, league_dir, f"Retro Sports · {league_id}",
+                              f"{league.get('name') or league_id} Live", refresh_sec)
+        _league_signatures[league_id] = signature
+        return True
+
+
+def refresh_selected_channel(channel_number):
+    """Build the chosen matchup immediately, then reload that channel on HDMI."""
+    league_id = league_for_channel(channel_number)
+    if not league_id:
+        return False
+    scores_data = sports.get_all_scores(force_refresh=True)
+    if scores_data.get("_unavailable"):
+        return False
+    league = next((item for item in sports.get_leagues() if item.get("id") == league_id),
+                  {"id": league_id, "name": league_id.upper()})
+    out_dir = os.path.join(config.LIVE_CONTENT_DIR, "sports")
+    ok = _refresh_league_channel(league, scores_data.get("games") or [],
+                                 config.SPORTS_REFRESH_SEC, out_dir, force=True)
+    if ok:
+        scheduler.ensure_schedules()
+    return ok
+
+
 def refresh_sports_channel():
     """Build every ArenaPulse league as a playable browser and HDMI TV channel."""
     global _last_center_refresh
@@ -658,28 +730,10 @@ def refresh_sports_channel():
             log.exception("Sports Center broadcast refresh failed")
 
     for league in leagues:
-        league_id = league.get("id") or league.get("league")
-        if not league_id or not re.fullmatch(r"[a-z0-9.-]+", league_id):
-            continue
-        league_games = [g for g in games if g.get("league") == league_id]
-        live = [g for g in league_games if (g.get("status") or {}).get("isLive")]
-        upcoming = [g for g in league_games if (g.get("status") or {}).get("isScheduled")]
-        final = [g for g in league_games if (g.get("status") or {}).get("isFinal")]
-        # Keep the HDMI field card and live lower third on the same matchup.
-        featured = live[:1] if live else (upcoming + final)[:2]
-        league_dir = os.path.join(out_dir, "leagues", league_id)
-        loop_path = os.path.join(league_dir, "loop.mp4")
-        signature = json.dumps(featured, sort_keys=True, default=str)
-        if not live and _league_signatures.get(league_id) == signature and os.path.isfile(loop_path):
-            continue
-        os.makedirs(league_dir, exist_ok=True)
-        cards = _build_game_cards(featured, league_dir) if featured else [_league_slate_card(league)]
         try:
-            _render_channel_cards(cards, league_dir, f"Retro Sports · {league_id}",
-                                  f"{league.get('name') or league_id} Live", refresh_sec)
-            _league_signatures[league_id] = signature
+            _refresh_league_channel(league, games, refresh_sec, out_dir)
         except Exception:
-            log.exception("League broadcast failed for %s", league_id)
+            log.exception("League broadcast failed for %s", league.get("id"))
 
     try:
         scheduler.ensure_schedules()

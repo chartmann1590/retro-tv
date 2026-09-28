@@ -136,6 +136,7 @@ def run_loop():
     import playback
     import sports
     import tvguide
+    import tvgames
     import tvsports
 
     last_channel = None
@@ -153,7 +154,8 @@ def run_loop():
         try:
             channel = playback._current.get("channel")
             league = livesports.league_for_channel(channel) if channel is not None else None
-            hidden = playback._current.get("is_vod") or tvguide.is_visible() or tvsports.is_visible()
+            hidden = (playback._current.get("is_vod") or tvguide.is_visible()
+                      or tvsports.is_visible() or tvgames.is_visible())
             if not league or hidden:
                 if showing:
                     _send(["osd-overlay", OVERLAY_ID, "none", ""])
@@ -171,6 +173,12 @@ def run_loop():
                 upcoming = sorted((game for game in games if game.get("league") == league
                                    and (game.get("status") or {}).get("isScheduled")),
                                   key=lambda game: game.get("date") or "")
+                pin = livesports.pinned_game(channel)
+                if pin:
+                    chosen = next((game for game in games if game.get("league") == league
+                                   and str(game.get("id")) == pin), None)
+                    live_games = [chosen] if chosen and (chosen.get("status") or {}).get("isLive") else []
+                    upcoming = [chosen] if chosen and (chosen.get("status") or {}).get("isScheduled") else []
                 if live_games:
                     game = live_games[0]
                     game_key = f"{league}:{game.get('id')}"
