@@ -66,17 +66,19 @@ def _current(game_key):
 
 
 def _audible(game_key):
-    return _current(game_key) and database.get_state("muted", "0") != "1"
+    return (_current(game_key) and database.get_state("muted", "0") != "1"
+            and int(database.get_state("volume", "80")) > 0)
 
 
 def _run():
-    global _playing, _last_text, _last_spoken_at, _last_error
+    global _thread, _playing, _last_text, _last_spoken_at, _last_error
     import playback
 
     while True:
         with _lock:
             if not _queue:
                 _playing = False
+                _thread = None
                 return
             game_key, narration, priority, serial = _queue.popleft()
         if not _audible(game_key):
@@ -84,6 +86,8 @@ def _run():
         path = None
         process = None
         ducked = False
+        previous_volume = None
+        duck_volume = None
         cancelled = False
         try:
             for attempt in range(2):
@@ -106,12 +110,18 @@ def _run():
             with tempfile.NamedTemporaryFile(prefix="retro-sports-play-", suffix=".wav", delete=False) as out:
                 out.write(audio)
                 path = out.name
-            command = ["pw-play", "--volume", str(max(0.01, min(1, int(database.get_state("volume", "80")) / 100))), path]
-            target = config.AUDIO_DEVICE.removeprefix("pipewire/") if config.AUDIO_DEVICE.startswith("pipewire/") else ""
+            volume = int(database.get_state("volume", "80"))
+            command = ["pw-play", "--volume", str(min(1, volume / 100)), path]
+            device = playback.audio_device()
+            target = device.removeprefix("pipewire/") if device.startswith("pipewire/") else ""
             if target:
                 command[1:1] = ["--target", target]
-            playback._ipc(["set_property", "volume", 15])
-            ducked = True
+            current = playback._ipc(["get_property", "volume"])
+            if current.get("error") == "success":
+                previous_volume = float(current["data"])
+                duck_volume = min(15, previous_volume, volume)
+                if duck_volume < previous_volume:
+                    ducked = playback._ipc(["set_property", "volume", duck_volume]).get("error") == "success"
             with _lock:
                 _playing = True
                 _last_text = narration
@@ -142,7 +152,9 @@ def _run():
                 process.kill()
                 process.wait()
             if ducked:
-                playback._ipc(["set_property", "volume", int(database.get_state("volume", "80"))])
+                current = playback._ipc(["get_property", "volume"])
+                if current.get("error") == "success" and float(current["data"]) == duck_volume:
+                    playback._ipc(["set_property", "volume", min(previous_volume, int(database.get_state("volume", "80")))])
             if path:
                 try:
                     os.unlink(path)
