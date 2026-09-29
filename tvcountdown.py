@@ -15,6 +15,15 @@ log = logging.getLogger("retro-tv.tvcountdown")
 OVERLAY_ID = 54
 _socket = None
 _reader = None
+_live_lock = threading.RLock()
+_live_status = {"channel": None, "game_id": None, "play_id": None,
+                "play_wallclock": None, "seen_at": None, "first_drawn_at": None,
+                "drawn_at": None}
+
+
+def get_status():
+    with _live_lock:
+        return dict(_live_status)
 
 
 def countdown_info(game, now=None):
@@ -99,6 +108,24 @@ def scoring_moment(game, detail, previous_score, previous_play):
     return None, score, newest
 
 
+def new_live_plays(detail, previous_key):
+    """Return unseen plays in order, using the newest play when joining mid-game."""
+    plays = [play for play in (detail.get("visualPlays") or []) if play.get("text")]
+    if not plays:
+        return [], previous_key
+
+    def key(play):
+        return str(play.get("id") or f"{play.get('clock', '')}:{play.get('text', '')}")
+
+    newest = key(plays[-1])
+    if newest == previous_key:
+        return [], newest
+    if not previous_key:
+        return [plays[-1]], newest
+    prior = next((index for index, play in enumerate(plays) if key(play) == previous_key), -1)
+    return (plays[prior + 1:] if prior >= 0 else [plays[-1]]), newest
+
+
 def _draw_live(league_name, game, detail, moment=None, moment_age=0):
     away = game.get("awayTeam") or {}
     home = game.get("homeTeam") or {}
@@ -107,15 +134,37 @@ def _draw_live(league_name, game, detail, moment=None, moment_age=0):
     play = _safe(textwrap.shorten(latest.get("text") or "Play-by-play is updating from ArenaPulse.",
                                 width=104, placeholder="…"))
     scoreline = _safe(f"{away.get('abbreviation') or 'AWAY'} {away.get('score', 0)}  –  {home.get('abbreviation') or 'HOME'} {home.get('score', 0)}")
-    period = _safe(status.get("shortDetail") or status.get("detail") or status.get("displayClock") or "LIVE")
+    situation = (latest.get("end") or {}).get("downDistanceText") or (game.get("situation") or {}).get("downDistanceText") or ""
+    period = _safe(" · ".join(part for part in
+                              (status.get("shortDetail") or status.get("detail") or status.get("displayClock") or "LIVE",
+                               situation) if part))
+    away_score = _safe(away.get("score") if away.get("score") is not None else "–")
+    home_score = _safe(home.get("score") if home.get("score") is not None else "–")
     ass = [
         r"{\an7\pos(36,566)\bord0\shad0\1c&H172A43&\p1}m 0 0 l 1208 0 1208 96 0 96{\p0}",
         r"{\an7\pos(36,566)\bord0\shad0\1c&H3A42E5&\p1}m 0 0 l 7 0 7 96 0 96{\p0}",
         rf"{{\an7\pos(56,578)\fnDejaVu Sans\fs18\b1\bord0\shad0\1c&HFFFFFF&}}● LIVE  {_safe(league_name.upper())}",
         rf"{{\an7\pos(250,571)\fnDejaVu Sans\fs32\b1\bord0\shad0\1c&H63CBF8&}}{scoreline}",
-        rf"{{\an9\pos(1220,598)\fnDejaVu Sans\fs20\b1\bord0\shad0\1c&HBED6EA&}}{period[:30]}",
+        rf"{{\an9\pos(1220,598)\fnDejaVu Sans\fs18\b1\bord0\shad0\1c&HBED6EA&}}{period[:47]}",
         rf"{{\an7\pos(57,620)\fnDejaVu Sans\fs20\bord0\shad0\1c&HFFFFFF&\clip(57,616,1215,658)}}{play}",
+        # Cover the five-minute video's old score with live ArenaPulse values.
+        r"{\an7\pos(415,73)\bord0\shad0\1c&H1A1007&\p1}m 0 0 l 84 0 84 57 0 57{\p0}",
+        r"{\an7\pos(787,73)\bord0\shad0\1c&H1A1007&\p1}m 0 0 l 84 0 84 57 0 57{\p0}",
+        rf"{{\an8\pos(457,83)\fnDejaVu Sans\fs40\b1\bord0\shad0\1c&H63CBF8&}}{away_score}",
+        rf"{{\an8\pos(829,83)\fnDejaVu Sans\fs40\b1\bord0\shad0\1c&H63CBF8&}}{home_score}",
+        r"{\an7\pos(912,7)\bord0\shad0\1c&H281B0B&\p1}m 0 0 l 330 0 330 42 0 42{\p0}",
+        rf"{{\an9\pos(1227,18)\fnDejaVu Sans\fs19\b1\bord0\shad0\1c&H63CBF8&}}{_safe(status.get('shortDetail') or 'LIVE')[:32]}",
     ]
+    position = (latest.get("end") or {}).get("yardLine")
+    if game.get("sport") == "football" and isinstance(position, (int, float)):
+        marker = 545 + int(max(0, min(100, position)) * 5.2)
+        ass.extend([
+            r"{\an7\pos(100,444)\bord0\shad0\1c&H231709&\p1}m 0 0 l 1020 0 1020 39 0 39{\p0}",
+            r"{\an7\pos(100,444)\bord0\shad0\1c&H63CBF8&\p1}m 0 0 l 1020 0 1020 2 0 2{\p0}",
+            rf"{{\an7\pos(116,453)\fnDejaVu Sans\fs17\b1\bord0\shad0\1c&HFFFFFF&}}LIVE FIELD  {_safe(situation)[:31]}",
+            r"{\an7\pos(545,461)\bord0\shad0\1c&H547454&\p1}m 0 0 l 520 0 520 5 0 5{\p0}",
+            rf"{{\an7\pos({marker},454)\bord0\shad0\1c&H63CBF8&\p1}}m 0 0 l 7 0 7 18 0 18{{\p0}}",
+        ])
     if moment:
         pulse = int(100 + 7 * math.sin(moment_age * 9))
         glow = "&H63CBF8&" if int(moment_age * 3) % 2 else "&HFFFFFF&"
@@ -138,6 +187,7 @@ def run_loop():
     import tvguide
     import tvgames
     import tvsports
+    import tvannouncer
 
     last_channel = None
     games = []
@@ -147,6 +197,7 @@ def run_loop():
     active_game = None
     last_score = None
     last_play = ""
+    last_announced_play = ""
     moment = None
     moment_until = 0
     showing = False
@@ -157,12 +208,15 @@ def run_loop():
             hidden = (playback._current.get("is_vod") or tvguide.is_visible()
                       or tvsports.is_visible() or tvgames.is_visible())
             if not league or hidden:
+                tvannouncer.set_game("")
+                active_game = None
+                last_announced_play = ""
                 if showing:
                     _send(["osd-overlay", OVERLAY_ID, "none", ""])
                     showing = False
             else:
                 now = time.monotonic()
-                if channel != last_channel or now - checked_at >= (12 if active_game else 30):
+                if channel != last_channel or now - checked_at >= (3 if active_game else 10):
                     result = sports.get_all_scores(force_refresh=bool(active_game))
                     if not result.get("_unavailable"):
                         games = result.get("games") or []
@@ -189,12 +243,28 @@ def run_loop():
                         detail = {}
                         detail_checked_at = 0
                         moment = None
-                    if now - detail_checked_at >= 12:
+                        last_announced_play = ""
+                        tvannouncer.set_game(game_key)
+                    if now - detail_checked_at >= 2:
                         fresh = sports.get_game_detail(league, game["id"], sport=game.get("sport"), force_refresh=True)
                         if fresh:
                             detail = fresh
                         detail_checked_at = now
                         event, last_score, last_play = scoring_moment(game, detail, last_score, last_play)
+                        unseen, last_announced_play = new_live_plays(detail, last_announced_play)
+                        if unseen:
+                            newest = unseen[-1]
+                            with _live_lock:
+                                _live_status.update(channel=channel, game_id=game.get("id"),
+                                                    play_id=newest.get("id"),
+                                                    play_wallclock=newest.get("wallclock"),
+                                                    seen_at=time.time(), first_drawn_at=None)
+                        for play in unseen[-3:]:
+                            narration = (play.get("text") or "").strip()
+                            if narration.lower().startswith(("official timeout", "timeout", "two-minute warning")):
+                                continue
+                            tvannouncer.enqueue(game_key, narration,
+                                                priority=bool(sports.play_event_type(play, game.get("sport"))))
                         if event:
                             moment = event
                             moment_until = time.monotonic() + 6
@@ -202,10 +272,17 @@ def run_loop():
                         moment = None
                     showing = _draw_live(league, game, detail, moment,
                                          max(0, 6 - (moment_until - time.monotonic())))
+                    if showing:
+                        with _live_lock:
+                            if _live_status["first_drawn_at"] is None:
+                                _live_status["first_drawn_at"] = time.time()
+                            _live_status["drawn_at"] = time.time()
                 elif upcoming and countdown_info(upcoming[0]):
+                    tvannouncer.set_game("")
                     active_game = None
                     showing = _draw(league, upcoming[0], countdown_info(upcoming[0]))
                 else:
+                    tvannouncer.set_game("")
                     active_game = None
                     if showing:
                         _send(["osd-overlay", OVERLAY_ID, "none", ""])
