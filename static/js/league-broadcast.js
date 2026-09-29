@@ -212,15 +212,11 @@ async function leagueRenderGame() {
   }
   try {
     const route = `${encodeURIComponent(game.league)}/${encodeURIComponent(game.id)}`;
-    const [detailResponse, fieldResponse] = await Promise.all([
-      fetch(`/api/sports/game/${route}?sport=${encodeURIComponent(game.sport || '')}`),
-      fetch(`/api/sports/field/${encodeURIComponent(game.sport || 'football')}/${route}`)
-    ]);
-    if (!detailResponse.ok || !fieldResponse.ok) throw new Error('Game detail unavailable');
+    const detailResponse = await fetch(`/api/sports/game/${route}?sport=${encodeURIComponent(game.sport || '')}&live=${status.isLive ? 1 : 0}&field=1`, {cache: 'no-store'});
+    if (!detailResponse.ok) throw new Error('Game detail unavailable');
     const detail = await detailResponse.json();
-    const field = await fieldResponse.json();
     if (key !== leagueCurrentKey) return;
-    document.getElementById('leagueField').innerHTML = field.svg || '<span>Field view unavailable</span>';
+    document.getElementById('leagueField').innerHTML = detail.fieldSvg || '<span>Field view unavailable</span>';
     leagueShowRecap(status.isFinal ? detail.recap || null : null);
     if (status.isFinal) leagueClearEvent();
     const plays = detail.visualPlays || detail.plays || [];
@@ -263,7 +259,7 @@ async function leagueRefresh(league) {
   if (leagueLoading || document.hidden) return;
   leagueLoading = true;
   try {
-    const response = await fetch('/api/sports/scores');
+    const response = await fetch('/api/sports/scores?live=1', {cache: 'no-store'});
     if (!response.ok) throw new Error('Scores unavailable');
     const data = await response.json();
     if (data._unavailable) throw new Error('Scores unavailable');
@@ -331,6 +327,6 @@ function initLeagueBroadcast(league, timezone, channel) {
   });
   document.addEventListener('visibilitychange', () => {if (!document.hidden) leagueRefresh(league);});
   leagueRefresh(league);
-  setInterval(() => leagueRefresh(league), 20000);
+  setInterval(() => leagueRefresh(league), 2000);
   setInterval(updateLeagueCountdown, 1000);
 }

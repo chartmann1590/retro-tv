@@ -750,15 +750,21 @@ def api_tv_vod_status():
 @app.route("/api/sports/scores")
 def api_sports_scores():
     import sports
-    return jsonify(sports.get_all_scores())
+    return jsonify(sports.get_all_scores(force_refresh=request.args.get("live") == "1"))
 
 @app.route("/api/sports/game/<league>/<game_id>")
 def api_sports_game(league, game_id):
     import sports
     sport = request.args.get("sport")
-    detail = sports.get_game_detail(league, game_id, sport=sport)
+    detail = sports.get_game_detail(league, game_id, sport=sport,
+                                    force_refresh=request.args.get("live") == "1")
     game = next((item for item in sports.get_all_scores().get("games", [])
                  if item.get("league") == league and str(item.get("id")) == game_id), None)
+    if game and request.args.get("field") == "1":
+        latest = (detail.get("visualPlays") or [None])[-1]
+        detail = {**detail, "fieldSvg": sports.generate_field_svg(
+            sport or game.get("sport"), game.get("homeTeam") or {}, game.get("awayTeam") or {},
+            situation=game.get("situation") or {}, play=latest, status=game.get("status") or {})}
     if game and (game.get("status") or {}).get("isFinal"):
         detail = {**detail, "recap": sports.build_game_recap(game, detail)}
     return jsonify(detail)
@@ -880,6 +886,18 @@ def api_tv_games_nav():
 def api_tv_games_status():
     import tvgames
     return jsonify(tvgames.get_status())
+
+
+@app.route("/api/sports/announcer/status")
+def api_sports_announcer_status():
+    import tvannouncer
+    return jsonify(tvannouncer.status())
+
+
+@app.route("/api/sports/live/status")
+def api_sports_live_status():
+    import tvcountdown
+    return jsonify(tvcountdown.get_status())
 
 @app.route("/api/weather")
 def api_weather():

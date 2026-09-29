@@ -118,6 +118,26 @@ class LeagueChannelTests(unittest.TestCase):
         self.assertIsNone(sports.play_event_type({"text": "Shot saved in front of goal", "scoringPlay": False}, "soccer"))
         self.assertEqual(sports.play_event_type({"type": "Field Goal Good", "scoringPlay": True}, "football"), "FIELD GOAL")
 
+    def test_live_play_announcements_catch_up_without_repeating(self):
+        plays = [{"id": "1", "text": "First down"}, {"id": "2", "text": "Pass for seven yards"},
+                 {"id": "3", "text": "Touchdown"}]
+        self.assertEqual(tvcountdown.new_live_plays({"visualPlays": plays}, ""), ([plays[-1]], "3"))
+        self.assertEqual(tvcountdown.new_live_plays({"visualPlays": plays}, "1"), (plays[1:], "3"))
+        self.assertEqual(tvcountdown.new_live_plays({"visualPlays": plays}, "3"), ([], "3"))
+
+    def test_live_browser_asks_arena_for_fresh_play_and_field(self):
+        game = {"id": "one", "league": "nfl", "sport": "football", "status": {"isLive": True},
+                "homeTeam": {}, "awayTeam": {}, "situation": {}}
+        detail = {"visualPlays": [{"id": "play", "text": "Run for six yards"}]}
+        with patch("sports.get_game_detail", return_value=detail) as fetch, \
+             patch("sports.get_all_scores", return_value={"games": [game]}), \
+             patch("sports.generate_field_svg", return_value="<svg>fresh field</svg>") as field:
+            result = app.test_client().get("/api/sports/game/nfl/one?sport=football&live=1&field=1")
+        self.assertEqual(result.status_code, 200)
+        fetch.assert_called_once_with("nfl", "one", sport="football", force_refresh=True)
+        self.assertEqual(result.json["fieldSvg"], "<svg>fresh field</svg>")
+        field.assert_called_once()
+
     def test_final_recap_uses_score_highlights_and_leader(self):
         game = {"id": "final", "league": "nfl", "sport": "football",
                 "status": {"isFinal": True},
