@@ -5,7 +5,9 @@ import logging
 import os
 import shutil
 import stat
+import subprocess
 import tempfile
+import threading
 import time
 from contextlib import contextmanager
 
@@ -17,6 +19,50 @@ MIGRATION_FOLDER = "SD Card"
 SSD_FREE_FLOOR = 4 * 1024 ** 3
 UPLOAD_SETTLE_SECONDS = 120
 SIDECAR_EXTS = {".srt", ".ass", ".ssa", ".sub", ".idx", ".vtt", ".nfo"}
+THERMAL_PAUSE_C = 80
+THERMAL_RESUME_C = 74
+_last_thermal_check = 0
+
+
+def _cpu_temperature():
+    try:
+        with open("/sys/class/thermal/thermal_zone0/temp") as sensor:
+            return int(sensor.read().strip()) / 1000
+    except (OSError, ValueError):
+        return None
+
+
+def _wait_for_cooling():
+    global _last_thermal_check
+    if time.monotonic() - _last_thermal_check < 1:
+        return
+    temperature = _cpu_temperature()
+    if temperature is not None and temperature >= THERMAL_PAUSE_C:
+        log.warning("Pausing SD migration at %.1f C to protect playback", temperature)
+        while temperature is not None and temperature > THERMAL_RESUME_C:
+            time.sleep(5)
+            temperature = _cpu_temperature()
+        log.info("Resuming SD migration after cooling")
+    _last_thermal_check = time.monotonic()
+
+
+def _lower_io_priority():
+    command = shutil.which("ionice")
+    if command:
+        try:
+            subprocess.run([command, "-c", "3", "-p", str(threading.get_native_id())],
+                           capture_output=True, timeout=3, check=False)
+        except (OSError, subprocess.TimeoutExpired):
+            log.debug("Storage I/O priority adjustment unavailable")
+
+
+def _blocks(source):
+    while True:
+        _wait_for_cooling()
+        block = source.read(1024 * 1024)
+        if not block:
+            return
+        yield block
 
 
 @contextmanager
@@ -81,7 +127,7 @@ def _signature(info):
 def _checksum(path):
     digest = hashlib.sha256()
     with open(path, "rb") as source:
-        for block in iter(lambda: source.read(1024 * 1024), b""):
+        for block in _blocks(source):
             digest.update(block)
     return digest.digest()
 
@@ -89,7 +135,7 @@ def _checksum(path):
 def _copy_verified(source, temporary, before):
     digest = hashlib.sha256()
     with open(source, "rb") as reader, open(temporary, "wb") as writer:
-        for block in iter(lambda: reader.read(1024 * 1024), b""):
+        for block in _blocks(reader):
             writer.write(block)
             digest.update(block)
         writer.flush()
@@ -197,6 +243,7 @@ def migrate_sd_media():
             result["deferred"] = True
             return result
         try:
+            lowered_priority = False
             for category in (config.TV_DIR, config.MOVIES_DIR, config.COMMERCIALS_DIR):
                 if not os.path.abspath(category).startswith(os.path.abspath(config.MEDIA_ROOT) + os.sep):
                     continue
@@ -205,6 +252,9 @@ def migrate_sd_media():
                 source_device = os.stat(category).st_dev
                 if source_device == os.stat(os.path.join(category, "SSD")).st_dev:
                     continue
+                if not lowered_priority:
+                    _lower_io_priority()
+                    lowered_priority = True
                 for root, directories, files in os.walk(category):
                     directories[:] = [name for name in directories if name != "SSD"
                                       and not os.path.islink(os.path.join(root, name))

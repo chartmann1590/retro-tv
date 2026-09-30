@@ -59,6 +59,16 @@ def fmt_range(s, e):
 _bg_stop = threading.Event()
 _initial_scan_done = threading.Event()
 
+def wait_for_initial_library():
+    """An existing index can serve generated channels during SD migration."""
+    con = database.connect()
+    try:
+        indexed = con.execute("SELECT 1 FROM media_files LIMIT 1").fetchone() is not None
+    finally:
+        con.close()
+    if not indexed:
+        _initial_scan_done.wait()
+
 def bg_loop():
     # One worker owns startup and maintenance; never scan/generate twice at boot.
     # Launch playback before lowering this thread's priority: mpv inherits it.
@@ -1252,7 +1262,7 @@ def init():
     playback.start_monitor()
     threading.Thread(target=bg_loop, daemon=True).start()
     def livecontent_after_scan():
-        _initial_scan_done.wait()
+        wait_for_initial_library()
         livecontent.run_loop()
     threading.Thread(target=livecontent_after_scan, daemon=True).start()
     threading.Thread(target=reminders.run_loop, daemon=True).start()

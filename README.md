@@ -342,6 +342,8 @@ SSD files are never overwritten. Active uploads, unavailable SSDs, insufficient
 SSD space, and destination conflicts leave the originals in place for a later
 pass. Startup conversion waits until this pass finishes; HDMI playback continues
 during migration. Progress is recorded in `logs/retro-tv.log`.
+Copying uses idle disk priority when available and pauses at 80°C until the
+Pi cools to 74°C, so storage work yields to playback.
 
 Storage regression tests: `venv/bin/python -m unittest tests.test_storage -v`.
 

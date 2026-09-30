@@ -41,7 +41,9 @@ class StorageTests(unittest.TestCase):
             (Path(category) / "SSD").symlink_to(target, target_is_directory=True)
         for item in [patch.object(scanner, "ssd_storage_healthy", return_value=True),
                      patch.object(storage, "UPLOAD_SETTLE_SECONDS", 0),
-                     patch.object(storage, "SSD_FREE_FLOOR", 0)]:
+                     patch.object(storage, "SSD_FREE_FLOOR", 0),
+                     patch.object(storage, "_cpu_temperature", return_value=None),
+                     patch.object(storage, "_lower_io_priority")]:
             item.start()
             self.addCleanup(item.stop)
         database.init_db()
@@ -206,6 +208,29 @@ class StorageTests(unittest.TestCase):
             scanner.full_scan(light=True)
             scanner.full_scan(light=True)
         self.assertEqual(calls, ['maintain', 'scan', 'maintain', 'scan'])
+
+    def test_existing_index_keeps_generated_channels_running_during_migration(self):
+        import app
+        with patch.object(app._initial_scan_done, 'wait') as wait:
+            app.wait_for_initial_library()
+            wait.assert_not_called()
+        con = database.connect()
+        try:
+            con.execute('DELETE FROM movies')
+            con.execute('DELETE FROM media_files')
+            con.commit()
+        finally:
+            con.close()
+        with patch.object(app._initial_scan_done, 'wait') as wait:
+            app.wait_for_initial_library()
+            wait.assert_called_once()
+
+    def test_migration_waits_for_cpu_to_cool_before_continuing(self):
+        with patch.object(storage, '_last_thermal_check', 0), \
+             patch.object(storage, '_cpu_temperature', side_effect=[85, 79, 74]), \
+             patch.object(storage.time, 'sleep') as sleep:
+            storage._wait_for_cooling()
+        self.assertEqual(sleep.call_count, 2)
 
 
 class BrowserCacheTests(unittest.TestCase):
