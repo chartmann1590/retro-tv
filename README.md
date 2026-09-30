@@ -234,7 +234,7 @@ and other keyboards remain available.
 | Menu | Open/close the guide |
 | Home | Return to live TV |
 | Back | Back/close the menu; return to live TV outside menus |
-| Play/Pause | Pause/resume |
+| Play/Pause | Press once to pause video and audio; press the same button again to resume. The TV shows Paused or Playing. |
 | FF / Rewind, Next / Previous | Seek forward/back 30 seconds within the current program |
 | Volume and Mute | Control receiver volume |
 | Search | Open title search; type on the back keyboard, then OK to see results |
