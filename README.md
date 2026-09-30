@@ -326,6 +326,25 @@ worker then requeues files incorrectly marked missing during the outage and
 resumes saved phone sections. A powered USB hub or separate SSD supply is
 still needed if the Pi reports USB over-current.
 
+### Automatic SD card storage maintenance
+
+At startup and every library scan (normally every 15 minutes), Retro TV removes
+abandoned headless Chromium caches older than one hour. Weather, news, and sports
+card rendering keeps its browser profile and caches in a temporary directory
+that is removed after rendering, including timeouts.
+
+When the media SSD and all three bind mounts are healthy, the same maintenance
+pass moves settled videos, subtitles, and NFO files from the SD media folders to
+`SSD/SD Card/` within each category. Each copy is flushed and verified with
+SHA-256 before its library path is updated and the SD original is removed.
+Media IDs, episode/movie metadata, and existing schedules are preserved. Existing
+SSD files are never overwritten. Active uploads, unavailable SSDs, insufficient
+SSD space, and destination conflicts leave the originals in place for a later
+pass. Startup conversion waits until this pass finishes; HDMI playback continues
+during migration. Progress is recorded in `logs/retro-tv.log`.
+
+Storage regression tests: `venv/bin/python -m unittest tests.test_storage -v`.
+
 ### Offloading show conversion
 
 The background converter is **off by default** so an unplugged phone cannot

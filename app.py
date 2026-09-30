@@ -1256,7 +1256,10 @@ def init():
         livecontent.run_loop()
     threading.Thread(target=livecontent_after_scan, daemon=True).start()
     threading.Thread(target=reminders.run_loop, daemon=True).start()
-    threading.Thread(target=transcode.run_loop, daemon=True).start()
+    def transcode_after_scan():
+        _initial_scan_done.wait()
+        transcode.run_loop()
+    threading.Thread(target=transcode_after_scan, daemon=True).start()
 
 
 if __name__ == "__main__":

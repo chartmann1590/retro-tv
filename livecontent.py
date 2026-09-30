@@ -30,6 +30,7 @@ from datetime import datetime
 import config
 import database
 import scanner
+import storage
 
 log = logging.getLogger("retro-tv.livecontent")
 
@@ -77,11 +78,12 @@ def _render_card(body_html, out_png, extra_css=""):
     with open(fd_path, "w") as f:
         f.write(_card_html(body_html, extra_css))
     try:
-        subprocess.run(
-            ["chromium", "--headless=new", "--disable-gpu", "--no-sandbox",
-             f"--screenshot={out_png}", f"--window-size={CARD_W},{CARD_H}",
-             "--virtual-time-budget=2000", "file://" + fd_path],
-            check=True, capture_output=True, timeout=30, preexec_fn=_deprioritized)
+        with storage.browser_workspace() as (options, env):
+            subprocess.run(
+                ["chromium", "--headless=new", "--disable-gpu", "--no-sandbox",
+                 *options, f"--screenshot={out_png}", f"--window-size={CARD_W},{CARD_H}",
+                 "--virtual-time-budget=2000", "file://" + fd_path],
+                env=env, check=True, capture_output=True, timeout=30, preexec_fn=_deprioritized)
     finally:
         os.unlink(fd_path)
 
