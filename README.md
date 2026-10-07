@@ -234,7 +234,7 @@ and other keyboards remain available.
 | Menu | Open/close the guide |
 | Home | Return to live TV |
 | Back | Back/close the menu; return to live TV outside menus |
-| Play/Pause | Pause/resume |
+| Play/Pause | Press once to pause video and audio; press the same button again to resume. The TV shows Paused or Playing. |
 | FF / Rewind, Next / Previous | Seek forward/back 30 seconds within the current program |
 | Volume and Mute | Control receiver volume |
 | Search | Open title search; type on the back keyboard, then OK to see results |
@@ -325,6 +325,27 @@ the SSD. Any check needing manual repair leaves the drive unmounted. The
 worker then requeues files incorrectly marked missing during the outage and
 resumes saved phone sections. A powered USB hub or separate SSD supply is
 still needed if the Pi reports USB over-current.
+
+### Automatic SD card storage maintenance
+
+At startup and every library scan (normally every 15 minutes), Retro TV removes
+abandoned headless Chromium caches older than one hour. Weather, news, and sports
+card rendering keeps its browser profile and caches in a temporary directory
+that is removed after rendering, including timeouts.
+
+When the media SSD and all three bind mounts are healthy, the same maintenance
+pass moves settled videos, subtitles, and NFO files from the SD media folders to
+`SSD/SD Card/` within each category. Each copy is flushed and verified with
+SHA-256 before its library path is updated and the SD original is removed.
+Media IDs, episode/movie metadata, and existing schedules are preserved. Existing
+SSD files are never overwritten. Active uploads, unavailable SSDs, insufficient
+SSD space, and destination conflicts leave the originals in place for a later
+pass. Startup conversion waits until this pass finishes; HDMI playback continues
+during migration. Progress is recorded in `logs/retro-tv.log`.
+Copying uses idle disk priority when available and pauses at 80°C until the
+Pi cools to 74°C, so storage work yields to playback.
+
+Storage regression tests: `venv/bin/python -m unittest tests.test_storage -v`.
 
 ### Offloading show conversion
 

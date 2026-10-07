@@ -173,7 +173,11 @@ def channel_pool(ch_number):
                 elif t == "movie":
                     mvs += [dict(r) for r in con.execute("SELECT mo.*, m.path, m.duration FROM movies mo JOIN media_files m ON m.id=mo.media_id WHERE m.path=?", (v,))]
                 elif t == "movie_folder":
-                    mvs += [dict(r) for r in con.execute("SELECT mo.*, m.path, m.duration FROM movies mo JOIN media_files m ON m.id=mo.media_id WHERE m.path LIKE ?", (v + "%",))]
+                    import storage
+                    moved_folder = storage.media_destination(v.rstrip(os.sep)) or v
+                    mvs += [dict(r) for r in con.execute("""SELECT mo.*, m.path, m.duration
+                        FROM movies mo JOIN media_files m ON m.id=mo.media_id
+                        WHERE m.path LIKE ? OR m.path LIKE ?""", (v + "%", moved_folder + "%"))]
         ads = [dict(r) for r in con.execute("SELECT c.*, m.path, m.duration FROM commercials c JOIN media_files m ON m.id=c.media_id")]
         return eps, mvs, ads
     finally:

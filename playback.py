@@ -156,9 +156,12 @@ def audio_device():
         if connected_card is not None:
             matched = [name for card, name in sinks if card == connected_card]
             if matched:
-                return "pipewire/" + matched[0]
+                # mpv's native PipeWire output can stall its audio clock after
+                # channel changes or pause/resume. Use PipeWire's PulseAudio
+                # compatibility server with the same explicitly selected sink.
+                return "pulse/" + matched[0]
         if sinks:
-            return "pipewire/" + sorted(name for _, name in sinks)[0]
+            return "pulse/" + sorted(name for _, name in sinks)[0]
     except (OSError, ValueError, subprocess.TimeoutExpired):
         pass
     # Standalone ALSA is useful when no desktop audio server is available.
@@ -304,11 +307,23 @@ def set_mute(muted):
 
 
 def pause_toggle():
-    return _ipc(["cycle", "pause"]).get("error") == "success"
+    with _lock:
+        result = _ipc(["cycle", "pause"])
+        if result.get("error") != "success":
+            return False
+        paused = _ipc(["get_property", "pause"]).get("data")
+        log.info("Playback %s", "paused" if paused else "resumed")
+        osd_message("Paused" if paused else "Playing", 1500)
+        return True
 
 
 def set_paused(paused):
-    return _ipc(["set_property", "pause", bool(paused)]).get("error") == "success"
+    with _lock:
+        if _ipc(["set_property", "pause", bool(paused)]).get("error") != "success":
+            return False
+        log.info("Playback %s", "paused" if paused else "resumed")
+        osd_message("Paused" if paused else "Playing", 1500)
+        return True
 
 
 def seek_relative(seconds):

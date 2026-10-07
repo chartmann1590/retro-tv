@@ -25,6 +25,7 @@ import database
 import scanner
 import scheduler
 import sports
+import storage
 
 log = logging.getLogger("retro-tv.livesports")
 
@@ -95,12 +96,13 @@ def _render_card_png(body_html, out_png, extra_css=""):
     with open(tmp_html, "w", encoding="utf-8") as f:
         f.write(_card_html(body_html, extra_css))
     try:
-        subprocess.run(
-            ["chromium", "--headless=new", "--disable-gpu", "--no-sandbox",
-             "--disable-dev-shm-usage", "--disable-extensions", "--no-first-run",
-             f"--screenshot={out_png}", f"--window-size={CARD_W},{CARD_H}",
-             "--virtual-time-budget=500", "file://" + tmp_html],
-            check=True, capture_output=True, timeout=60, preexec_fn=_deprioritized)
+        with storage.browser_workspace() as (options, env):
+            subprocess.run(
+                ["chromium", "--headless=new", "--disable-gpu", "--no-sandbox",
+                 "--disable-dev-shm-usage", "--disable-extensions", "--no-first-run",
+                 *options, f"--screenshot={out_png}", f"--window-size={CARD_W},{CARD_H}",
+                 "--virtual-time-budget=500", "file://" + tmp_html],
+                env=env, check=True, capture_output=True, timeout=60, preexec_fn=_deprioritized)
     finally:
         if os.path.exists(tmp_html):
             try:

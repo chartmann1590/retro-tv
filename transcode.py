@@ -292,6 +292,15 @@ def run_one(media_id, src_path, source_duration, use_phone=False, use_cloud=Fals
             log.info("Another transcoding worker is already active")
             return False
         try:
+            # A storage-maintenance pass may have relocated the queued file
+            # after the worker selected it but before acquiring this lock.
+            con = database.connect()
+            try:
+                current = con.execute("SELECT path FROM media_files WHERE id=?", (media_id,)).fetchone()
+                if current:
+                    src_path = current["path"]
+            finally:
+                con.close()
             _run_one_unlocked(media_id, src_path, source_duration, use_phone, use_cloud)
             return True
         finally:

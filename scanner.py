@@ -259,6 +259,8 @@ def classify(path):
 
 def full_scan(light=False):
     with _scan_lock:
+        import storage
+        storage.maintain()
         return _full_scan(light)
 
 def _full_scan(light=False):
@@ -354,7 +356,8 @@ def _full_scan(light=False):
                     r = con.execute("SELECT id FROM media_files WHERE path=?", (path,)).fetchone()
                     media_id = r["id"]
                     updated += 1
-            rel = os.path.relpath(path, config.MEDIA_ROOT)
+            import storage
+            rel = storage.metadata_relative_path(path)
             if kind == "episode":
                 ep = parse_episode(rel)
                 con.execute("INSERT OR IGNORE INTO shows(name) VALUES(?)", (ep["show"],))

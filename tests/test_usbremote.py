@@ -59,6 +59,28 @@ class UsbRemoteTests(unittest.TestCase):
             self.controller.tick(now=22)
             tune.assert_called_with(3)
 
+    def test_same_pause_button_pauses_then_resumes(self):
+        state = {'paused': False}
+
+        def ipc(command):
+            if command == ['cycle', 'pause']:
+                state['paused'] = not state['paused']
+            if command == ['get_property', 'pause']:
+                return {'error': 'success', 'data': state['paused']}
+            return {'error': 'success'}
+
+        with patch.object(playback, '_ipc', side_effect=ipc), \
+             patch.object(playback, 'osd_message') as message:
+            self.controller.key('KEY_PLAYPAUSE', 1)
+            self.assertTrue(state['paused'])
+            message.assert_called_with('Paused', 1500)
+            self.controller.key('KEY_PLAYPAUSE', 2)
+            self.controller.key('KEY_PLAYPAUSE', 0)
+            self.assertTrue(state['paused'])
+            self.controller.key('KEY_PLAYPAUSE', 1)
+            self.assertFalse(state['paused'])
+            message.assert_called_with('Playing', 1500)
+
     def test_full_keyboard_search_does_not_trigger_shortcuts(self):
         with patch.object(tvvod, 'is_visible', return_value=True), \
              patch.object(tvvod, 'is_searching', side_effect=lambda: nav.call_count > 0), \
