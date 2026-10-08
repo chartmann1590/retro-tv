@@ -5,12 +5,12 @@ plugins {
 
 android {
     namespace 'tv.retro.companion'
-    compileSdk 34
+    compileSdk 36
 
     defaultConfig {
         applicationId "tv.retro.companion"
         minSdk 24
-        targetSdk 34
+        targetSdk 36
         versionCode 1
         versionName "1.0.0"
 
