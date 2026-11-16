@@ -15,3 +15,6 @@ AGENTS.md
 android/local.properties
 *.apk
 *.aab
+
+# Compiled gettext catalogs
+translations/**/*.mo

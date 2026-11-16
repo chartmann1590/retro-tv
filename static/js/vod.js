@@ -18,7 +18,7 @@ async function loadCatalog() {
     renderBillboard(res.featured);
     renderCategories(res.categories);
   } catch (err) {
-    container.innerHTML = `<div class="warn">Failed to load On Demand library: ${esc(err.message)}</div>`;
+    container.innerHTML = `<div class="warn">${esc(gettext("Failed to load On Demand library: %(error)s",{error:err.message}))}</div>`;
   }
 }
 
@@ -36,26 +36,26 @@ function renderBillboard(item) {
     backdrop.style.backgroundImage = 'none';
   }
 
-  document.getElementById('billboardTitle').textContent = item.title || item.name || 'Featured Title';
+  document.getElementById('billboardTitle').textContent = item.title || item.name || gettext('Featured Title');
   document.getElementById('billboardKind').textContent = (item.kind || 'movie').toUpperCase();
   document.getElementById('billboardYear').textContent = item.year || (item.season_count ? `${item.season_count} Seasons` : '');
   document.getElementById('billboardYear').hidden = !item.year && !item.season_count;
   document.getElementById('billboardQuality').textContent = item.resolution || 'HD';
   document.getElementById('billboardGenre').textContent = item.genre || '';
-  document.getElementById('billboardDesc').textContent = item.description || 'Watch now on demand.';
+  document.getElementById('billboardDesc').textContent = item.description || gettext('Watch now on demand.');
 
   const playBtn = document.getElementById('billboardPlayTV');
   const browserBtn = document.getElementById('billboardWatchBrowser');
   const infoBtn = document.getElementById('billboardMoreInfo');
 
   if (item.kind === 'show') {
-    playBtn.textContent = '📺 VIEW EPISODES';
+    playBtn.textContent = gettext('📺 VIEW EPISODES');
     playBtn.onclick = () => openShowModal(item.id);
     browserBtn.hidden = true;
     infoBtn.onclick = () => openShowModal(item.id);
   } else {
     const mediaId = item.media_id;
-    playBtn.textContent = '▶ PLAY ON TV';
+    playBtn.textContent = gettext('▶ PLAY ON TV');
     playBtn.onclick = () => playMediaOnTV(mediaId, item.title, item.year ? String(item.year) : '');
     browserBtn.hidden = false;
     browserBtn.onclick = () => { location.href = `/watch?vod=${mediaId}`; };
@@ -66,7 +66,7 @@ function renderBillboard(item) {
 function renderCategories(categories) {
   const container = document.getElementById('vodRowsContainer');
   if (!categories || !categories.length) {
-    container.innerHTML = '<div class="empty-state"><p>No on-demand titles found in library.</p></div>';
+    container.innerHTML = `<div class="empty-state"><p>${esc(gettext("No on-demand titles found in library."))}</p></div>`;
     return;
   }
 
@@ -205,7 +205,7 @@ async function runVodSearch(q) {
     countBadge.textContent = String(items.length);
 
     if (!items.length) {
-      grid.innerHTML = '<div class="empty-state"><p>No titles matching your search.</p></div>';
+      grid.innerHTML = `<div class="empty-state"><p>${esc(gettext("No titles matching your search."))}</p></div>`;
       return;
     }
 
@@ -272,7 +272,7 @@ async function openShowModal(showId) {
     document.getElementById('modalShowTitle').textContent = s.name;
     document.getElementById('modalShowSeasonCount').textContent = `${s.season_count || 1} Season${s.season_count === 1 ? '' : 's'}`;
     document.getElementById('modalShowEpCount').textContent = `${s.episode_count || 0} Episodes`;
-    document.getElementById('modalShowDesc').textContent = s.description || 'No show description available.';
+    document.getElementById('modalShowDesc').textContent = s.description || gettext('No show description available.');
 
     const poster = document.getElementById('modalShowPoster');
     if (s.artwork) {
@@ -288,7 +288,7 @@ async function openShowModal(showId) {
       renderModalSeason(s.seasons[0].season);
     }
   } catch (err) {
-    document.getElementById('modalEpisodesList').innerHTML = `<div class="warn">Could not load show: ${esc(err.message)}</div>`;
+    document.getElementById('modalEpisodesList').innerHTML = `<div class="warn">${esc(gettext("Could not load show: %(error)s",{error:err.message}))}</div>`;
   }
 }
 
@@ -297,7 +297,7 @@ function renderModalSeason(seasonNum) {
   const seasonObj = CURRENT_SHOW_DATA.seasons.find(s => String(s.season) === String(seasonNum));
   const list = document.getElementById('modalEpisodesList');
   if (!seasonObj || !seasonObj.episodes.length) {
-    list.innerHTML = '<p class="hint">No episodes found in this season.</p>';
+    list.innerHTML = `<p class="hint">${esc(gettext("No episodes found in this season."))}</p>`;
     return;
   }
 
@@ -347,7 +347,7 @@ function openMovieModal(item) {
   document.getElementById('modalMovieDuration').textContent = item.duration ? `${Math.round(item.duration / 60)} min` : '--';
   document.getElementById('modalMovieQuality').textContent = item.resolution || '1080p';
   document.getElementById('modalMovieGenre').textContent = item.genre || '';
-  document.getElementById('modalMovieDesc').textContent = item.description || 'No plot description available.';
+  document.getElementById('modalMovieDesc').textContent = item.description || gettext('No plot description available.');
 
   const poster = document.getElementById('modalMoviePoster');
   if (item.artwork) {
@@ -385,7 +385,7 @@ async function playMediaOnTV(mediaId, title, subtitle) {
       notify(`Playback error: ${res.error || 'Check player logs'}`);
     }
   } catch (err) {
-    notify(`Failed to play on TV: ${err.message}`);
+    notify(gettext('Failed to play on TV: %(error)s',{error:err.message}));
   }
 }
 

@@ -441,3 +441,20 @@ h1,h2,p{margin-top:0}h1{font-size:34px;line-height:1.15;margin-bottom:12px;lette
 .btn-prompt-download:hover{background:#ffdb85;transform:translateY(-1px)}
 .btn-prompt-continue{background:transparent;border:1px solid #233754;color:#9cb0c9;font-weight:600;font-size:13px;padding:10px 18px;border-radius:8px;cursor:pointer;text-align:center;transition:all 0.2s}
 .btn-prompt-continue:hover{background:#142236;color:#fff}
+
+
+/* I18N: natural RTL text flow without mirroring channel numbers or time axes. */
+html[dir="rtl"] body { direction: rtl; }
+html[dir="rtl"] input,
+html[dir="rtl"] textarea,
+html[dir="rtl"] select { text-align: start; }
+html[dir="rtl"] .guide-grid,
+html[dir="rtl"] .guide-timeline,
+html[dir="rtl"] .guide-track,
+html[dir="rtl"] .progress,
+html[dir="rtl"] .remote-handset { direction: ltr; }
+html[dir="rtl"] .clock,
+html[dir="rtl"] .channel-number,
+html[dir="rtl"] .receiver-display,
+html[dir="rtl"] .gnum { direction: ltr; unicode-bidi: isolate; }
+html[dir="rtl"] .remote-screen { direction: rtl; }

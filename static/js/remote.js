@@ -10,20 +10,20 @@ async function refreshNow(){
   if(document.hidden)return;
   try{
     const h=await tvApi('/api/hdmi');
-    document.getElementById('connection').textContent='● CONNECTED';
+    document.getElementById('connection').textContent=gettext('● CONNECTED');
     vodOpen=!!h.tv_vod?.visible;guideOpen=!!h.tv_guide?.visible;sportsOpen=!!h.tv_sports?.visible;gamesOpen=!!h.tv_games?.visible;
     gameLeague=h.tv_games?.league||null;
     const gameControls=document.getElementById('gameControls');
     gameControls.hidden=!gameLeague;
-    document.getElementById('gamesButton').textContent=gamesOpen?'CLOSE GAMES':'PICK A GAME';
+    document.getElementById('gamesButton').textContent=gamesOpen?gettext('CLOSE GAMES'):gettext('PICK A GAME');
     document.getElementById('unpinGameButton').hidden=!h.tv_games?.pinned_game_id;
     IS_VOD_PLAYING=!!h.is_vod;
     if(!h.is_vod){CUR_CH=h.channel;PREV_CH=h.prev_channel;}
     document.body.classList.toggle('vod-mode',vodOpen);
     document.body.classList.toggle('guide-mode',guideOpen);
     document.body.classList.toggle('sports-mode',sportsOpen);
-    document.getElementById('vodButton').textContent=vodOpen?'EXIT VOD':'ON DEMAND';
-    const sb=document.getElementById('sportsButton');if(sb)sb.textContent=sportsOpen?'EXIT SPORTS':'SPORTS';
+    document.getElementById('vodButton').textContent=vodOpen?gettext('EXIT VOD'):gettext('ON DEMAND');
+    const sb=document.getElementById('sportsButton');if(sb)sb.textContent=sportsOpen?gettext('EXIT SPORTS'):gettext('SPORTS');
     setGuideButtonLabel(guideOpen?'EXIT GUIDE':'GUIDE');
     showVol(h);
     if(gamesOpen){updateGamesLcd(h.tv_games);return;}
@@ -32,28 +32,28 @@ async function refreshNow(){
     if(guideOpen){
       const entry=h.tv_guide.entry||{};
       document.getElementById('ncCh').textContent=String(h.tv_guide.channel??'--').padStart(2,'0');
-      document.getElementById('ncTitle').textContent=entry.title||'TV Guide';
+      document.getElementById('ncTitle').textContent=entry.title||gettext('TV Guide');
       document.getElementById('ncSub').textContent=entry.subtitle||'';
-      document.getElementById('ncLive').textContent='GUIDE';
+      document.getElementById('ncLive').textContent=gettext('GUIDE');
       return;
     }
     if(h.is_vod){
       IS_VOD_PLAYING=true;
       document.getElementById('ncCh').textContent='OD';
-      document.getElementById('ncTitle').textContent=h.vod_info?.title||'On Demand';
+      document.getElementById('ncTitle').textContent=h.vod_info?.title||gettext('On Demand');
       document.getElementById('ncSub').textContent=h.vod_info?.subtitle||'';
-      document.getElementById('ncLive').textContent=h.paused?'PAUSED':'ON DEMAND';
+      document.getElementById('ncLive').textContent=h.paused?gettext('PAUSED'):gettext('ON DEMAND');
     }else{
       IS_VOD_PLAYING=false;
       CUR_CH=h.channel;PREV_CH=h.prev_channel;
       const e=h.entry||{};
       document.getElementById('ncCh').textContent=CUR_CH==null?'--':String(CUR_CH).padStart(2,'0');
-      document.getElementById('ncTitle').textContent=e.title||'Off air';
+      document.getElementById('ncTitle').textContent=e.title||gettext('Off air');
       document.getElementById('ncSub').textContent=e.subtitle||'';
-      document.getElementById('ncLive').textContent=h.mpv_alive?(h.paused?'PAUSED':'LIVE'):'OFF AIR';
+      document.getElementById('ncLive').textContent=h.mpv_alive?(h.paused?gettext('PAUSED'):gettext('LIVE')):gettext('OFF AIR');
     }
     showVol(h);highlightChannel();
-  }catch(e){document.getElementById('connection').textContent='RECONNECTING…';}
+  }catch(e){document.getElementById('connection').textContent=gettext('RECONNECTING…');}
 }
 async function refreshChs(){
   const j=await tvApi('/api/channels');CHANNELS=j.channels.filter(c=>c.enabled);
@@ -70,7 +70,7 @@ function toggleFavFilter(){
   renderChList();
 }
 function highlightChannel(){document.querySelectorAll('[data-channel]').forEach(b=>b.classList.toggle('selected',+b.dataset.channel===CUR_CH));}
-async function tuneNow(ch){await tvApi('/api/tune',{channel:ch});await refreshNow();notify(`Channel ${ch} on your TV`);}
+async function tuneNow(ch){await tvApi('/api/tune',{channel:ch});await refreshNow();notify(gettext('Channel %(channel)s on your TV',{channel:ch}));}
 function tune(ch){return command(()=>tuneNow(ch));}
 function chStep(d){return command(()=>chStepNow(d));}
 function prevCh(){
@@ -79,7 +79,7 @@ function prevCh(){
     if(sportsOpen){await sendTvSportsNav('back');return;}
     if(gamesOpen){await sendTvGamesNav('back');return;}
     if(PREV_CH!=null)return tuneNow(PREV_CH);
-    notify('No previous channel yet.');
+    notify(gettext('No previous channel yet.'));
   });
 }
 function digit(d){
@@ -89,7 +89,7 @@ function digit(d){
   else{digits=(digits+d).slice(-3);digitT=setTimeout(()=>{if(digits)tune(+digits);digits='';updateDigits();},1500);}
   updateDigits();
 }
-function updateDigits(){document.getElementById('digitDisplay').textContent=digits?'CH '+digits.padStart(3,'_'):'';}
+function updateDigits(){document.getElementById('digitDisplay').textContent=digits?gettext('CH ')+digits.padStart(3,'_'):'';}
 function volStep(d){return command(async()=>{const r=await tvApi('/api/volume',{volume:Math.max(0,Math.min(100,VOL+d)),muted:false});showVol(r);});}
 function muteToggle(){return command(async()=>showVol(await tvApi('/api/volume',{muted:!MUTED})));}
 function pauseToggle(){return command(async()=>{showVol(await tvApi('/api/volume',{toggle_pause:true}));await refreshNow();});}
@@ -100,18 +100,18 @@ function goLive(){
     if(guideOpen)await closeGuideNow();
     await tvApi('/api/vod/stop',{});
     await refreshNow();
-    notify('Resumed live cable TV');
+    notify(gettext('Resumed live cable TV'));
   });
 }
 function ccToggle(){return command(async()=>{showVol(await tvApi('/api/captions',{enabled:!CC}));});}
 function showVol(r){
   VOL=+r.volume;MUTED=r.muted==='1'||r.muted===true;
   if('cc' in r)CC=r.cc==='1'||r.cc===true;
-  document.getElementById('vol').textContent=MUTED?'MUTED':`VOL ${VOL}`;
+  document.getElementById('vol').textContent=MUTED?gettext('MUTED'):`VOL ${VOL}`;
   document.getElementById('muteButton').setAttribute('aria-pressed',String(MUTED));
-  document.getElementById('pauseButton').textContent=r.paused?'▶ RESUME':'Ⅱ PAUSE';
+  document.getElementById('pauseButton').textContent=r.paused?gettext('▶ RESUME'):'Ⅱ PAUSE';
   document.getElementById('ccButton').setAttribute('aria-pressed',String(CC));
-  document.getElementById('ccButton').textContent=CC?'CC ON':'CC OFF';
+  document.getElementById('ccButton').textContent=CC?gettext('CC ON'):gettext('CC OFF');
 }
 function toggleSearch(){const p=document.getElementById('rsearch');p.hidden=!p.hidden;if(!p.hidden)document.getElementById('rsearchInput').focus();}
 function doSearch(){clearTimeout(searchT);searchT=setTimeout(runSearch,250);}
@@ -168,9 +168,9 @@ function showGuideOSD(){
   const row=gRow(),e=gEntry();
   if(!row)return;
   document.getElementById('ncCh').textContent=String(row.channel.number).padStart(2,'0');
-  document.getElementById('ncTitle').textContent=e?e.title:'No programs in this window';
+  document.getElementById('ncTitle').textContent=e?e.title:gettext('No programs in this window');
   document.getElementById('ncSub').textContent=e?(e.subtitle||''):'';
-  document.getElementById('ncLive').textContent='GUIDE';
+  document.getElementById('ncLive').textContent=gettext('GUIDE');
 }
 async function pushGuideOverlay(){
   const row=gRow(),e=gEntry();
@@ -186,7 +186,7 @@ function openGuide(){
     if(guideOpen){await closeGuideNow();return;}
     gT0=Math.floor(gNow()/1800)*1800;
     await fetchGuideWindow();
-    if(!gData.length){notify('No channels in the guide yet.');return;}
+    if(!gData.length){notify(gettext('No channels in the guide yet.'));return;}
     gSel.r=Math.max(0,gData.findIndex(row=>row.channel.number===CUR_CH));
     gSel.c=Math.max(0,gRow().entries.findIndex(gIsLive));
     guideOpen=true;
@@ -221,27 +221,27 @@ async function selectGuideNow(){await sendGuideNav('ok');}
 
 function updateGamesLcd(st){
   document.getElementById('ncCh').textContent=String(st.channel??'--').padStart(2,'0');
-  document.getElementById('ncTitle').textContent=st.loading?'Preparing selected game…':st.selected_title||'Pick a game';
-  document.getElementById('ncSub').textContent=st.loading?'Field, plays, and narration are loading':`Game ${st.total?st.index+1:0} of ${st.total||0} · Press OK to watch`;
-  document.getElementById('ncLive').textContent='GAMES';
+  document.getElementById('ncTitle').textContent=st.loading?gettext('Preparing selected game…'):st.selected_title||gettext('Pick a game');
+  document.getElementById('ncSub').textContent=st.loading?gettext('Field, plays, and narration are loading'):`Game ${st.total?st.index+1:0} of ${st.total||0} · Press OK to watch`;
+  document.getElementById('ncLive').textContent=gettext('GAMES');
 }
 async function openGamesNow(){
   const res=await tvApi('/api/tv-games',{action:'open'});
   if(!res.ok)throw Error(res.error||'Could not open game picker');
   await refreshNow();
-  notify('Choose a game on the TV and press OK to keep watching it.');
+  notify(gettext('Choose a game on the TV and press OK to keep watching it.'));
 }
 function toggleGames(){return command(async()=>{await refreshNow();if(gamesOpen)await tvApi('/api/tv-games',{action:'close'});else await openGamesNow();await refreshNow();});}
 async function sendTvGamesNav(action){
   const res=await tvApi('/api/tv-games/nav',{action});
   if(!res.ok)throw Error(res.error||'Game picker is unavailable');
   await refreshNow();
-  if(res.status==='preparing')notify('Preparing your game on TV…');
+  if(res.status==='preparing')notify(gettext('Preparing your game on TV…'));
 }
 function unpinGame(){return command(async()=>{
   const res=await tvApi('/api/tv-games',{action:'unpin',channel:CUR_CH});
   if(!res.ok)throw Error(res.error||'Could not resume game rotation');
-  await refreshNow();notify('Returning this channel to game rotation.');
+  await refreshNow();notify(gettext('Returning this channel to game rotation.'));
 });}
 
 // ---- On-Demand (VOD) On-TV Control ----
@@ -265,14 +265,14 @@ async function openVodNow(){
       vodOpen=true;
       document.body.classList.add('vod-mode');
       const b=document.getElementById('vodButton');
-      if(b)b.textContent='EXIT VOD';
+      if(b)b.textContent=gettext('EXIT VOD');
       updateVodLcd(res);
-      notify('On Demand screen opened on TV');
+      notify(gettext('On Demand screen opened on TV'));
     }else{
-      notify('Could not open On Demand on TV');
+      notify(gettext('Could not open On Demand on TV'));
     }
   }catch(err){
-    notify('Failed to open VOD: '+err.message);
+    notify(gettext("Failed to open VOD: %(error)s",{error:err.message}));
   }
 }
 
@@ -280,26 +280,26 @@ async function closeVodNow(){
   vodOpen=false;
   document.body.classList.remove('vod-mode');
   const b=document.getElementById('vodButton');
-  if(b)b.textContent='ON DEMAND';
+  if(b)b.textContent=gettext('ON DEMAND');
   try{
     await tvApi('/api/tv-vod',{action:'close'});
   }catch(e){}
   await refreshNow();
-  notify('Closed On Demand');
+  notify(gettext('Closed On Demand'));
 }
 
 function updateVodLcd(st){
   if(!st)return;
   document.getElementById('ncCh').textContent='OD';
-  document.getElementById('ncLive').textContent='ON DEMAND';
+  document.getElementById('ncLive').textContent=gettext('ON DEMAND');
   if(st.mode==='search'){
-    document.getElementById('ncTitle').textContent='Search On Demand';
-    document.getElementById('ncSub').textContent=st.query||'Choose letters on TV';
+    document.getElementById('ncTitle').textContent=gettext('Search On Demand');
+    document.getElementById('ncSub').textContent=st.query||gettext('Choose letters on TV');
   }else if(st.mode==='show'){
-    document.getElementById('ncTitle').textContent=st.title||st.show_name||'Episode';
+    document.getElementById('ncTitle').textContent=st.title||st.show_name||gettext('Episode');
     document.getElementById('ncSub').textContent=`${st.show_name} S${st.season} • Press OK`;
   }else{
-    document.getElementById('ncTitle').textContent=st.title||'On Demand';
+    document.getElementById('ncTitle').textContent=st.title||gettext('On Demand');
     const cat=st.category?`${st.category} • `:''
     const prompt=st.search_focused?'Press OK to Search':st.kind==='show'?'Press OK for Episodes':'Press OK to Play';
     document.getElementById('ncSub').textContent=cat+prompt;
@@ -314,10 +314,10 @@ async function sendTvVodNav(action,query){
       IS_VOD_PLAYING=true;
       document.body.classList.remove('vod-mode');
       const b=document.getElementById('vodButton');
-      if(b)b.textContent='ON DEMAND';
+      if(b)b.textContent=gettext('ON DEMAND');
       document.getElementById('ncCh').textContent='OD';
-      document.getElementById('ncLive').textContent='ON DEMAND';
-      document.getElementById('ncTitle').textContent=res.title||'On Demand';
+      document.getElementById('ncLive').textContent=gettext('ON DEMAND');
+      document.getElementById('ncTitle').textContent=res.title||gettext('On Demand');
       document.getElementById('ncSub').textContent=res.subtitle||'';
       notify(`▶ Playing on TV: ${res.title}`);
       return;
@@ -326,7 +326,7 @@ async function sendTvVodNav(action,query){
       vodOpen=false;
       document.body.classList.remove('vod-mode');
       const b=document.getElementById('vodButton');
-      if(b)b.textContent='ON DEMAND';
+      if(b)b.textContent=gettext('ON DEMAND');
       await refreshNow();
       return;
     }
@@ -334,7 +334,7 @@ async function sendTvVodNav(action,query){
       updateVodLcd(res);
     }
   }catch(err){
-    notify('Navigation error: '+err.message);
+    notify(gettext("Navigation error: %(error)s",{error:err.message}));
   }
 }
 
@@ -359,14 +359,14 @@ async function openSportsNow(){
       sportsOpen=true;
       document.body.classList.add('sports-mode');
       const b=document.getElementById('sportsButton');
-      if(b)b.textContent='EXIT SPORTS';
+      if(b)b.textContent=gettext('EXIT SPORTS');
       updateSportsLcd(res);
-      notify('Sports Center opened on TV');
+      notify(gettext('Sports Center opened on TV'));
     }else{
-      notify('Could not open Sports on TV');
+      notify(gettext('Could not open Sports on TV'));
     }
   }catch(err){
-    notify('Failed to open Sports: '+err.message);
+    notify(gettext("Failed to open Sports: %(error)s",{error:err.message}));
   }
 }
 
@@ -374,25 +374,25 @@ async function closeSportsNow(){
   sportsOpen=false;
   document.body.classList.remove('sports-mode');
   const b=document.getElementById('sportsButton');
-  if(b)b.textContent='SPORTS';
+  if(b)b.textContent=gettext('SPORTS');
   try{
     await tvApi('/api/tv-sports',{action:'close'});
   }catch(e){}
   await refreshNow();
-  notify('Closed Sports Center');
+  notify(gettext('Closed Sports Center'));
 }
 
 function updateSportsLcd(st){
   if(!st)return;
   document.getElementById('ncCh').textContent='SP';
-  document.getElementById('ncLive').textContent='SPORTS';
+  document.getElementById('ncLive').textContent=gettext('SPORTS');
   if(st.mode==='game'){
-    document.getElementById('ncTitle').textContent=st.title||'Game Center';
+    document.getElementById('ncTitle').textContent=st.title||gettext('Game Center');
     document.getElementById('ncSub').textContent=`${st.subtitle||''} • Press OK for Announcer`;
   }else{
-    document.getElementById('ncTitle').textContent=st.title||'Sports Center';
+    document.getElementById('ncTitle').textContent=st.title||gettext('Sports Center');
     const cat=st.category?`${st.category} • `:''
-    document.getElementById('ncSub').textContent=cat+'Press OK for Field & Plays';
+    document.getElementById('ncSub').textContent=cat+gettext('Press OK for Field & Plays');
   }
 }
 
@@ -403,7 +403,7 @@ async function sendTvSportsNav(action,query){
       sportsOpen=false;
       document.body.classList.remove('sports-mode');
       const b=document.getElementById('sportsButton');
-      if(b)b.textContent='SPORTS';
+      if(b)b.textContent=gettext('SPORTS');
       await refreshNow();
       return;
     }
@@ -414,7 +414,7 @@ async function sendTvSportsNav(action,query){
       updateSportsLcd(res);
     }
   }catch(err){
-    notify('Sports navigation error: '+err.message);
+    notify(gettext("Sports navigation error: %(error)s",{error:err.message}));
   }
 }
 
@@ -447,7 +447,7 @@ async function generateNewPairCode(){
       pairExpiryTimer = setInterval(updatePairCountdown, 1000);
     }
   }catch(e){
-    if(codeEl) codeEl.textContent = 'ERROR';
+    if(codeEl) codeEl.textContent = gettext('ERROR');
     notify('Failed to generate pair code: ' + e.message);
   }
 }
@@ -458,7 +458,7 @@ function updatePairCountdown(){
   const rem = Math.max(0, Math.floor((pairExpiresAt - Date.now()) / 1000));
   const mins = Math.floor(rem / 60);
   const secs = rem % 60;
-  cdEl.textContent = rem > 0 ? `Code expires in ${mins}:${String(secs).padStart(2, '0')}` : 'Code expired. Tap New Code.';
+  cdEl.textContent = rem > 0 ? `Code expires in ${mins}:${String(secs).padStart(2, '0')}` : gettext('Code expired. Tap New Code.');
 }
 
 async function refreshPairedDevices(){
@@ -483,7 +483,7 @@ async function refreshPairedDevices(){
 async function revokePairedDevice(deviceId){
   try{
     await tvApi('/api/pair/revoke', {device_id: deviceId});
-    notify('Device revoked');
+    notify(gettext('Device revoked'));
     refreshPairedDevices();
   }catch(e){
     notify('Failed to revoke: ' + e.message);

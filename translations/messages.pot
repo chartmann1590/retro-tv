@@ -1,0 +1,1723 @@
+msgid ""
+msgstr ""
+"Project-Id-Version: retro-tv\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Language: \n"
+
+#: templates
+msgid "-- mph"
+msgstr ""
+
+#: templates
+msgid "↻ NEW CODE"
+msgstr ""
+
+#: templates
+msgid "+ ADD SOURCE"
+msgstr ""
+
+#: static/js/guide.js
+msgid "⏰ Reminder set"
+msgstr ""
+
+#: static/js/player.js
+msgid "▶ PLAY"
+msgstr ""
+
+#: static/js/vod.js
+msgid "▶ PLAY ON TV"
+msgstr ""
+
+#: static/js/remote.js
+msgid "▶ RESUME"
+msgstr ""
+
+#: templates
+msgid "▶ TUNE NOW"
+msgstr ""
+
+#: templates
+msgid "▶ TV"
+msgstr ""
+
+#: templates
+msgid "▶ WATCH GAME ON TV"
+msgstr ""
+
+#: templates
+msgid "▶ Watch Highlights on TV"
+msgstr ""
+
+#: static/js/remote.js
+msgid "● CONNECTED"
+msgstr ""
+
+#: templates
+msgid "● LIVE"
+msgstr ""
+
+#: static/js/sports.js
+msgid "● LIVE ACTION ON FIELD"
+msgstr ""
+
+#: templates
+msgid "● LIVE TV"
+msgstr ""
+
+#: templates
+msgid "● Now"
+msgstr ""
+
+#: static/js/common.js
+msgid "★ %(title)s starts in %(minutes)s min on CH %(channel)s%(name)s"
+msgstr ""
+
+#: templates
+msgid "★ Favorites"
+msgstr ""
+
+#: static/js/sports.js
+msgid "★ FEATURED MATCHUP"
+msgstr ""
+
+#: templates
+msgid "★ FEATURED ON DEMAND"
+msgstr ""
+
+#: templates
+msgid "★ Recently Added"
+msgstr ""
+
+#: templates
+msgid "⚽ Soccer"
+msgstr ""
+
+#: templates
+msgid "⚾ Baseball"
+msgstr ""
+
+#: templates
+msgid "⛶ FULLSCREEN"
+msgstr ""
+
+#: templates
+msgid "⬇️ Download Android App (APK)"
+msgstr ""
+
+#: templates
+msgid "🎬 Feature Films"
+msgstr ""
+
+#: templates
+msgid "🏀 Basketball"
+msgstr ""
+
+#: templates
+msgid "🏆 Final Scores"
+msgstr ""
+
+#: templates
+msgid "🏈 Football"
+msgstr ""
+
+#: templates
+msgid "🏒 Hockey"
+msgstr ""
+
+#: templates
+msgid "💻 WATCH IN BROWSER"
+msgstr ""
+
+#: templates
+msgid "📡 Sports Channel"
+msgstr ""
+
+#: static/js/sports.js
+msgid "📡 Tuned to Channel 38 Retro Sports"
+msgstr ""
+
+#: templates
+msgid "📰 Sports News"
+msgstr ""
+
+#: templates
+msgid "📱 PAIR"
+msgstr ""
+
+#: templates
+msgid "📱 PAIR COMPANION APP"
+msgstr ""
+
+#: templates
+msgid "📱 TV Remote"
+msgstr ""
+
+#: static/js/sports.js
+msgid "📺 Sports Center opened on TV screen"
+msgstr ""
+
+#: templates
+msgid "📺 TV Series"
+msgstr ""
+
+#: static/js/vod.js
+msgid "📺 VIEW EPISODES"
+msgstr ""
+
+#: templates
+msgid "📺 Watch Live"
+msgstr ""
+
+#: templates
+msgid "🔊 Announce Latest Play"
+msgstr ""
+
+#: templates
+msgid "🔊 HEAR PLAY-BY-PLAY"
+msgstr ""
+
+#: static/js/sports.js
+msgid "🔊 Playing Kokoro Announcer audio"
+msgstr ""
+
+#: templates
+msgid "🔊 READ PLAYS"
+msgstr ""
+
+#: templates
+msgid "🔍 FIND"
+msgstr ""
+
+#: templates
+msgid "🔔 REMINDERS"
+msgstr ""
+
+#: templates
+msgid "🔴 Live Now"
+msgstr ""
+
+#: templates
+msgid "0 Episodes"
+msgstr ""
+
+#: templates
+msgid "0 Seasons"
+msgstr ""
+
+#: templates
+msgid "30.02 in"
+msgstr ""
+
+#: templates
+msgid "7-Day Extended Outlook"
+msgstr ""
+
+#: templates
+msgid "ADD / EDIT"
+msgstr ""
+
+#: static/js/admin.js
+msgid "ADD CHANNEL"
+msgstr ""
+
+#: templates
+msgid "Add channels in"
+msgstr ""
+
+#: templates
+msgid "ADMINISTRATION"
+msgstr ""
+
+#: templates
+msgid "All Games"
+msgstr ""
+
+#: templates
+msgid "All times local ·"
+msgstr ""
+
+#: templates
+msgid "All Titles"
+msgstr ""
+
+#: templates
+msgid "Android's own moderate thermal-status pause stays active in both modes."
+msgstr ""
+
+#: templates
+msgid "ARENAPULSE LIVE"
+msgstr ""
+
+#: templates
+msgid "Arrows reorder the guide/remote line-up without renaming channels."
+msgstr ""
+
+#: static/js/sports.js
+msgid "Away"
+msgstr ""
+
+#: templates
+msgid "AWAY"
+msgstr ""
+
+#: static/js/sports.js
+msgid "Away Team"
+msgstr ""
+
+#: templates
+msgid "Away Team @ Home Team"
+msgstr ""
+
+#: templates
+msgid "BALL ON 35 YD LINE"
+msgstr ""
+
+#: templates
+msgid "BAROMETER"
+msgstr ""
+
+#: templates
+msgid "Between only"
+msgstr ""
+
+#: templates
+msgid "Browse"
+msgstr ""
+
+#: templates
+msgid "BROWSER KEYBOARD SETUP"
+msgstr ""
+
+#: templates
+msgid "BROWSER STREAMING"
+msgstr ""
+
+#: templates
+msgid "Cable receiver"
+msgstr ""
+
+#: templates
+msgid "CABLE TELEVISION"
+msgstr ""
+
+#: templates
+msgid "CANCEL"
+msgstr ""
+
+#: static/js/remote.js
+msgid "CC OFF"
+msgstr ""
+
+#: static/js/remote.js
+msgid "CC ON"
+msgstr ""
+
+#: templates
+msgid "CH"
+msgstr ""
+
+#: static/js/remote.js
+msgid "CH "
+msgstr ""
+
+#: templates
+msgid "CH +"
+msgstr ""
+
+#: templates
+msgid "CH −"
+msgstr ""
+
+#: templates
+msgid "Channel"
+msgstr ""
+
+#: templates
+msgid "CHANNEL"
+msgstr ""
+
+#: static/js/player.js
+msgid "Channel %(channel)s is playing on your TV."
+msgstr ""
+
+#: static/js/remote.js
+msgid "Channel %(channel)s on your TV"
+msgstr ""
+
+#: templates
+msgid "Channel down"
+msgstr ""
+
+#: templates
+msgid "Channel number keypad"
+msgstr ""
+
+#: templates
+msgid "Channel surfing, volume, last channel, and the complete TV guide."
+msgstr ""
+
+#: templates
+msgid "Channel up"
+msgstr ""
+
+#: templates
+msgid "CHANNELS"
+msgstr ""
+
+#: templates
+msgid "Checking games…"
+msgstr ""
+
+#: templates
+msgid "Checking USB receiver…"
+msgstr ""
+
+#: templates
+msgid "Choose a channel. Settle into the sofa."
+msgstr ""
+
+#: static/js/remote.js
+msgid "Choose a game on the TV and press OK to keep watching it."
+msgstr ""
+
+#: static/js/remote.js
+msgid "Choose letters on TV"
+msgstr ""
+
+#: templates
+msgid "Clear search"
+msgstr ""
+
+#: templates
+msgid "Click a field, then press a key on this browser’s keyboard. Use USB button learning above for the remote attached to the TV."
+msgstr ""
+
+#: templates
+msgid "Clock"
+msgstr ""
+
+#: templates
+msgid "Close"
+msgstr ""
+
+#: templates
+msgid "CLOSE"
+msgstr ""
+
+#: static/js/remote.js
+msgid "CLOSE GAMES"
+msgstr ""
+
+#: templates
+msgid "Close modal"
+msgstr ""
+
+#: static/js/guide.js
+msgid "Close TV guide"
+msgstr ""
+
+#: static/js/remote.js
+msgid "Closed On Demand"
+msgstr ""
+
+#: static/js/remote.js
+msgid "Closed Sports Center"
+msgstr ""
+
+#: static/js/remote.js
+msgid "Code expired. Tap New Code."
+msgstr ""
+
+#: templates
+msgid "Color"
+msgstr ""
+
+#: templates
+msgid "COMMERCIAL ROTATION"
+msgstr ""
+
+#: templates
+msgid "Commercials"
+msgstr ""
+
+#: templates
+msgid "COMMERCIALS"
+msgstr ""
+
+#: templates
+msgid "Connect to the same Wi-Fi, then open this address on your phone."
+msgstr ""
+
+#: templates
+msgid "CONNECTING"
+msgstr ""
+
+#: templates
+msgid "Connecting to ArenaPulse live sports radar…"
+msgstr ""
+
+#: templates
+msgid "Connecting to receiver…"
+msgstr ""
+
+#: templates
+msgid "Connecting…"
+msgstr ""
+
+#: static/js/common.js
+msgid "Connection lost. Check your Wi-Fi and try again."
+msgstr ""
+
+#: static/js/guide.js
+msgid "Connection lost. Retrying…"
+msgstr ""
+
+#: templates
+msgid "Conversion worker"
+msgstr ""
+
+#: static/js/admin.js
+msgid "Conversion worker saved."
+msgstr ""
+
+#: static/js/remote.js
+msgid "Could not open On Demand on TV"
+msgstr ""
+
+#: static/js/remote.js
+msgid "Could not open Sports on TV"
+msgstr ""
+
+#: static/js/admin.js
+msgid "Could not save phone settings"
+msgstr ""
+
+#: templates
+msgid "CURRENT OBSERVATIONS"
+msgstr ""
+
+#: templates
+msgid "DASHBOARD"
+msgstr ""
+
+#: templates
+msgid "Day (YYYY-MM-DD)"
+msgstr ""
+
+#: static/js/remote.js
+msgid "Device revoked"
+msgstr ""
+
+#: templates
+msgid "Dismiss reminder"
+msgstr ""
+
+#: static/js/sports.js
+msgid "Dome / Weather N/A"
+msgstr ""
+
+#: templates
+msgid "DOPPLER 5000"
+msgstr ""
+
+#: templates
+msgid "Down"
+msgstr ""
+
+#: templates
+msgid "DraftKings Line"
+msgstr ""
+
+#: templates
+msgid "Earlier programs"
+msgstr ""
+
+#: static/js/admin.js
+msgid "EDIT CHANNEL "
+msgstr ""
+
+#: templates
+msgid "Enabled"
+msgstr ""
+
+#: templates
+msgid "ENTER"
+msgstr ""
+
+#: templates
+msgid "Enter fullscreen"
+msgstr ""
+
+#: templates
+msgid "Enter this 6-digit code in the Retro TV Android companion app to pair this receiver:"
+msgstr ""
+
+#: static/js/remote.js
+msgid "Episode"
+msgstr ""
+
+#: static/js/remote.js
+msgid "ERROR"
+msgstr ""
+
+#: static/js/sports.js
+msgid "ESPN"
+msgstr ""
+
+#: templates
+msgid "Every button controls your television."
+msgstr ""
+
+#: static/js/remote.js
+msgid "EXIT SPORTS"
+msgstr ""
+
+#: static/js/remote.js
+msgid "EXIT VOD"
+msgstr ""
+
+#: templates
+msgid "Favorite"
+msgstr ""
+
+#: templates
+msgid "FEATURE FILM"
+msgstr ""
+
+#: templates
+msgid "Featured Game"
+msgstr ""
+
+#: static/js/vod.js
+msgid "Featured Title"
+msgstr ""
+
+#: templates
+msgid "FEELS LIKE"
+msgstr ""
+
+#: templates
+msgid "Fetching National Weather Service local detailed forecast for your area…"
+msgstr ""
+
+#: static/js/sports.js
+msgid "FIELD RADAR ACTIVE"
+msgstr ""
+
+#: static/js/remote.js
+msgid "Field, plays, and narration are loading"
+msgstr ""
+
+#: templates
+msgid "FINAL · GAME RECAP"
+msgstr ""
+
+#: templates
+msgid "FULL RESCAN+PROBE"
+msgstr ""
+
+#: static/js/remote.js
+msgid "Game Center"
+msgstr ""
+
+#: static/js/remote.js
+msgid "GAMES"
+msgstr ""
+
+#: static/js/remote.js
+msgid "GUIDE"
+msgstr ""
+
+#: templates
+msgid "HDMI PLAYBACK"
+msgstr ""
+
+#: templates
+msgid "HEAVY"
+msgstr ""
+
+#: static/js/sports.js
+msgid "Home"
+msgstr ""
+
+#: templates
+msgid "HOME"
+msgstr ""
+
+#: static/js/sports.js
+msgid "Home Team"
+msgstr ""
+
+#: templates
+msgid "Hourly Outlook"
+msgstr ""
+
+#: templates
+msgid "HUMIDITY"
+msgstr ""
+
+#: templates
+msgid "ℹ DETAILS"
+msgstr ""
+
+#: templates
+msgid "ℹ FULL GAME CENTER"
+msgstr ""
+
+#: templates
+msgid "Ⅱ PAUSE"
+msgstr ""
+
+#: templates
+msgid "INFO"
+msgstr ""
+
+#: templates
+msgid "INFO ON TV"
+msgstr ""
+
+#: templates
+msgid "INPUT DEVICES"
+msgstr ""
+
+#: templates
+msgid "Instant matches across live, scheduled, and completed matchups"
+msgstr ""
+
+#: templates
+msgid "Instant matches across movies, series, and episodes"
+msgstr ""
+
+#: templates
+msgid "INTERACTIVE GAME CENTER"
+msgstr ""
+
+#: templates
+msgid "LAST"
+msgstr ""
+
+#: templates
+msgid "LAST CHANNEL"
+msgstr ""
+
+#: templates
+msgid "Later programs"
+msgstr ""
+
+#: static/js/sports.js
+msgid "LEAGUE"
+msgstr ""
+
+#: templates
+msgid "LEARN USB BUTTON"
+msgstr ""
+
+#: templates
+msgid "Left"
+msgstr ""
+
+#: templates
+msgid "LIBRARY"
+msgstr ""
+
+#: templates
+msgid "LIGHT"
+msgstr ""
+
+#: templates
+msgid "Listen to AI Voice Narration"
+msgstr ""
+
+#: templates
+msgid "LISTEN TO FORECAST"
+msgstr ""
+
+#: static/js/sports.js
+msgid "Live"
+msgstr ""
+
+#: static/js/remote.js
+msgid "LIVE"
+msgstr ""
+
+#: templates
+msgid "LIVE DOPPLER RADAR"
+msgstr ""
+
+#: templates
+msgid "LIVE GAMEPLAY FIELD RADAR"
+msgstr ""
+
+#: static/js/sports.js
+msgid "Live matchup telemetry and play-by-play."
+msgstr ""
+
+#: templates
+msgid "LIVE TELEVISION"
+msgstr ""
+
+#: templates
+msgid "Loading"
+msgstr ""
+
+#: templates
+msgid "Loading extended forecast…"
+msgstr ""
+
+#: templates
+msgid "Loading field view…"
+msgstr ""
+
+#: templates
+msgid "Loading game updates…"
+msgstr ""
+
+#: templates
+msgid "Loading gameplay field…"
+msgstr ""
+
+#: templates
+msgid "Loading hourly forecast…"
+msgstr ""
+
+#: templates
+msgid "Loading Location…"
+msgstr ""
+
+#: templates
+msgid "Loading matchup information and field radar..."
+msgstr ""
+
+#: templates
+msgid "Loading plays..."
+msgstr ""
+
+#: templates
+msgid "Loading Retroflix on-demand library…"
+msgstr ""
+
+#: templates
+msgid "Loading Spotlight…"
+msgstr ""
+
+#: templates
+msgid "Loading weather…"
+msgstr ""
+
+#: templates
+msgid "Loading your lineup…"
+msgstr ""
+
+#: templates
+msgid "LOCAL FORECAST FOR"
+msgstr ""
+
+#: templates
+msgid "LOGS"
+msgstr ""
+
+#: templates
+msgid "Main navigation"
+msgstr ""
+
+#: templates
+msgid "MEDIA LIBRARY"
+msgstr ""
+
+#: templates
+msgid "Mid-movie breaks"
+msgstr ""
+
+#: templates
+msgid "MOD"
+msgstr ""
+
+#: templates
+msgid "MOVIE"
+msgstr ""
+
+#: templates
+msgid "Movie Title"
+msgstr ""
+
+#: static/js/player.js
+msgid "MUTE"
+msgstr ""
+
+#: static/js/remote.js
+msgid "MUTED"
+msgstr ""
+
+#: static/js/sports.js
+msgid "N/A"
+msgstr ""
+
+#: templates
+msgid "Name"
+msgstr ""
+
+#: templates
+msgid "National Weather Service 12-Hour Trajectory"
+msgstr ""
+
+#: templates
+msgid "NATIVE ANDROID APP"
+msgstr ""
+
+#: templates
+msgid "Navigation pad"
+msgstr ""
+
+#: templates
+msgid "Network"
+msgstr ""
+
+#: templates
+msgid "NEW CHANNEL"
+msgstr ""
+
+#: templates
+msgid "Next channel"
+msgstr ""
+
+#: templates
+msgid "Next game"
+msgstr ""
+
+#: templates
+msgid "Next guide channel"
+msgstr ""
+
+#: templates
+msgid "Next program"
+msgstr ""
+
+#: templates
+msgid "No"
+msgstr ""
+
+#: static/js/sports.js
+msgid "No betting lines"
+msgstr ""
+
+#: static/js/player.js
+msgid "No channels configured."
+msgstr ""
+
+#: static/js/remote.js
+msgid "No channels in the guide yet."
+msgstr ""
+
+#: static/js/guide.js
+msgid "No channels yet. Add your lineup in Setup."
+msgstr ""
+
+#: static/js/guide.js
+msgid "No favorite channels yet — set them in Setup."
+msgstr ""
+
+#: static/js/guide.js
+msgid "No matches."
+msgstr ""
+
+#: static/js/vod.js
+msgid "No plot description available."
+msgstr ""
+
+#: static/js/remote.js static/js/tv.js
+msgid "No previous channel yet."
+msgstr ""
+
+#: static/js/guide.js
+msgid "No programs in this time window"
+msgstr ""
+
+#: static/js/remote.js
+msgid "No programs in this window"
+msgstr ""
+
+#: static/js/vod.js
+msgid "No show description available."
+msgstr ""
+
+#: templates
+msgid "Number"
+msgstr ""
+
+#: templates
+msgid "NWS RETRO-SCAN"
+msgstr ""
+
+#: templates
+msgid "Off"
+msgstr ""
+
+#: templates
+msgid "Off — let the phone run"
+msgstr ""
+
+#: static/js/remote.js static/js/tv.js
+msgid "Off air"
+msgstr ""
+
+#: static/js/remote.js static/js/tv.js
+msgid "OFF AIR"
+msgstr ""
+
+#: templates
+msgid "OK"
+msgstr ""
+
+#: templates
+msgid "On — pause at 46.5°C"
+msgstr ""
+
+#: static/js/remote.js
+msgid "On Demand"
+msgstr ""
+
+#: static/js/remote.js
+msgid "ON DEMAND"
+msgstr ""
+
+#: static/js/remote.js
+msgid "On Demand screen opened on TV"
+msgstr ""
+
+#: templates
+msgid "ON YOUR TV"
+msgstr ""
+
+#: templates
+msgid "ONE REMOTE. ALL YOUR FAVORITES."
+msgstr ""
+
+#: templates
+msgid "OPEN REMOTE"
+msgstr ""
+
+#: static/js/sports.js
+msgid "Opened Sports on TV"
+msgstr ""
+
+#: templates
+msgid "Ordering"
+msgstr ""
+
+#: templates
+msgid "PASS THE REMOTE"
+msgstr ""
+
+#: templates
+msgid "Paused"
+msgstr ""
+
+#: static/js/remote.js static/js/tv.js
+msgid "PAUSED"
+msgstr ""
+
+#: templates
+msgid "Phone (Wi-Fi or USB)"
+msgstr ""
+
+#: templates
+msgid "Phone battery temperature pause"
+msgstr ""
+
+#: static/js/admin.js
+msgid "Phone connected and ready. The status screen is open on the phone."
+msgstr ""
+
+#: static/js/admin.js
+msgid "Phone connected; could not open the status screen."
+msgstr ""
+
+#: static/js/admin.js
+msgid "Phone connected; FFmpeg is not installed on it."
+msgstr ""
+
+#: static/js/admin.js
+msgid "Phone connected; waiting for Android to cool."
+msgstr ""
+
+#: templates
+msgid "Phone on USB, then remote computer"
+msgstr ""
+
+#: templates
+msgid "PHONE SHOW CONVERSION"
+msgstr ""
+
+#: static/js/admin.js
+msgid "Phone unreachable over ADB. Check its address, Wi-Fi debugging, and pairing."
+msgstr ""
+
+#: templates
+msgid "Phone Wi-Fi ADB address"
+msgstr ""
+
+#: templates
+msgid "Pi (CPU intensive)"
+msgstr ""
+
+#: static/js/remote.js
+msgid "Pick a game"
+msgstr ""
+
+#: static/js/remote.js
+msgid "PICK A GAME"
+msgstr ""
+
+#: static/js/league-broadcast.js
+msgid "PLAY"
+msgstr ""
+
+#: templates
+msgid "PLAY BY PLAY"
+msgstr ""
+
+#: templates
+msgid "PLAY ON TV"
+msgstr ""
+
+#: templates
+msgid "Play-by-Play"
+msgstr ""
+
+#: templates
+msgid "PLAYBACK"
+msgstr ""
+
+#: static/js/player.js
+msgid "Playback could not start. Try another channel."
+msgstr ""
+
+#: static/js/player.js
+msgid "Playing on your living-room TV."
+msgstr ""
+
+#: templates
+msgid "PRECIPITATION INTENSITY:"
+msgstr ""
+
+#: static/js/remote.js
+msgid "Preparing selected game…"
+msgstr ""
+
+#: static/js/remote.js
+msgid "Preparing your game on TV…"
+msgstr ""
+
+#: static/js/remote.js
+msgid "Press OK for Field & Plays"
+msgstr ""
+
+#: templates
+msgid "Previous channel"
+msgstr ""
+
+#: templates
+msgid "Previous game"
+msgstr ""
+
+#: templates
+msgid "Previous guide channel"
+msgstr ""
+
+#: templates
+msgid "Previous program"
+msgstr ""
+
+#: templates
+msgid "Program guide: use arrow keys to select, Enter to tune your TV"
+msgstr ""
+
+#: templates
+msgid "PROGRAM INFORMATION"
+msgstr ""
+
+#: templates
+msgid "QUICK TUNE"
+msgstr ""
+
+#: templates
+msgid "RADAR STATION: NWS"
+msgstr ""
+
+#: templates
+msgid "REBOOT PI"
+msgstr ""
+
+#: templates
+msgid "Receiver"
+msgstr ""
+
+#: static/js/tv.js
+msgid "RECONNECTING"
+msgstr ""
+
+#: static/js/remote.js
+msgid "RECONNECTING…"
+msgstr ""
+
+#: templates
+msgid "REFRESH"
+msgstr ""
+
+#: templates
+msgid "REGENERATE FUTURE DAY"
+msgstr ""
+
+#: templates
+msgid "REMINDERS"
+msgstr ""
+
+#: templates
+msgid "Remote"
+msgstr ""
+
+#: templates
+msgid "REMOTE"
+msgstr ""
+
+#: templates
+msgid "Remote computer only"
+msgstr ""
+
+#: templates
+msgid "RESCAN MEDIA"
+msgstr ""
+
+#: templates
+msgid "RESTART PLAYBACK"
+msgstr ""
+
+#: static/js/remote.js
+msgid "Resumed live cable TV"
+msgstr ""
+
+#: templates
+msgid "Retro TV Companion"
+msgstr ""
+
+#: templates
+msgid "RETRO-TV CABLE SYSTEM"
+msgstr ""
+
+#: templates
+msgid "RETURN TO ROTATION"
+msgstr ""
+
+#: static/js/remote.js
+msgid "Returning this channel to game rotation."
+msgstr ""
+
+#: templates
+msgid "Right"
+msgstr ""
+
+#: templates
+msgid "RT-04 · LIVING ROOM RECEIVER"
+msgstr ""
+
+#: templates
+msgid "SAVE"
+msgstr ""
+
+#: templates
+msgid "SAVE CHANNEL"
+msgstr ""
+
+#: templates
+msgid "SAVE PHONE WORKER"
+msgstr ""
+
+#: static/js/admin.js
+msgid "Saved"
+msgstr ""
+
+#: static/js/admin.js
+msgid "Saved."
+msgstr ""
+
+#: static/js/sports.js
+msgid "Scheduled"
+msgstr ""
+
+#: templates
+msgid "SCORING PLAY"
+msgstr ""
+
+#: templates
+msgid "Search all movies, series, episodes…"
+msgstr ""
+
+#: templates
+msgid "Search games, teams, leagues, players…"
+msgstr ""
+
+#: static/js/remote.js
+msgid "Search On Demand"
+msgstr ""
+
+#: templates
+msgid "Search Results"
+msgstr ""
+
+#: templates
+msgid "Search shows or movies"
+msgstr ""
+
+#: templates
+msgid "Search shows or movies…"
+msgstr ""
+
+#: templates
+msgid "Search shows…"
+msgstr ""
+
+#: templates
+msgid "Search Sports"
+msgstr ""
+
+#: templates
+msgid "Search the guide"
+msgstr ""
+
+#: static/js/guide.js
+msgid "Search unavailable."
+msgstr ""
+
+#: templates
+msgid "Search Video On Demand"
+msgstr ""
+
+#: templates
+msgid "SEASON:"
+msgstr ""
+
+#: templates
+msgid "Select / OK"
+msgstr ""
+
+#: static/js/guide.js
+msgid "Select a program to see details"
+msgstr ""
+
+#: templates
+msgid "Sequential"
+msgstr ""
+
+#: templates
+msgid "Set from the guide or the remote's search. Fires on the TV (and to your phone, if Gotify is filled in under Settings) a couple minutes before start."
+msgstr ""
+
+#: templates
+msgid "SETTINGS"
+msgstr ""
+
+#: templates
+msgid "Setup"
+msgstr ""
+
+#: templates
+msgid "SEVERE"
+msgstr ""
+
+#: static/js/guide.js
+msgid "Show on TV"
+msgstr ""
+
+#: templates
+msgid "Show Title"
+msgstr ""
+
+#: templates
+msgid "Shuffle"
+msgstr ""
+
+#: templates
+msgid "Soonest-up-next first (least recently aired) — this is the order the fair-rotation picker draws from."
+msgstr ""
+
+#: templates
+msgid "Sources"
+msgstr ""
+
+#: static/js/remote.js static/js/sports.js
+msgid "SPORTS"
+msgstr ""
+
+#: static/js/remote.js
+msgid "Sports Center"
+msgstr ""
+
+#: static/js/remote.js
+msgid "Sports Center opened on TV"
+msgstr ""
+
+#: static/js/sports.js
+msgid "Stadium"
+msgstr ""
+
+#: templates
+msgid "Stadium Name"
+msgstr ""
+
+#: templates
+msgid "STEREO · HDMI"
+msgstr ""
+
+#: templates
+msgid "STREAMING"
+msgstr ""
+
+#: templates
+msgid "SWEEP ACTIVE"
+msgstr ""
+
+#: templates
+msgid "SYSTEM"
+msgstr ""
+
+#: templates
+msgid "Take control."
+msgstr ""
+
+#: templates
+msgid "Television Broadcast"
+msgstr ""
+
+#: templates
+msgid "Television player"
+msgstr ""
+
+#: templates
+msgid "TELEVISION SERIES"
+msgstr ""
+
+#: templates
+msgid "THE GOOD CHANNELS ARE STILL HERE"
+msgstr ""
+
+#: static/js/common.js
+msgid "The receiver could not complete that request."
+msgstr ""
+
+#: templates
+msgid "The XING WEI remote controls the TV directly. Menu opens the guide; Home returns to live TV; Search lets you type a title on the back keyboard."
+msgstr ""
+
+#: static/js/player.js
+msgid "This show could not be streamed. Try another channel."
+msgstr ""
+
+#: templates
+msgid "To change a USB button, choose its action, click Learn, then press it. Phone controls and browser keyboard mappings remain separate."
+msgstr ""
+
+#: templates
+msgid "to get started."
+msgstr ""
+
+#: static/js/sports.js
+msgid "Today"
+msgstr ""
+
+#: templates
+msgid "TODAY'S FORECAST NARRATIVE"
+msgstr ""
+
+#: templates
+msgid "TOGGLE CAPTIONS"
+msgstr ""
+
+#: templates
+msgid "Top sports stories narrated by Kokoro neural speech"
+msgstr ""
+
+#: templates
+msgid "TOUCHDOWN"
+msgstr ""
+
+#: static/js/guide.js
+msgid "Try Now or choose another channel."
+msgstr ""
+
+#: templates
+msgid "TUNE HDMI"
+msgstr ""
+
+#: templates
+msgid "TUNE TV"
+msgstr ""
+
+#: static/js/common.js
+msgid "Tuned to CH %(channel)s"
+msgstr ""
+
+#: templates
+msgid "Tuning in…"
+msgstr ""
+
+#: static/js/remote.js
+msgid "TV Guide"
+msgstr ""
+
+#: templates
+msgid "TV GUIDE"
+msgstr ""
+
+#: static/js/tv.js
+msgid "TV tuned to channel %(channel)s"
+msgstr ""
+
+#: templates
+msgid "UNIVERSAL CABLE REMOTE"
+msgstr ""
+
+#: static/js/player.js static/js/league-broadcast.js
+msgid "UNMUTE"
+msgstr ""
+
+#: templates
+msgid "Up"
+msgstr ""
+
+#: templates
+msgid "Updated Live"
+msgstr ""
+
+#: templates
+msgid "USB button action"
+msgstr ""
+
+#: templates
+msgid "USB TV REMOTE"
+msgstr ""
+
+#: templates
+msgid "VIEW SCHEDULE"
+msgstr ""
+
+#: templates
+msgid "VOL"
+msgstr ""
+
+#: templates
+msgid "VOL --"
+msgstr ""
+
+#: templates
+msgid "Volume down"
+msgstr ""
+
+#: templates
+msgid "Volume up"
+msgstr ""
+
+#: templates
+msgid "Watch"
+msgstr ""
+
+#: static/js/vod.js
+msgid "Watch now on demand."
+msgstr ""
+
+#: templates
+msgid "Weather"
+msgstr ""
+
+#: templates
+msgid "Weather Conditions"
+msgstr ""
+
+#: templates
+msgid "What this channel draws from. Leave empty to play everything in the library."
+msgstr ""
+
+#: templates
+msgid "WHAT'S ON YOUR CABLE"
+msgstr ""
+
+#: templates
+msgid "WIND"
+msgstr ""
+
+#: templates
+msgid "Yes"
+msgstr ""
+
+#: templates
+msgid "You are browsing on a mobile device! For synchronized live TV streaming, EPG program guide, and tactile universal remote, download our native Android companion app."
+msgstr ""
+
+#: templates
+msgid "YOUR CHANNEL LINEUP"
+msgstr ""
+
+#: templates
+msgid "YOUR CHANNELS. ALWAYS ON."
+msgstr ""
+
+#: templates
+msgid "Your living room. Tuned in."
+msgstr ""
+
+#: static/js/tv.js
+msgid "Your own collection, playing around the clock."
+msgstr ""
+
+#: templates
+msgid "Your phone is the remote."
+msgstr ""
+
+
+#: templates/base.html
+msgid "Sports"
+msgstr ""
+
+#: templates/base.html
+msgid "Continue in Browser"
+msgstr ""
+
+#: static/js/admin.js
+msgid "queued"
+msgstr ""
+
+#: static/js/admin.js
+msgid "transcoding…"
+msgstr ""
+
+#: static/js/admin.js
+msgid "Pi-safe copy ready"
+msgstr ""
+
+#: static/js/admin.js
+msgid "transcode failed"
+msgstr ""
+
+#: static/js/admin.js
+msgid "Media SSD unavailable; show conversion is paused. Check the USB power and SSD mount."
+msgstr ""
+
+#: static/js/admin.js
+msgid "EDIT CHANNEL %(number)s"
+msgstr ""
+
+#: static/js/admin.js
+msgid "Error"
+msgstr ""
+
+#: static/js/guide.js
+msgid "Select a program · Tune it on your TV"
+msgstr ""
+
+#: static/js/guide.js
+msgid "We’ll flash it on the TV — and push to your phone, if Gotify is set up in Settings — a couple minutes before it starts."
+msgstr ""
+
+#: static/js/league-broadcast.js
+msgid "Coverage resumes with the next matchup"
+msgstr ""
+
+#: static/js/league-broadcast.js
+msgid "ArenaPulse has no scheduled or live games for this league right now."
+msgstr ""
+
+#: static/js/league-broadcast.js
+msgid "Field view appears when a matchup is available."
+msgstr ""
+
+#: static/js/league-broadcast.js
+msgid "Play by play begins when the game starts."
+msgstr ""
+
+#: static/js/league-broadcast.js
+msgid "Game updates are temporarily unavailable. Retrying…"
+msgstr ""
+
+#: static/js/league-broadcast.js
+msgid "Scores unavailable"
+msgstr ""
+
+#: static/js/league-broadcast.js
+msgid "ArenaPulse reconnecting…"
+msgstr ""
+
+#: static/js/remote.js
+msgid "Failed to open VOD: %(error)s"
+msgstr ""
+
+#: static/js/remote.js
+msgid "Navigation error: %(error)s"
+msgstr ""
+
+#: static/js/remote.js
+msgid "Failed to open Sports: %(error)s"
+msgstr ""
+
+#: static/js/remote.js
+msgid "Sports navigation error: %(error)s"
+msgstr ""
+
+#: static/js/sports.js
+msgid "Could not connect to ArenaPulse sports radar. Please check service connection."
+msgstr ""
+
+#: static/js/sports.js
+msgid "No live or scheduled games found right now."
+msgstr ""
+
+#: static/js/sports.js
+msgid "🏆 FINAL MATCH RESULT"
+msgstr ""
+
+#: static/js/sports.js
+msgid "Gameplay field radar ready"
+msgstr ""
+
+#: static/js/sports.js
+msgid "No news articles fetched yet."
+msgstr ""
+
+#: static/js/sports.js
+msgid "No games found matching your search."
+msgstr ""
+
+#: static/js/vod.js
+msgid "Failed to load On Demand library: %(error)s"
+msgstr ""
+
+#: static/js/vod.js
+msgid "No on-demand titles found in library."
+msgstr ""
+
+#: static/js/vod.js
+msgid "No titles matching your search."
+msgstr ""
+
+#: static/js/vod.js
+msgid "Could not load show: %(error)s"
+msgstr ""
+
+#: static/js/vod.js
+msgid "No episodes found in this season."
+msgstr ""
+
+#: static/js/vod.js
+msgid "Failed to play on TV: %(error)s"
+msgstr ""
+
+#: static/js/weather.js
+msgid "No detailed forecast available."
+msgstr ""
+
+#: static/js/weather.js
+msgid "Hourly forecast unavailable"
+msgstr ""
+
+#: static/js/weather.js
+msgid "STOP NARRATION"
+msgstr ""

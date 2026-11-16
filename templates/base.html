@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="en">
+<html lang="{{ current_language }}" dir="{{ 'rtl' if current_language == 'he' else 'ltr' }}">
 <head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="referrer" content="no-referrer">
@@ -9,50 +9,50 @@
 </head>
 <body class="{% block bodyclass %}{% endblock %}">
 <header class="topbar">
-<a class="brand" href="/"><span class="brand-mark">R<span>TV</span></span><span>RETRO<span class="brand-sub">CABLE TELEVISION</span></span></a>
-<nav class="nav" aria-label="Main navigation">
-<a href="/" class="{{'on' if request.path=='/' else ''}}">Receiver</a>
-<a href="/guide" class="{{'on' if request.path.startswith('/guide') else ''}}">TV Guide</a>
-<a href="/vod" class="{{'on' if request.path.startswith('/vod') else ''}}">On Demand</a>
-<a href="/sports" class="{{'on' if request.path.startswith('/sports') else ''}}">Sports</a>
-<a href="/weather" class="{{'on' if request.path.startswith('/weather') else ''}}">Weather</a>
-<a href="/remote" class="{{'on' if request.path.startswith('/remote') else ''}}">Remote</a>
-<a href="/watch" class="{{'on' if request.path.startswith('/watch') else ''}}">Watch</a>
-<a href="/admin" class="{{'on' if request.path.startswith('/admin') else ''}}">Setup</a>
+<a class="brand" href="/"><span class="brand-mark">R<span>TV</span></span><span>RETRO<span class="brand-sub">{{ _('CABLE TELEVISION') }}</span></span></a>
+<nav class="nav" aria-label="{{ _('Main navigation') }}">
+<a href="/" class="{{'on' if request.path=='/' else ''}}">{{ _('Receiver') }}</a>
+<a href="/guide" class="{{'on' if request.path.startswith('/guide') else ''}}">{{ _('TV Guide') }}</a>
+<a href="/vod" class="{{'on' if request.path.startswith('/vod') else ''}}">{{ _('On Demand') }}</a>
+<a href="/sports" class="{{'on' if request.path.startswith('/sports') else ''}}">{{ _('Sports') }}</a>
+<a href="/weather" class="{{'on' if request.path.startswith('/weather') else ''}}">{{ _('Weather') }}</a>
+<a href="/remote" class="{{'on' if request.path.startswith('/remote') else ''}}">{{ _('Remote') }}</a>
+<a href="/watch" class="{{'on' if request.path.startswith('/watch') else ''}}">{{ _('Watch') }}</a>
+<a href="/admin" class="{{'on' if request.path.startswith('/admin') else ''}}">{{ _('Setup') }}</a>
 </nav>
 <time class="clock" id="clock"></time>
 </header>
 <main class="wrap">{% block body %}{% endblock %}</main>
-<footer class="footer"><span><i class="led"></i> RETRO-TV CABLE SYSTEM</span><span>YOUR CHANNELS. ALWAYS ON.</span></footer>
+<footer class="footer"><span><i class="led"></i> {{ _('RETRO-TV CABLE SYSTEM') }}</span><span>{{ _('YOUR CHANNELS. ALWAYS ON.') }}</span></footer>
 <div id="notice" class="notice" role="status" aria-live="polite" hidden></div>
 <div id="reminderBanner" class="reminder-banner" hidden role="alert">
 <div class="reminder-banner-text"><b id="reminderTitle"></b><span id="reminderSub"></span></div>
-<button onclick="reminderTuneNow()">▶ TUNE NOW</button><button class="ghost" onclick="dismissReminderBanner()" aria-label="Dismiss reminder">✕</button>
+<button onclick="reminderTuneNow()">{{ _('▶ TUNE NOW') }}</button><button class="ghost" onclick="dismissReminderBanner()" aria-label="{{ _('Dismiss reminder') }}">✕</button>
 </div>
 <div id="mobileAppPrompt" class="mobile-prompt-overlay" style="display: none;" role="dialog" aria-modal="true" aria-labelledby="mobilePromptTitle">
 <div class="mobile-prompt-modal">
-<button class="mobile-prompt-close" onclick="dismissMobilePrompt()" aria-label="Close">✕</button>
+<button class="mobile-prompt-close" onclick="dismissMobilePrompt()" aria-label="{{ _('Close') }}">✕</button>
 <div class="mobile-prompt-header">
 <div class="mobile-prompt-icon">📺</div>
 <div class="mobile-prompt-title-wrap">
-<span class="mobile-prompt-badge">NATIVE ANDROID APP</span>
-<h3 id="mobilePromptTitle">Retro TV Companion</h3>
+<span class="mobile-prompt-badge">{{ _('NATIVE ANDROID APP') }}</span>
+<h3 id="mobilePromptTitle">{{ _('Retro TV Companion') }}</h3>
 </div>
 </div>
 <p class="mobile-prompt-desc">
-You are browsing on a mobile device! For synchronized live TV streaming, EPG program guide, and tactile universal remote, download our native Android companion app.
+{{ _('You are browsing on a mobile device! For synchronized live TV streaming, EPG program guide, and tactile universal remote, download our native Android companion app.') }}
 </p>
 <div class="mobile-prompt-actions">
 <a href="/download/companion.apk" class="btn-prompt-download">
-⬇️ Download Android App (APK)
+{{ _('⬇️ Download Android App (APK)') }}
 </a>
 <button class="btn-prompt-continue" onclick="dismissMobilePrompt()">
-Continue in Browser &rarr;
+{{ _('Continue in Browser') }} &rarr;
 </button>
 </div>
 </div>
 </div>
-<script>window.TV_TIMEZONE={{config_timezone|default('America/New_York')|tojson}};</script>
+<script>window.TV_TRANSLATIONS={{ js_translations|tojson }};window.TV_LANGUAGE={{ current_language|tojson }};window.TV_TIMEZONE={{config_timezone|default('America/New_York')|tojson}};</script>
 <script src="/static/js/common.js?v=6"></script>
 {% block js %}{% endblock %}
 </body></html>

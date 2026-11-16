@@ -174,10 +174,10 @@ async function leagueRenderGame() {
     document.getElementById('leagueLive').classList.remove('on');
     leagueText('leagueGameIndex', 'No games on the board');
     leagueText('leagueStatus', 'STANDBY');
-    leagueText('leagueClock', 'Coverage resumes with the next matchup');
+    leagueText('leagueClock', gettext("Coverage resumes with the next matchup"));
     updateLeagueCountdown();
-    leagueText('leaguePlayList', 'ArenaPulse has no scheduled or live games for this league right now.');
-    leagueText('leagueField', 'Field view appears when a matchup is available.');
+    leagueText('leaguePlayList', gettext("ArenaPulse has no scheduled or live games for this league right now."));
+    leagueText('leagueField', gettext("Field view appears when a matchup is available."));
     return;
   }
   const key = `${game.league}:${game.id}`;
@@ -223,12 +223,12 @@ async function leagueRenderGame() {
     leagueText('leaguePlayCount', `${plays.length} PLAYS`);
     const list = document.getElementById('leaguePlayList');
     list.replaceChildren();
-    if (!plays.length) leagueText('leaguePlayList', 'Play by play begins when the game starts.');
+    if (!plays.length) leagueText('leaguePlayList', gettext("Play by play begins when the game starts."));
     for (const play of [...plays].reverse().slice(0, 5)) {
       const row = document.createElement('div');
       row.className = `league-play${play.scoringPlay ? ' scoring' : ''}`;
       const clock = document.createElement('small');
-      clock.textContent = play.clock || play.time || play.period || 'PLAY';
+      clock.textContent = play.clock || play.time || play.period || gettext('PLAY');
       const body = document.createElement('span');
       body.textContent = play.text || '';
       row.append(clock, body);
@@ -251,7 +251,7 @@ async function leagueRenderGame() {
       leagueSpeak(leagueLatestPlay);
     }
   } catch (error) {
-    leagueText('leaguePlayList', 'Game updates are temporarily unavailable. Retrying…');
+    leagueText('leaguePlayList', gettext("Game updates are temporarily unavailable. Retrying…"));
   }
 }
 
@@ -260,7 +260,7 @@ async function leagueRefresh(league) {
   leagueLoading = true;
   try {
     const response = await fetch('/api/sports/scores?live=1', {cache: 'no-store'});
-    if (!response.ok) throw new Error('Scores unavailable');
+    if (!response.ok) throw new Error(gettext("Scores unavailable"));
     const data = await response.json();
     if (data._unavailable) throw new Error('Scores unavailable');
     const selected = leagueGames[leagueGameIndex];
@@ -274,7 +274,7 @@ async function leagueRefresh(league) {
     leagueText('leagueUpdated', `UPDATED ${new Date().toLocaleTimeString([], {hour: 'numeric', minute: '2-digit'})}`);
     await leagueRenderGame();
   } catch (error) {
-    leagueText('leagueUpdated', 'ArenaPulse reconnecting…');
+    leagueText('leagueUpdated', gettext("ArenaPulse reconnecting…"));
   } finally {
     leagueLoading = false;
   }
@@ -285,7 +285,7 @@ function initLeagueBroadcast(league, timezone, channel) {
   leagueTvChannel = channel;
   const video = document.getElementById('v');
   video.muted = true;
-  document.getElementById('watchMute').textContent = 'UNMUTE';
+  document.getElementById('watchMute').textContent = gettext('UNMUTE');
   const switchGame = delta => {
     if (!leagueGames.length) return;
     leagueGameIndex = (leagueGameIndex + delta + leagueGames.length) % leagueGames.length;

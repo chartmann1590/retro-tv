@@ -11,6 +11,8 @@ from zoneinfo import ZoneInfo
 from flask import Flask, jsonify, request, Response, render_template, send_file, send_from_directory, abort, redirect, url_for, stream_with_context
 
 import config
+from i18n import init_i18n, js_catalog
+from flask_babel import get_locale
 import database
 import scanner
 import scheduler
@@ -34,6 +36,7 @@ log = logging.getLogger("retro-tv")
 logging.getLogger("werkzeug").setLevel(logging.WARNING)
 
 app = Flask(__name__, template_folder="templates", static_folder="static")
+init_i18n(app)
 
 @app.context_processor
 def template_settings():
@@ -46,7 +49,8 @@ def template_settings():
                 remote_url = f"http://{sock.getsockname()[0]}:{config.PORT}/remote"
         except OSError:
             remote_url = f"http://{socket.gethostname()}.local:{config.PORT}/remote"
-    return {"config_timezone": config.TIMEZONE, "remote_url": remote_url}
+    return {"config_timezone": config.TIMEZONE, "remote_url": remote_url,
+            "current_language": str(get_locale()), "js_translations": js_catalog()}
 
 
 def fmt_time(ts):

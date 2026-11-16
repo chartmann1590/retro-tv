@@ -45,6 +45,10 @@ else
   "$APP/venv/bin/pip" install -r "$APP/requirements.txt"
 fi
 
+# Compile PO translations to MO on every install/upgrade.
+# Generated MO files stay outside Git, but must be present at runtime.
+"$APP/venv/bin/pybabel" compile -d "$APP/translations"
+
 echo "[4/8] Permissions (NEVER touch /srv/media ownership)..."
 if [ "$(id -u)" -eq 0 ]; then
   chown -R "$USER_NAME:$USER_NAME" "$APP"

@@ -2,36 +2,36 @@
 {% block bodyclass %}remote-page{% endblock %}
 {% block body %}
 <div class="remote-layout"><section class="remote-handset">
-<div class="remote-brand">RETRO<span>TV</span><small>UNIVERSAL CABLE REMOTE</small></div>
-<div class="remote-screen" aria-live="polite"><div class="remote-screen-top"><span id="connection">CONNECTING</span><span id="ncLive">TV</span></div><div class="remote-screen-main"><strong id="ncCh">--</strong><div><div id="ncTitle">Connecting to receiver…</div><div id="ncSub"></div></div></div><div class="remote-screen-bottom"><span id="vol">VOL --</span><span id="digitDisplay"></span></div></div>
-<div class="rrow"><button id="vodButton" class="vod-key" onclick="toggleVod()">ON DEMAND</button><button id="sportsButton" class="sports-key" onclick="toggleSports()">SPORTS</button><button id="guideButton" class="guide-key" onclick="openGuide()">GUIDE</button><button class="ghost" onclick="showInfo()">INFO</button><button class="ghost" onclick="prevCh()">LAST</button></div>
-<div class="rrow" id="gameControls" hidden><button id="gamesButton" class="sports-key" onclick="toggleGames()">PICK A GAME</button><button id="unpinGameButton" class="ghost" onclick="unpinGame()" hidden>RETURN TO ROTATION</button></div>
-<div class="dpad" aria-label="Navigation pad">
-<span></span><button onclick="dpadUp()" aria-label="Up">▲</button><span></span>
-<button onclick="dpadLeft()" aria-label="Left">◀</button><button class="dpad-ok" onclick="dpadOk()" aria-label="Select / OK">OK</button><button onclick="dpadRight()" aria-label="Right">▶</button>
-<span></span><button onclick="dpadDown()" aria-label="Down">▼</button><span></span>
+<div class="remote-brand">RETRO<span>TV</span><small>{{ _('UNIVERSAL CABLE REMOTE') }}</small></div>
+<div class="remote-screen" aria-live="polite"><div class="remote-screen-top"><span id="connection">{{ _('CONNECTING') }}</span><span id="ncLive">TV</span></div><div class="remote-screen-main"><strong id="ncCh">--</strong><div><div id="ncTitle">{{ _('Connecting to receiver…') }}</div><div id="ncSub"></div></div></div><div class="remote-screen-bottom"><span id="vol">{{ _('VOL --') }}</span><span id="digitDisplay"></span></div></div>
+<div class="rrow"><button id="vodButton" class="vod-key" onclick="toggleVod()">{{ _('ON DEMAND') }}</button><button id="sportsButton" class="sports-key" onclick="toggleSports()">SPORTS</button><button id="guideButton" class="guide-key" onclick="openGuide()">{{ _('GUIDE') }}</button><button class="ghost" onclick="showInfo()">{{ _('INFO') }}</button><button class="ghost" onclick="prevCh()">{{ _('LAST') }}</button></div>
+<div class="rrow" id="gameControls" hidden><button id="gamesButton" class="sports-key" onclick="toggleGames()">{{ _('PICK A GAME') }}</button><button id="unpinGameButton" class="ghost" onclick="unpinGame()" hidden>{{ _('RETURN TO ROTATION') }}</button></div>
+<div class="dpad" aria-label="{{ _('Navigation pad') }}">
+<span></span><button onclick="dpadUp()" aria-label="{{ _('Up') }}">▲</button><span></span>
+<button onclick="dpadLeft()" aria-label="{{ _('Left') }}">◀</button><button class="dpad-ok" onclick="dpadOk()" aria-label="{{ _('Select / OK') }}">{{ _('OK') }}</button><button onclick="dpadRight()" aria-label="{{ _('Right') }}">▶</button>
+<span></span><button onclick="dpadDown()" aria-label="{{ _('Down') }}">▼</button><span></span>
 </div>
 <div id="rinfo" class="rinfo" hidden></div>
-<div id="rsearch" class="rinfo search-panel" hidden><input id="rsearchInput" type="search" placeholder="Search shows or movies…" oninput="doSearch()" aria-label="Search shows or movies"><div id="rsearchResults" class="search-results"></div></div>
+<div id="rsearch" class="rinfo search-panel" hidden><input id="rsearchInput" type="search" placeholder="{{ _('Search shows or movies…') }}" oninput="doSearch()" aria-label="{{ _('Search shows or movies') }}"><div id="rsearchResults" class="search-results"></div></div>
 <div id="rreminders" class="rinfo" hidden><div id="rreminderList"></div></div>
 <div id="rpair" class="rinfo pair-panel" hidden>
-<h3>📱 PAIR COMPANION APP</h3>
-<p class="hint">Enter this 6-digit code in the Retro TV Android companion app to pair this receiver:</p>
+<h3>{{ _('📱 PAIR COMPANION APP') }}</h3>
+<p class="hint">{{ _('Enter this 6-digit code in the Retro TV Android companion app to pair this receiver:') }}</p>
 <div class="pair-code-display" id="pairCodeDisplay">------</div>
 <div class="pair-countdown" id="pairCountdown"></div>
 <div class="btnrow" style="margin-top:10px">
-<button class="ghost" onclick="generateNewPairCode()">↻ NEW CODE</button>
-<button class="ghost" onclick="togglePairModal()">CLOSE</button>
+<button class="ghost" onclick="generateNewPairCode()">{{ _('↻ NEW CODE') }}</button>
+<button class="ghost" onclick="togglePairModal()">{{ _('CLOSE') }}</button>
 </div>
 <div id="pairedDevicesList" style="margin-top:14px"></div>
 </div>
-<div class="rocker-row"><div class="rocker"><button onclick="volStep(5)" aria-label="Volume up">+</button><span>VOL</span><button onclick="volStep(-5)" aria-label="Volume down">−</button></div><div class="remote-center"><span class="cable-seal">CABLE<br><b>TV</b></span><button id="muteButton" class="ghost" aria-pressed="false" onclick="muteToggle()">MUTE</button></div><div class="rocker"><button onclick="chStep(1)" aria-label="Channel up">+</button><span>CH</span><button onclick="chStep(-1)" aria-label="Channel down">−</button></div></div>
-<div class="rgrid" id="digits" aria-label="Channel number keypad"></div>
-<div class="rrow"><button id="pauseButton" class="ghost" onclick="pauseToggle()">Ⅱ PAUSE</button><button class="ghost" onclick="goLive()">● LIVE TV</button></div>
-<div class="rrow"><button id="ccButton" class="ghost" aria-pressed="false" onclick="ccToggle()">CC OFF</button><button class="ghost" onclick="toggleSearch()">🔍 FIND</button><button class="ghost" onclick="toggleReminders()">🔔 REMINDERS</button><button class="ghost" onclick="togglePairModal()">📱 PAIR</button></div>
-<p class="remote-footnote">RT-04 · LIVING ROOM RECEIVER</p>
-</section><section class="remote-lineup"><p class="eyebrow">ONE REMOTE. ALL YOUR FAVORITES.</p><h1>Take control.</h1><p class="explain">Choose a channel. Settle into the sofa.<br>Every button controls your television.</p>
-<div class="lineup-toolbar"><h2 class="section-label">QUICK TUNE</h2><button id="favToggle" class="ghost" onclick="toggleFavFilter()" aria-pressed="false">★ Favorites</button></div>
+<div class="rocker-row"><div class="rocker"><button onclick="volStep(5)" aria-label="{{ _('Volume up') }}">+</button><span>{{ _('VOL') }}</span><button onclick="volStep(-5)" aria-label="{{ _('Volume down') }}">−</button></div><div class="remote-center"><span class="cable-seal">CABLE<br><b>TV</b></span><button id="muteButton" class="ghost" aria-pressed="false" onclick="muteToggle()">{{ _('MUTE') }}</button></div><div class="rocker"><button onclick="chStep(1)" aria-label="{{ _('Channel up') }}">+</button><span>{{ _('CH') }}</span><button onclick="chStep(-1)" aria-label="{{ _('Channel down') }}">−</button></div></div>
+<div class="rgrid" id="digits" aria-label="{{ _('Channel number keypad') }}"></div>
+<div class="rrow"><button id="pauseButton" class="ghost" onclick="pauseToggle()">{{ _('Ⅱ PAUSE') }}</button><button class="ghost" onclick="goLive()">{{ _('● LIVE TV') }}</button></div>
+<div class="rrow"><button id="ccButton" class="ghost" aria-pressed="false" onclick="ccToggle()">{{ _('CC OFF') }}</button><button class="ghost" onclick="toggleSearch()">{{ _('🔍 FIND') }}</button><button class="ghost" onclick="toggleReminders()">{{ _('🔔 REMINDERS') }}</button><button class="ghost" onclick="togglePairModal()">{{ _('📱 PAIR') }}</button></div>
+<p class="remote-footnote">{{ _('RT-04 · LIVING ROOM RECEIVER') }}</p>
+</section><section class="remote-lineup"><p class="eyebrow">{{ _('ONE REMOTE. ALL YOUR FAVORITES.') }}</p><h1>{{ _('Take control.') }}</h1><p class="explain">{{ _('Choose a channel. Settle into the sofa.') }}<br>{{ _('Every button controls your television.') }}</p>
+<div class="lineup-toolbar"><h2 class="section-label">{{ _('QUICK TUNE') }}</h2><button id="favToggle" class="ghost" onclick="toggleFavFilter()" aria-pressed="false">{{ _('★ Favorites') }}</button></div>
 <div class="channel-list" id="chlist"></div></section></div>
 {% endblock %}
 {% block js %}<script src="/static/js/remote.js?v=12"></script>{% endblock %}

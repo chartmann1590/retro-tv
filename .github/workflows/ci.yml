@@ -32,6 +32,22 @@ jobs:
       - name: Syntax check
         run: python -m py_compile *.py scripts/*.py tests/*.py
 
+      - name: JavaScript syntax check
+        run: |
+          for file in static/js/*.js; do node --check "$file"; done
+
+      - name: Validate gettext extraction and POT coverage
+        run: |
+          pybabel extract -F babel.cfg -o /tmp/retro-tv-extracted.pot .
+          python scripts/check_i18n_catalog.py /tmp/retro-tv-extracted.pot translations/messages.pot
+
+      - name: Compile gettext catalogs
+        run: pybabel compile -d translations
+
+      - name: Parse Jinja templates
+        run: |
+          python -c "from jinja2 import Environment, FileSystemLoader; env = Environment(loader=FileSystemLoader('templates'), extensions=['jinja2.ext.i18n']); [env.get_template(name) for name in env.list_templates()]"
+
       - name: Shell syntax check
         run: bash -n scripts/install.sh scripts/kiosk.sh
 

@@ -15,10 +15,10 @@ async function initPlayer(ch,off,wantFS,vod){
     if(wantFS&&document.documentElement.requestFullscreen)document.documentElement.requestFullscreen().catch(()=>{});
     return;
   }
-  if(CH==null){document.getElementById('now').textContent='No channels configured.';return;}
+  if(CH==null){document.getElementById('now').textContent=gettext('No channels configured.');return;}
   v.addEventListener('loadedmetadata',()=>{v.play().then(()=>{document.getElementById('playPrompt').hidden=true;}).catch(()=>{document.getElementById('playPrompt').hidden=false;});});
   v.addEventListener('ended',()=>syncInfo(true));
-  v.addEventListener('error',()=>notify('This show could not be streamed. Try another channel.'));
+  v.addEventListener('error',()=>notify(gettext('This show could not be streamed. Try another channel.')));
   setupWatchControls();
   if(wantFS&&document.documentElement.requestFullscreen)document.documentElement.requestFullscreen().catch(()=>{});
   await syncInfo();setInterval(()=>syncInfo(),5000);
@@ -26,8 +26,8 @@ async function initPlayer(ch,off,wantFS,vod){
   document.addEventListener('keydown',e=>{if(e.key==='ArrowUp'){e.preventDefault();step(1);}else if(e.key==='ArrowDown'){e.preventDefault();step(-1);}else if(e.key.toLowerCase()==='g')location.href='/guide';});
 }
 function goFS(){const v=document.getElementById('v'),target=document.getElementById('tvwrap');if(target.requestFullscreen)target.requestFullscreen().catch(()=>{});else if(v.webkitEnterFullscreen)v.webkitEnterFullscreen();v.play().then(()=>{document.getElementById('playPrompt').hidden=true;}).catch(()=>{document.getElementById('playPrompt').hidden=false;});}
-async function playOnTV(){if(CH==null)return;await tvApi('/api/tune',{channel:CH});notify(`Channel ${CH} is playing on your TV.`);}
-async function playVodOnTV(id){await tvApi('/api/vod/play',{media_id:id});notify('Playing on your living-room TV.');}
+async function playOnTV(){if(CH==null)return;await tvApi('/api/tune',{channel:CH});notify(gettext('Channel %(channel)s is playing on your TV.',{channel:CH}));}
+async function playVodOnTV(id){await tvApi('/api/vod/play',{media_id:id});notify(gettext('Playing on your living-room TV.'));}
 async function syncInfo(force=false){
   if(updating||CH==null||document.hidden)return;updating=true;
   try{
@@ -46,7 +46,7 @@ async function syncInfo(force=false){
   }catch(e){notify(e.message);}finally{updating=false;}
 }
 async function step(d){const j=await tvApi('/api/channels'),n=j.channels.filter(c=>c.enabled).map(c=>c.number);if(n.length)location.href='/watch/'+n[(n.indexOf(CH)+d+n.length)%n.length];}
-function toggleMute(){const v=document.getElementById('v');v.muted=!v.muted;document.getElementById('watchMute').textContent=v.muted?'UNMUTE':'MUTE';}
+function toggleMute(){const v=document.getElementById('v');v.muted=!v.muted;document.getElementById('watchMute').textContent=v.muted?gettext('UNMUTE'):gettext('MUTE');}
 
 let watchHideTimer;
 function showWatchControls(){const w=document.getElementById('tvwrap');w.classList.add('controls-visible');clearTimeout(watchHideTimer);watchHideTimer=setTimeout(()=>{if(!document.getElementById('v').paused)w.classList.remove('controls-visible');},3000);}
@@ -55,10 +55,10 @@ function setupWatchControls(){
   w.addEventListener('pointermove',showWatchControls);
   w.addEventListener('pointerdown',showWatchControls);
   w.addEventListener('focusin',showWatchControls);
-  v.addEventListener('pause',()=>{showWatchControls();document.getElementById('watchPause').textContent='▶ PLAY';});
-  v.addEventListener('play',()=>{showWatchControls();document.getElementById('watchPause').textContent='Ⅱ PAUSE';});
+  v.addEventListener('pause',()=>{showWatchControls();document.getElementById('watchPause').textContent=gettext('▶ PLAY');});
+  v.addEventListener('play',()=>{showWatchControls();document.getElementById('watchPause').textContent=gettext('Ⅱ PAUSE');});
   document.addEventListener('keydown',e=>{showWatchControls();if(e.key===' '&&e.target===w){e.preventDefault();togglePause();}else if(e.key.toLowerCase()==='f')goFS();});
   showWatchControls();
 }
 function togglePause(){const v=document.getElementById('v');if(v.paused)startWatching();else v.pause();}
-function startWatching(){const v=document.getElementById('v');v.play().then(()=>{document.getElementById('playPrompt').hidden=true;showWatchControls();}).catch(()=>notify('Playback could not start. Try another channel.'));goFS();}
+function startWatching(){const v=document.getElementById('v');v.play().then(()=>{document.getElementById('playPrompt').hidden=true;showWatchControls();}).catch(()=>notify(gettext('Playback could not start. Try another channel.')));goFS();}

@@ -85,7 +85,7 @@ async function loadScores() {
   } catch (err) {
     console.error('Failed to load sports scores:', err);
     document.getElementById('sportsRowsContainer').innerHTML = 
-      '<div class="sports-error-state"><p>Could not connect to ArenaPulse sports radar. Please check service connection.</p></div>';
+      `<div class="sports-error-state"><p>${esc(gettext("Could not connect to ArenaPulse sports radar. Please check service connection."))}</p></div>`;
   }
 }
 
@@ -102,7 +102,7 @@ async function loadNews() {
 function renderDashboard() {
   if (!ALL_GAMES.length) {
     document.getElementById('sportsRowsContainer').innerHTML = 
-      '<div class="sports-empty-state"><p>No live or scheduled games found right now.</p></div>';
+      `<div class="sports-empty-state"><p>${esc(gettext("No live or scheduled games found right now."))}</p></div>`;
     return;
   }
 
@@ -260,7 +260,7 @@ async function setBillboardGame(g) {
   const isLive = !!status.isLive;
   const isFinal = !!status.isFinal;
 
-  document.getElementById('billboardAwayName').textContent = away.displayName || 'Away Team';
+  document.getElementById('billboardAwayName').textContent = away.displayName || gettext('Away Team');
   document.getElementById('billboardAwayRec').textContent = away.recordSummary ? `(${away.recordSummary})` : '';
   document.getElementById('billboardAwayScore').textContent = (isLive || isFinal) ? away.score : '--';
   if (away.logo) {
@@ -269,7 +269,7 @@ async function setBillboardGame(g) {
     el.style.display = 'inline-block';
   }
 
-  document.getElementById('billboardHomeName').textContent = home.displayName || 'Home Team';
+  document.getElementById('billboardHomeName').textContent = home.displayName || gettext('Home Team');
   document.getElementById('billboardHomeRec').textContent = home.recordSummary ? `(${home.recordSummary})` : '';
   document.getElementById('billboardHomeScore').textContent = (isLive || isFinal) ? home.score : '--';
   if (home.logo) {
@@ -278,9 +278,9 @@ async function setBillboardGame(g) {
     el.style.display = 'inline-block';
   }
 
-  document.getElementById('billboardLeague').textContent = (g.leagueName || g.league || 'SPORTS').toUpperCase();
-  document.getElementById('billboardStatus').textContent = status.detail || (isLive ? 'Live' : 'Today');
-  document.getElementById('billboardBroadcast').textContent = g.broadcasts?.[0] ? `TV: ${g.broadcasts.join(', ')}` : 'ESPN';
+  document.getElementById('billboardLeague').textContent = (g.leagueName || g.league || gettext('SPORTS')).toUpperCase();
+  document.getElementById('billboardStatus').textContent = status.detail || (isLive ? gettext('Live') : gettext('Today'));
+  document.getElementById('billboardBroadcast').textContent = g.broadcasts?.[0] ? `TV: ${g.broadcasts.join(', ')}` : gettext('ESPN');
   document.getElementById('billboardOdds').textContent = g.odds?.details ? `Spread: ${g.odds.details}` : '';
 
   // Description
@@ -289,19 +289,19 @@ async function setBillboardGame(g) {
   if (g.venue?.city) descParts.push(`${g.venue.city}, ${g.venue.state || ''}`);
   if (g.weather?.temperature) descParts.push(`Weather: ${g.weather.temperature}°F ${g.weather.condition || ''}`);
   if (isLive && status.displayClock) descParts.push(`Clock: ${status.displayClock}`);
-  document.getElementById('billboardDesc').textContent = descParts.join(' • ') || 'Live matchup telemetry and play-by-play.';
+  document.getElementById('billboardDesc').textContent = descParts.join(' • ') || gettext('Live matchup telemetry and play-by-play.');
 
   // Status tag
   const tagEl = document.getElementById('billboardTag');
   if (isLive) {
     tagEl.className = 'sports-billboard-tag live-tag';
-    tagEl.textContent = '● LIVE ACTION ON FIELD';
+    tagEl.textContent = gettext('● LIVE ACTION ON FIELD');
   } else if (isFinal) {
     tagEl.className = 'sports-billboard-tag';
-    tagEl.textContent = '🏆 FINAL MATCH RESULT';
+    tagEl.textContent = gettext('🏆 FINAL MATCH RESULT');
   } else {
     tagEl.className = 'sports-billboard-tag';
-    tagEl.textContent = '★ FEATURED MATCHUP';
+    tagEl.textContent = gettext('★ FEATURED MATCHUP');
   }
 
   // Load gameplay field SVG
@@ -317,10 +317,10 @@ async function loadBillboardField(g) {
     const data = await res.json();
     if (data.svg) {
       frame.innerHTML = data.svg;
-      statusEl.textContent = data.downDistance || data.situation || 'FIELD RADAR ACTIVE';
+      statusEl.textContent = data.downDistance || data.situation || gettext('FIELD RADAR ACTIVE');
     }
   } catch (err) {
-    frame.innerHTML = '<div class="sports-field-placeholder">Gameplay field radar ready</div>';
+    frame.innerHTML = `<div class="sports-field-placeholder">${esc(gettext("Gameplay field radar ready"))}</div>`;
   }
 }
 
@@ -379,7 +379,7 @@ function renderNewsGrid() {
   const grid = document.getElementById('sportsNewsGrid');
   document.getElementById('sportsNewsCount').textContent = ALL_NEWS.length;
   if (!ALL_NEWS.length) {
-    grid.innerHTML = '<p class="hint">No news articles fetched yet.</p>';
+    grid.innerHTML = `<p class="hint">${esc(gettext("No news articles fetched yet."))}</p>`;
     return;
   }
   grid.innerHTML = ALL_NEWS.map(art => `
@@ -442,7 +442,7 @@ function executeSearch(query) {
 
   countEl.textContent = matches.length;
   if (!matches.length) {
-    grid.innerHTML = '<p class="hint">No games found matching your search.</p>';
+    grid.innerHTML = `<p class="hint">${esc(gettext("No games found matching your search."))}</p>`;
     return;
   }
   grid.innerHTML = matches.map(g => renderGameCardHtml(g)).join('');
@@ -475,11 +475,11 @@ async function openGameModal(league, gameId) {
   const isLive = !!status.isLive;
   const isFinal = !!status.isFinal;
 
-  document.getElementById('modalLeague').textContent = (game.leagueName || game.league || 'LEAGUE').toUpperCase();
-  document.getElementById('modalGameTitle').textContent = `${away.displayName || 'Away'} @ ${home.displayName || 'Home'}`;
-  document.getElementById('modalGameClock').textContent = status.detail || 'Scheduled';
+  document.getElementById('modalLeague').textContent = (game.leagueName || game.league || gettext('LEAGUE')).toUpperCase();
+  document.getElementById('modalGameTitle').textContent = `${away.displayName || gettext('Away')} @ ${home.displayName || gettext('Home')}`;
+  document.getElementById('modalGameClock').textContent = status.detail || gettext('Scheduled');
 
-  document.getElementById('modalAwayName').textContent = away.shortDisplayName || away.abbreviation || 'Away';
+  document.getElementById('modalAwayName').textContent = away.shortDisplayName || away.abbreviation || gettext('Away');
   document.getElementById('modalAwayScore').textContent = (isLive || isFinal) ? away.score : '--';
   if (away.logo) {
     const el = document.getElementById('modalAwayLogo');
@@ -487,7 +487,7 @@ async function openGameModal(league, gameId) {
     el.style.display = 'inline-block';
   }
 
-  document.getElementById('modalHomeName').textContent = home.shortDisplayName || home.abbreviation || 'Home';
+  document.getElementById('modalHomeName').textContent = home.shortDisplayName || home.abbreviation || gettext('Home');
   document.getElementById('modalHomeScore').textContent = (isLive || isFinal) ? home.score : '--';
   if (home.logo) {
     const el = document.getElementById('modalHomeLogo');
@@ -496,9 +496,9 @@ async function openGameModal(league, gameId) {
   }
 
   // Info tab fields
-  document.getElementById('modalVenue').textContent = `${game.venue?.name || 'Stadium'}, ${game.venue?.city || ''}`;
-  document.getElementById('modalWeather').textContent = game.weather ? `${game.weather.temperature}°F, ${game.weather.condition || ''}` : 'Dome / Weather N/A';
-  document.getElementById('modalOdds').textContent = game.odds ? `${game.odds.details || ''} (O/U: ${game.odds.overUnder || 'N/A'})` : 'No betting lines';
+  document.getElementById('modalVenue').textContent = `${game.venue?.name || gettext('Stadium')}, ${game.venue?.city || ''}`;
+  document.getElementById('modalWeather').textContent = game.weather ? `${game.weather.temperature}°F, ${game.weather.condition || ''}` : gettext('Dome / Weather N/A');
+  document.getElementById('modalOdds').textContent = game.odds ? `${game.odds.details || ''} (O/U: ${game.odds.overUnder || gettext('N/A')})` : gettext('No betting lines');
   document.getElementById('modalBroadcast').textContent = (game.broadcasts || ['TV']).join(', ');
 
   // Fetch full game details (plays, boxscore, field)
@@ -664,7 +664,7 @@ async function playTTS(text, voice) {
     const audio = document.getElementById('ttsAudioPlayer');
     audio.src = audioUrl;
     audio.play();
-    notify('🔊 Playing Kokoro Announcer audio');
+    notify(gettext('🔊 Playing Kokoro Announcer audio'));
   } catch (err) {
     notify('Speech synthesis error: ' + err.message);
   }
@@ -714,9 +714,9 @@ async function openGameOnTV(game = null) {
     });
     const st = await res.json();
     if (st.visible) {
-      notify('📺 Sports Center opened on TV screen');
+      notify(gettext('📺 Sports Center opened on TV screen'));
     } else {
-      notify('Opened Sports on TV');
+      notify(gettext('Opened Sports on TV'));
     }
   } catch (err) {
     notify('TV error: ' + err.message);
@@ -736,7 +736,7 @@ async function tuneSportsChannel() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ channel: 38 })
     });
-    notify('📡 Tuned to Channel 38 Retro Sports');
+    notify(gettext('📡 Tuned to Channel 38 Retro Sports'));
   } catch (err) {
     notify('Tune error: ' + err.message);
   }

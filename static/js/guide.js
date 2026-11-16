@@ -28,9 +28,9 @@ async function fetchGuide(){
     }else{initialGuide=false;selectLive=false;}
     sel.r=Math.max(0,Math.min(sel.r,DATA.length-1));
     sel.c=Math.max(0,Math.min(sel.c,(DATA[sel.r]?.entries.length||1)-1));
-    document.getElementById('guideStatus').textContent=DATA.length?'Select a program · Tune it on your TV':(favOnly?'No favorite channels yet — set them in Setup.':'Select a program to see details');
+    document.getElementById('guideStatus').textContent=DATA.length?gettext('Select a program · Tune it on your TV'):(favOnly?gettext('No favorite channels yet — set them in Setup.'):gettext('Select a program to see details'));
     render();
-  }catch(e){document.getElementById('guideStatus').textContent='Connection lost. Retrying…';}
+  }catch(e){document.getElementById('guideStatus').textContent=gettext('Connection lost. Retrying…');}
 }
 
 // ---------- search ----------
@@ -43,9 +43,9 @@ async function runGuideSearch(){
   try{
     const r=await tvApi('/api/guide/search?q='+encodeURIComponent(q));
     guideSearchResults=r.results||[];
-    box.innerHTML=guideSearchResults.map((e,i)=>`<div class="search-hit" onclick="pickGuideSearch(${i})"><b>CH ${String(e.channel_number).padStart(2,'0')}</b>${esc(e.title)} ${esc(e.subtitle||'')} <span class="hint">${e.is_live?'ON NOW':'at '+esc(e.start_fmt)}</span></div>`).join('')||'<div class="search-hit hint">No matches.</div>';
+    box.innerHTML=guideSearchResults.map((e,i)=>`<div class="search-hit" onclick="pickGuideSearch(${i})"><b>CH ${String(e.channel_number).padStart(2,'0')}</b>${esc(e.title)} ${esc(e.subtitle||'')} <span class="hint">${e.is_live?'ON NOW':'at '+esc(e.start_fmt)}</span></div>`).join('')||`<div class="search-hit hint">${esc(gettext('No matches.'))}</div>`;
     box.hidden=false;
-  }catch(err){box.innerHTML='<div class="search-hit hint">Search unavailable.</div>';box.hidden=false;}
+  }catch(err){box.innerHTML=`<div class="search-hit hint">${esc(gettext('Search unavailable.'))}</div>`;box.hidden=false;}
 }
 function pickGuideSearch(i){
   const e=guideSearchResults[i];if(!e)return;
@@ -83,7 +83,7 @@ function render(){
     if(now()>=T0&&now()<T0+H*3600)html+=`<span class="now-line" style="left:${(now()-T0)*SCALE}px" aria-hidden="true"></span>`;
     html+='</div></div>';
   });
-  grid.innerHTML=DATA.length?html:'<p class="empty-state">No channels yet. Add your lineup in Setup.</p>';
+  grid.innerHTML=DATA.length?html:`<p class="empty-state">${esc(gettext('No channels yet. Add your lineup in Setup.'))}</p>`;
   showDetail();
 }
 function pick(r,c){sel={r,c};document.querySelectorAll('.gcell').forEach(b=>{const selected=+b.dataset.r===r&&+b.dataset.c===c;b.classList.toggle('sel',selected);b.setAttribute('aria-pressed',String(selected));});showDetail();}
@@ -97,7 +97,7 @@ function showDetail(){
   clearTimeout(overlayTimer);
   if(tvGuideVisible)overlayTimer=setTimeout(syncTVGuide,120);
   const {row,e}=curSel();
-  if(!e){document.getElementById('dTitle').textContent='No programs in this time window';document.getElementById('dBody').textContent='Try Now or choose another channel.';document.getElementById('dActions').innerHTML='';document.getElementById('dArt').hidden=true;return;}
+  if(!e){document.getElementById('dTitle').textContent=gettext('No programs in this time window');document.getElementById('dBody').textContent=gettext('Try Now or choose another channel.');document.getElementById('dActions').innerHTML='';document.getElementById('dArt').hidden=true;return;}
   document.getElementById('dMeta').textContent=`CHANNEL ${row.channel.number} · ${tvTime(e.start_ts)} – ${tvTime(e.end_ts)}${isLive(e)?' · ON NOW':''}`;
   document.getElementById('dTitle').textContent=e.title;
   const art=document.getElementById('dArt');
@@ -119,8 +119,8 @@ function showDetail(){
 async function remindMe(id,btn){
   try{
     await tvApi('/api/reminders',{entry_id:id});
-    btn.textContent='⏰ Reminder set';btn.disabled=true;
-    notify('We’ll flash it on the TV — and push to your phone, if Gotify is set up in Settings — a couple minutes before it starts.');
+    btn.textContent=gettext('⏰ Reminder set');btn.disabled=true;
+    notify(gettext("We’ll flash it on the TV — and push to your phone, if Gotify is set up in Settings — a couple minutes before it starts."));
   }catch(err){notify(err.message);}
 }
 async function playOnTV(){const {row,e}=curSel();if(!e||!isLive(e)||e.kind==='slate')return;await tvApi('/api/tune',{channel:row.channel.number});tvGuideVisible=false;guideControls();notify(`TV tuned to ${row.channel.number} · ${row.channel.name}`);}
@@ -134,7 +134,7 @@ document.addEventListener('keydown',e=>{
 document.getElementById('guideZone').textContent=window.TV_TIMEZONE;
 fetchGuide();setInterval(()=>{if(!document.hidden)fetchGuide();},30000);document.addEventListener('visibilitychange',()=>{if(!document.hidden)fetchGuide();});
 
-function guideControls(){document.getElementById('tvGuideToggle').textContent=tvGuideVisible?'Close TV guide':'Show on TV';document.getElementById('guidePad').hidden=!tvGuideVisible;}
+function guideControls(){document.getElementById('tvGuideToggle').textContent=tvGuideVisible?gettext('Close TV guide'):gettext('Show on TV');document.getElementById('guidePad').hidden=!tvGuideVisible;}
 async function syncTVGuide(){const {row,e}=curSel();if(!tvGuideVisible||!row)return;try{await tvApi('/api/tv-guide',{channel:row.channel.number,entry_id:e?.id,start:T0});}catch(err){tvGuideVisible=false;guideControls();notify(err.message);}}
 async function toggleTVGuide(){if(tvGuideVisible){await tvApi('/api/tv-guide',{action:'close'});tvGuideVisible=false;}else{tvGuideVisible=true;await syncTVGuide();}guideControls();}
 guideControls();

@@ -1,14 +1,16 @@
 'use strict';
+function gettext(message, values={}){const text=(window.TV_TRANSLATIONS||{})[message]||message;return text.replace(/%\((\w+)\)s/g,(match,key)=>Object.hasOwn(values,key)?String(values[key]):match);}
+
 function esc(s){return String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
-function tvTime(ts){return new Date(ts*1000).toLocaleTimeString('en-US',{timeZone:window.TV_TIMEZONE,hour:'numeric',minute:'2-digit'});}
+function tvTime(ts){return new Date(ts*1000).toLocaleTimeString(window.TV_LANGUAGE||'en-US',{timeZone:window.TV_TIMEZONE,hour:'numeric',minute:'2-digit'});}
 function notify(message){const n=document.getElementById('notice');n.textContent=message;n.hidden=false;clearTimeout(window.noticeTimer);window.noticeTimer=setTimeout(()=>n.hidden=true,4500);}
 async function tvApi(path,data){
   const response=await fetch(path,{cache:'no-store',signal:AbortSignal.timeout(12000),...(data===undefined?{}:{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(data)})});
   const result=await response.json();
-  if(!response.ok||result.ok===false)throw new Error(result.error||'The receiver could not complete that request.');
+  if(!response.ok||result.ok===false)throw new Error(result.error||gettext('The receiver could not complete that request.'));
   return result;
 }
-function clockTick(){document.getElementById('clock').textContent=new Date().toLocaleString('en-US',{timeZone:window.TV_TIMEZONE,weekday:'short',hour:'numeric',minute:'2-digit'});}
+function clockTick(){document.getElementById('clock').textContent=new Date().toLocaleString(window.TV_LANGUAGE||'en-US',{timeZone:window.TV_TIMEZONE,weekday:'short',hour:'numeric',minute:'2-digit'});}
 clockTick();setInterval(()=>{if(!document.hidden)clockTick();},15000);
 
 // Physical remotes (2.4GHz air mice etc.) present as USB HID keyboards; Setup ->
@@ -26,7 +28,7 @@ document.addEventListener('keydown',e=>{
   else if(action==='MENU'&&!location.pathname.startsWith('/guide')){e.preventDefault();location.href='/guide';}
   else if(action==='BACK'&&location.pathname!=='/'){e.preventDefault();location.href='/';}
 });
-window.addEventListener('unhandledrejection',e=>{notify(e.reason?.message||'Connection lost. Check your Wi-Fi and try again.');e.preventDefault();});
+window.addEventListener('unhandledrejection',e=>{notify(e.reason?.message||gettext('Connection lost. Check your Wi-Fi and try again.'));e.preventDefault();});
 
 // Favorite-channel "starting soon" toast, polled from every page so it fires
 // wherever the viewer happens to have a tab open (phone remote, guide, etc.).
@@ -38,7 +40,7 @@ async function checkFavAlerts(){
       if(_alertedFavIds.has(e.id))continue;
       _alertedFavIds.add(e.id);
       const mins=Math.max(1,Math.round((e.start_ts-Date.now()/1000)/60));
-      notify(`★ ${e.title} starts in ${mins} min on CH ${String(e.channel_number).padStart(2,'0')}${e.channel_name?' · '+e.channel_name:''}`);
+      notify(gettext('★ %(title)s starts in %(minutes)s min on CH %(channel)s%(name)s',{title:e.title,minutes:mins,channel:String(e.channel_number).padStart(2,'0'),name:e.channel_name?' · '+e.channel_name:''}));
     }
   }catch(e){/* best-effort; a missed poll just tries again next cycle */}
 }
@@ -72,7 +74,7 @@ async function reminderTuneNow(){
   if(_reminderChannel==null)return;
   const ch=_reminderChannel;
   dismissReminderBanner();
-  try{await tvApi('/api/tune',{channel:ch});notify(`Tuned to CH ${ch}`);}catch(e){notify(e.message);}
+  try{await tvApi('/api/tune',{channel:ch});notify(gettext('Tuned to CH %(channel)s',{channel:ch}));}catch(e){notify(e.message);}
 }
 checkReminders();setInterval(()=>{if(!document.hidden)checkReminders();},15000);
 
